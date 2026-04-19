@@ -18,8 +18,21 @@ from tree_sitter import Language, Node, Parser
 import src.config as cfg
 from .models import LLMCallSite, ModelConfig, PromptTemplate
 
-_TS_LANGUAGE = Language(ts_ts.language_typescript())
-_TSX_LANGUAGE = Language(ts_ts.language_tsx())
+# Lazily initialized to avoid crashing at import time if the tree-sitter C extension
+# has a version mismatch with the tree-sitter-typescript binding.
+_TS_LANGUAGE: Language | None = None
+_TSX_LANGUAGE: Language | None = None
+
+
+def _get_language(tsx: bool = False) -> Language:
+    global _TS_LANGUAGE, _TSX_LANGUAGE
+    if tsx:
+        if _TSX_LANGUAGE is None:
+            _TSX_LANGUAGE = Language(ts_ts.language_tsx())
+        return _TSX_LANGUAGE
+    if _TS_LANGUAGE is None:
+        _TS_LANGUAGE = Language(ts_ts.language_typescript())
+    return _TS_LANGUAGE
 
 # Loaded from config to allow override via env vars
 _FETCH_URL_TO_SDK: list[tuple[str, str]] = cfg.LLM_FETCH_URL_PATTERNS
@@ -365,7 +378,7 @@ def _analyze_file(file_path: str, source: bytes, language: Language) -> FileAnal
 
 def analyze_file(file_path: str, source_code: bytes) -> FileAnalysis:
     """Analyze a single TypeScript or TSX file. Returns call sites + model configs."""
-    lang = _TSX_LANGUAGE if file_path.endswith(".tsx") else _TS_LANGUAGE
+    lang = _get_language(tsx=file_path.endswith(".tsx"))
     return _analyze_file(file_path, source_code, lang)
 
 
