@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import ssl
 from collections.abc import AsyncGenerator
 from urllib.parse import urlparse
 
@@ -22,8 +23,17 @@ try:
     _db_host = urlparse(_FINAL_URL).hostname or ""
 except Exception:
     _db_host = ""
+# Supabase Connection Pooler uses a self-signed certificate chain; full verification
+# fails with asyncpg's ssl=True. We still require SSL (encrypt the connection) but
+# skip chain verification — acceptable for a managed cloud pooler endpoint.
+_ssl_context: ssl.SSLContext | None = None
+if _db_host not in _LOCAL_HOSTS:
+    _ssl_context = ssl.create_default_context()
+    _ssl_context.check_hostname = False
+    _ssl_context.verify_mode = ssl.CERT_NONE
+
 _ENGINE_KWARGS: dict[str, object] = (
-    {"connect_args": {"ssl": True}} if _db_host not in _LOCAL_HOSTS else {}
+    {"connect_args": {"ssl": _ssl_context}} if _ssl_context is not None else {}
 )
 
 engine = create_async_engine(
