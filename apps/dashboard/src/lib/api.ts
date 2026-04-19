@@ -1,13 +1,14 @@
 /**
  * Server-side fetch helper for Verum API.
  *
- * All calls go through server components / server actions so the JWT never
- * reaches the browser. CORS is not needed as a result.
+ * FastAPI lives on Railway's internal network and is not reachable from the
+ * public internet. This helper runs only in server components/actions, so the
+ * shared INTERNAL token never leaves the dashboard server process.
  */
-import { encode } from "next-auth/jwt";
 import { auth } from "@/auth";
 
 const API_URL = process.env.VERUM_API_URL ?? "http://localhost:8000";
+const INTERNAL_TOKEN = process.env.VERUM_INTERNAL_API_TOKEN ?? "";
 
 export class ApiError extends Error {
   constructor(
@@ -18,38 +19,26 @@ export class ApiError extends Error {
   }
 }
 
-async function getBearer(): Promise<string> {
-  const session = await auth();
-  if (!session?.user) throw new ApiError(401, "Not authenticated");
-
-  // Re-encode the session claims as a JWE that FastAPI can verify with
-  // the same NEXTAUTH_SECRET / AUTH_SECRET.
-  const token = await encode({
-    token: {
-      sub: (session.user as { id?: string }).id ?? "",
-      name: session.user.name ?? null,
-      email: session.user.email ?? null,
-      picture: session.user.image ?? null,
-      github_login:
-        (session.user as { github_login?: string }).github_login ?? null,
-    },
-    secret: process.env.AUTH_SECRET!,
-    salt: "authjs.session-token",
-  });
-  return token;
-}
-
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const bearer = await getBearer();
+  const session = await auth();
+  if (!session?.user) throw new ApiError(401, "Not authenticated");
+
+  const u = session.user as Record<string, unknown>;
+  const userId = String(u.id ?? "");
+  if (!userId) throw new ApiError(401, "Session missing user id");
+
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "X-Verum-Internal-Token": INTERNAL_TOKEN,
+      "X-Verum-User-Id": userId,
+      "X-Verum-User-Login": String(u.github_login ?? ""),
+      "X-Verum-User-Email": session.user.email ?? "",
       ...init.headers,
-      Authorization: `Bearer ${bearer}`,
     },
     cache: "no-store",
   });

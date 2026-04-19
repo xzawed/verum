@@ -11,13 +11,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, profile }) {
       if (profile) {
-        // Persist GitHub numeric ID and login into the token so FastAPI can
-        // use them for user lookup without an extra API call.
         token.sub = String((profile as { id?: number }).id ?? token.sub);
         (token as Record<string, unknown>).github_login =
           (profile as { login?: string }).login ?? null;
       }
       return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as Record<string, unknown>).id = token.sub;
+        (session.user as Record<string, unknown>).github_login =
+          (token as Record<string, unknown>).github_login ?? null;
+      }
+      return session;
     },
   },
 });

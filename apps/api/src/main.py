@@ -14,8 +14,8 @@ from src.loop.infer.router import router as infer_router
 logger = logging.getLogger(__name__)
 
 _VERUM_ENV = os.environ.get("VERUM_ENV", "development")
-if _VERUM_ENV == "production" and not os.environ.get("NEXTAUTH_SECRET"):
-    raise RuntimeError("NEXTAUTH_SECRET must be set in production")
+if _VERUM_ENV == "production" and not os.environ.get("VERUM_INTERNAL_API_TOKEN"):
+    raise RuntimeError("VERUM_INTERNAL_API_TOKEN must be set in production")
 
 app = FastAPI(title="Verum API", version="0.0.0")
 app.include_router(me_router)

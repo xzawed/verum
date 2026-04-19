@@ -1,6 +1,9 @@
-"""FastAPI dependency: resolve current authenticated user from Bearer token."""
+"""FastAPI dependency: resolve current user from headers set by the trusted
+Next.js proxy. FastAPI is only reachable on Railway's internal network, so
+the proxy is the only legitimate caller; the shared INTERNAL token enforces this."""
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -11,28 +14,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.users import User
 from src.db.session import get_db
-from .jwt_verifier import TokenVerificationError, verify_token
+
+
+def _expected_token() -> str:
+    token = os.environ.get("VERUM_INTERNAL_API_TOKEN")
+    if not token:
+        raise HTTPException(500, "VERUM_INTERNAL_API_TOKEN not configured on API")
+    return token
 
 
 async def get_current_user(
-    authorization: Annotated[str | None, Header()] = None,
+    x_verum_internal_token: Annotated[str | None, Header()] = None,
+    x_verum_user_id: Annotated[str | None, Header()] = None,
+    x_verum_user_login: Annotated[str | None, Header()] = None,
+    x_verum_user_email: Annotated[str | None, Header()] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = ...,  # type: ignore[assignment]
 ) -> User:
-    """Extract JWT from Authorization header, verify, and upsert the user row.
+    if x_verum_internal_token != _expected_token():
+        raise HTTPException(401, "Invalid or missing internal token")
+    if not x_verum_user_id or not x_verum_user_id.isdigit():
+        raise HTTPException(401, "Missing user identity")
 
-    On first login the user is created automatically. Subsequent calls update
-    last_login_at. Raises 401 on any auth failure.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-
-    token = authorization.removeprefix("Bearer ").strip()
-    try:
-        claims = verify_token(token)
-    except TokenVerificationError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-    github_id = int(claims.sub)
+    github_id = int(x_verum_user_id)
     user = (
         await db.execute(select(User).where(User.github_id == github_id))
     ).scalar_one_or_none()
@@ -42,9 +45,9 @@ async def get_current_user(
         user = User(
             id=uuid.uuid4(),
             github_id=github_id,
-            github_login=claims.github_login or claims.name or f"user-{github_id}",
-            email=claims.email,
-            avatar_url=claims.picture,
+            github_login=x_verum_user_login or f"user-{github_id}",
+            email=x_verum_user_email or None,
+            avatar_url=None,
             last_login_at=now,
         )
         db.add(user)
