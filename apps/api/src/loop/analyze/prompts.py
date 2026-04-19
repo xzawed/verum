@@ -19,13 +19,13 @@ from pathlib import Path
 import tree_sitter_typescript as ts_ts
 from tree_sitter import Language, Node, Parser
 
+import src.config as cfg
 from .models import LLMCallSite, PromptTemplate
 
 _TS_LANGUAGE = Language(ts_ts.language_typescript())
 _TSX_LANGUAGE = Language(ts_ts.language_tsx())
 
-# Minimum content length to consider a string a prompt candidate
-_MIN_PROMPT_LEN = 40
+_MIN_PROMPT_LEN = cfg.MIN_PROMPT_LEN
 
 # Regex for template variable placeholders
 _VAR_RE = re.compile(r"\$\{(\w+(?:\.\w+)*)\}|\{(\w+)\}")
@@ -68,7 +68,7 @@ def _detect_language(content: str) -> str:
     if hangul == 0:
         return "en"
     ratio = hangul / max(len(content), 1)
-    return "ko" if ratio >= 0.15 else "mixed"
+    return "ko" if ratio >= cfg.HANGUL_RATIO_THRESHOLD else "mixed"
 
 
 def _extract_variables(content: str) -> list[str]:

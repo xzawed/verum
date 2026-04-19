@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.session import get_db
@@ -65,34 +66,57 @@ async def start_infer(
     return InferStartResponse(inference_id=inference.id)
 
 
-@router.get("/infer/{inference_id}")
+class InferenceResponse(BaseModel):
+    status: str
+    inference_id: uuid.UUID
+    analysis_id: uuid.UUID | None = None
+    repo_id: uuid.UUID | None = None
+    domain: str | None = None
+    tone: str | None = None
+    language: str | None = None
+    user_type: str | None = None
+    confidence: float | None = None
+    summary: str | None = None
+    error: str | None = None
+    suggested_sources: list[SourceResponse] | None = None
+
+
+class InferenceSummary(BaseModel):
+    inference_id: uuid.UUID
+    status: str
+    domain: str | None
+    confidence: float | None
+    created_at: str | None
+
+
+@router.get("/infer/{inference_id}", response_model=InferenceResponse)
 async def get_infer_result(
     inference_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+) -> InferenceResponse:
     row = await get_inference(db, inference_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Inference not found")
 
     if row.status in ("pending", "running"):
-        return {"status": row.status, "inference_id": str(row.id)}
+        return InferenceResponse(status=row.status, inference_id=row.id)
 
     if row.status == "error":
-        return {"status": "error", "inference_id": str(row.id), "error": row.error}
+        return InferenceResponse(status="error", inference_id=row.id, error=row.error)
 
     sources = await get_harvest_sources(db, inference_id)
-    return {
-        "status": "done",
-        "inference_id": str(row.id),
-        "analysis_id": str(row.analysis_id),
-        "repo_id": str(row.repo_id),
-        "domain": row.domain,
-        "tone": row.tone,
-        "language": row.language,
-        "user_type": row.user_type,
-        "confidence": row.confidence,
-        "summary": row.summary,
-        "suggested_sources": [
+    return InferenceResponse(
+        status="done",
+        inference_id=row.id,
+        analysis_id=row.analysis_id,
+        repo_id=row.repo_id,
+        domain=row.domain,
+        tone=row.tone,
+        language=row.language,
+        user_type=row.user_type,
+        confidence=row.confidence,
+        summary=row.summary,
+        suggested_sources=[
             SourceResponse(
                 source_id=s.id,
                 url=s.url,
@@ -102,23 +126,23 @@ async def get_infer_result(
             )
             for s in sources
         ],
-    }
+    )
 
 
-@router.get("/analyses/{analysis_id}/inferences")
+@router.get("/analyses/{analysis_id}/inferences", response_model=list[InferenceSummary])
 async def list_inferences(
     analysis_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[dict]:
+) -> list[InferenceSummary]:
     rows = await list_analysis_inferences(db, analysis_id)
     return [
-        {
-            "inference_id": str(r.id),
-            "status": r.status,
-            "domain": r.domain,
-            "confidence": r.confidence,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        }
+        InferenceSummary(
+            inference_id=r.id,
+            status=r.status,
+            domain=r.domain,
+            confidence=r.confidence,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        )
         for r in rows
     ]
 
@@ -130,7 +154,7 @@ async def approve_harvest_source(
 ) -> SourceResponse:
     try:
         row = await approve_source(db, source_id)
-    except Exception:
+    except NoResultFound:
         raise HTTPException(status_code=404, detail="Source not found")
     return SourceResponse(
         source_id=row.id,
@@ -148,7 +172,7 @@ async def reject_harvest_source(
 ) -> SourceResponse:
     try:
         row = await reject_source(db, source_id)
-    except Exception:
+    except NoResultFound:
         raise HTTPException(status_code=404, detail="Source not found")
     return SourceResponse(
         source_id=row.id,

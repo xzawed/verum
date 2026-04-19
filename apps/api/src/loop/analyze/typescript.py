@@ -15,30 +15,15 @@ from pathlib import Path
 import tree_sitter_typescript as ts_ts
 from tree_sitter import Language, Node, Parser
 
+import src.config as cfg
 from .models import LLMCallSite, ModelConfig, PromptTemplate
 
 _TS_LANGUAGE = Language(ts_ts.language_typescript())
 _TSX_LANGUAGE = Language(ts_ts.language_tsx())
 
-# --- Known LLM provider: (path fragment, sdk label) ----------------------
-# Matched against assembled URL text (template literals partially resolved).
-
-_FETCH_URL_TO_SDK: list[tuple[str, str]] = [
-    ("api.openai.com/v1/chat/completions", "openai"),
-    ("api.openai.com/v1/responses", "openai"),
-    ("api.anthropic.com/v1/messages", "anthropic"),
-    ("api.x.ai/v1/chat/completions", "grok"),
-    ("api.x.ai/v1/messages", "grok"),
-    ("generativelanguage.googleapis.com", "google-generativeai"),
-]
-
-# Path-suffix patterns — used when base URL is a variable (e.g. this.baseUrl)
-# Matched in order; first match wins.
-_PATH_SUFFIX_TO_CANDIDATE: list[tuple[str, list[str]]] = [
-    ("/v1/messages", ["anthropic"]),          # anthropic only uses /messages
-    ("/chat/completions", ["openai", "grok"]),  # ambiguous — resolve via class name
-    ("/v1/responses", ["openai"]),
-]
+# Loaded from config to allow override via env vars
+_FETCH_URL_TO_SDK: list[tuple[str, str]] = cfg.LLM_FETCH_URL_PATTERNS
+_PATH_SUFFIX_TO_CANDIDATE: list[tuple[str, list[str]]] = cfg.LLM_PATH_SUFFIX_PATTERNS
 
 # SDK import specifier → sdk label
 _SDK_IMPORT_PATTERNS: list[tuple[str, str]] = [

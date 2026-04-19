@@ -12,6 +12,7 @@ from typing import Annotated
 
 import typer
 
+from .models import AnalysisResult
 from .pipeline import run_analysis
 
 app = typer.Typer(add_completion=False)
@@ -27,7 +28,7 @@ def main(
     print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
 
 
-async def _run(repo_url: str, branch: str):  # type: ignore[return]
+async def _run(repo_url: str, branch: str) -> AnalysisResult:
     return await run_analysis(repo_url, branch=branch, repo_id=uuid.uuid4())
 
 

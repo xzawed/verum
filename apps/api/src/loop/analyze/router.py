@@ -65,32 +65,45 @@ async def start_analyze(
     return AnalyzeStartResponse(analysis_id=analysis.id)
 
 
-@router.get("/analyze/{analysis_id}")
+class AnalysisResponse(BaseModel):
+    status: str
+    analysis_id: uuid.UUID
+    started_at: str | None = None
+    error: str | None = None
+    repo_id: uuid.UUID | None = None
+    call_sites: list[object] | None = None
+    prompt_templates: list[object] | None = None
+    model_configs: list[object] | None = None
+    language_breakdown: dict[str, object] | None = None
+    analyzed_at: str | None = None
+
+
+@router.get("/analyze/{analysis_id}", response_model=AnalysisResponse)
 async def get_analyze_result(
     analysis_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+) -> AnalysisResponse:
     row = await get_analysis(db, analysis_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     if row.status in ("pending", "running"):
-        return {
-            "status": row.status,
-            "analysis_id": str(row.id),
-            "started_at": row.started_at.isoformat() if row.started_at else None,
-        }
+        return AnalysisResponse(
+            status=row.status,
+            analysis_id=row.id,
+            started_at=row.started_at.isoformat() if row.started_at else None,
+        )
     if row.status == "error":
-        return {"status": "error", "analysis_id": str(row.id), "error": row.error}
-    return {
-        "status": "done",
-        "analysis_id": str(row.id),
-        "repo_id": str(row.repo_id),
-        "call_sites": row.call_sites or [],
-        "prompt_templates": row.prompt_templates or [],
-        "model_configs": row.model_configs or [],
-        "language_breakdown": row.language_breakdown or {},
-        "analyzed_at": row.analyzed_at.isoformat() if row.analyzed_at else None,
-    }
+        return AnalysisResponse(status="error", analysis_id=row.id, error=row.error)
+    return AnalysisResponse(
+        status="done",
+        analysis_id=row.id,
+        repo_id=row.repo_id,
+        call_sites=row.call_sites or [],
+        prompt_templates=row.prompt_templates or [],
+        model_configs=row.model_configs or [],
+        language_breakdown=row.language_breakdown or {},
+        analyzed_at=row.analyzed_at.isoformat() if row.analyzed_at else None,
+    )
 
 
 @router.get("/repos/{repo_id}/analyses", response_model=list[AnalysisSummary])

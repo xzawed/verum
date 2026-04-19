@@ -22,10 +22,10 @@ class Analysis(Base):
     status: Mapped[str] = mapped_column(
         String(32), default="pending", nullable=False
     )  # "pending" | "running" | "done" | "error"
-    call_sites: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    prompt_templates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    model_configs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    language_breakdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    call_sites: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
+    prompt_templates: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
+    model_configs: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
+    language_breakdown: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     analyzed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

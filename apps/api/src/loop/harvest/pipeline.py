@@ -5,6 +5,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config as cfg
 from .chunker import recursive_split
 from .crawler import CrawlError, fetch_and_extract
 from .embedder import embed_texts
@@ -22,8 +23,8 @@ async def harvest_source(
     source_url: str,
     inference_id: uuid.UUID,
     *,
-    chunk_size: int = 512,
-    overlap: int = 50,
+    chunk_size: int = cfg.CHUNK_SIZE,
+    overlap: int = cfg.CHUNK_OVERLAP,
 ) -> int:
     """Crawl one approved source, chunk, embed, and store.
 

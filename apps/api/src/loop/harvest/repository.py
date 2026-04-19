@@ -90,7 +90,7 @@ async def vector_search(
     inference_id: uuid.UUID,
     query_embedding: list[float],
     top_k: int = 5,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     vec_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     result = await db.execute(
         text(
@@ -112,7 +112,7 @@ async def text_search(
     inference_id: uuid.UUID,
     query: str,
     top_k: int = 5,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     result = await db.execute(
         text(
             "SELECT id, content, ts_rank(ts_content, plainto_tsquery('english', :q)) AS score "

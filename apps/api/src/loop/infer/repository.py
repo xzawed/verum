@@ -34,7 +34,7 @@ async def save_inference_result(
     db: AsyncSession,
     inference_id: uuid.UUID,
     result: ServiceInference,
-    raw: dict,
+    raw: dict[str, object],
 ) -> None:
     stmt = select(Inference).where(Inference.id == inference_id)
     row = (await db.execute(stmt)).scalar_one()

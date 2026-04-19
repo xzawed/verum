@@ -25,8 +25,8 @@ class Chunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # embedding stored as JSONB (list[float]); pgvector column added via raw DDL in migration
-    embedding: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(JSONB, nullable=True)
+    metadata_: Mapped[dict[str, object] | None] = mapped_column("metadata", JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

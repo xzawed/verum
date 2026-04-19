@@ -6,6 +6,7 @@ import os
 
 import anthropic
 
+import src.config as cfg
 from src.loop.analyze.models import AnalysisResult
 from .models import DOMAIN_TAXONOMY, LANGUAGE_OPTIONS, TONE_OPTIONS, USER_TYPE_OPTIONS
 from .models import ServiceInference, SuggestedSource
@@ -104,8 +105,8 @@ async def run_infer(result: AnalysisResult) -> ServiceInference:
     client = anthropic.AsyncAnthropic(api_key=api_key)
 
     message = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
+        model=cfg.INFER_MODEL,
+        max_tokens=cfg.INFER_MAX_TOKENS,
         system=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_message(result)}],
     )
@@ -123,7 +124,7 @@ async def run_infer(result: AnalysisResult) -> ServiceInference:
             raw_text = raw_text[4:]
     raw_text = raw_text.strip()
 
-    parsed: dict = json.loads(raw_text)
+    parsed: dict[str, object] = json.loads(raw_text)
 
     # Validate and clamp domain to taxonomy
     domain = parsed.get("domain", "other")

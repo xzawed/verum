@@ -9,9 +9,7 @@ import os
 
 import httpx
 
-_MODEL = "voyage-3.5"
-_BASE_URL = "https://api.voyageai.com/v1/embeddings"
-_BATCH_SIZE = 128  # Voyage documented per-request limit
+import src.config as cfg
 
 
 async def embed_texts(
@@ -39,15 +37,15 @@ async def embed_texts(
     results: list[list[float]] = []
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        for i in range(0, len(texts), _BATCH_SIZE):
-            batch = texts[i : i + _BATCH_SIZE]
+        for i in range(0, len(texts), cfg.EMBED_BATCH_SIZE):
+            batch = texts[i : i + cfg.EMBED_BATCH_SIZE]
             response = await client.post(
-                _BASE_URL,
+                cfg.EMBED_BASE_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
-                json={"input": batch, "model": _MODEL, "input_type": input_type},
+                json={"input": batch, "model": cfg.EMBED_MODEL, "input_type": input_type},
             )
             response.raise_for_status()
             data = response.json()

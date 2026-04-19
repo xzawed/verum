@@ -68,7 +68,7 @@ def _analyze_sync(repo_path: Path, repo_id: UUID) -> AnalysisResult:
     ts_result = analyze_directory(repo_path, repo_root=repo_path)
 
     # Prompt extraction — collect from all TS files
-    prompt_templates: list = []
+    prompt_templates: list[PromptTemplate] = []
     source_cache: dict[str, bytes] = {}
     for ext in ("*.ts", "*.tsx", "*.js"):
         for path in repo_path.rglob(ext):
