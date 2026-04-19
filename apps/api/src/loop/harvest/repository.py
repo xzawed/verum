@@ -53,23 +53,27 @@ async def save_chunks(
     texts: list[str],
     embeddings: list[list[float]],
 ) -> int:
+    chunk_ids: list[uuid.UUID] = []
     for idx, (text_content, embedding) in enumerate(zip(texts, embeddings)):
-        chunk = Chunk(
-            id=uuid.uuid4(),
+        cid = uuid.uuid4()
+        chunk_ids.append(cid)
+        db.add(Chunk(
+            id=cid,
             source_id=source_id,
             inference_id=inference_id,
             content=text_content,
             chunk_index=idx,
             embedding=embedding,
             metadata_={"source_id": str(source_id), "chunk_index": idx},
-        )
-        db.add(chunk)
-        # Also update the pgvector column via raw SQL after flush
-        await db.flush()
+        ))
+
+    # Single flush for all INSERTs, then one batch UPDATE for embedding_vec
+    await db.flush()
+    for cid, embedding in zip(chunk_ids, embeddings):
         vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
         await db.execute(
             text("UPDATE chunks SET embedding_vec = :vec WHERE id = :id"),
-            {"vec": vec_str, "id": str(chunk.id)},
+            {"vec": vec_str, "id": str(cid)},
         )
 
     await db.commit()
