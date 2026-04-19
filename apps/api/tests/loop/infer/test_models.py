@@ -1,0 +1,80 @@
+"""Tests for INFER stage models and domain taxonomy."""
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+from src.loop.infer.models import (
+    DOMAIN_TAXONOMY,
+    LANGUAGE_OPTIONS,
+    TONE_OPTIONS,
+    USER_TYPE_OPTIONS,
+    ServiceInference,
+    SuggestedSource,
+)
+
+
+def test_domain_taxonomy_has_20_entries() -> None:
+    assert len(DOMAIN_TAXONOMY) == 20
+
+
+def test_domain_taxonomy_contains_tarot() -> None:
+    assert "divination/tarot" in DOMAIN_TAXONOMY
+
+
+def test_domain_taxonomy_has_other() -> None:
+    assert "other" in DOMAIN_TAXONOMY
+
+
+def test_service_inference_round_trip() -> None:
+    repo_id = uuid.uuid4()
+    analysis_id = uuid.uuid4()
+    infer = ServiceInference(
+        repo_id=repo_id,
+        analysis_id=analysis_id,
+        domain="divination/tarot",
+        tone="mystical",
+        language="ko",
+        user_type="consumer",
+        confidence=0.92,
+        summary="A tarot divination service in Korean.",
+        suggested_sources=[
+            SuggestedSource(
+                url="https://en.wikipedia.org/wiki/Tarot",
+                title="Tarot — Wikipedia",
+                description="Overview of tarot.",
+            )
+        ],
+    )
+    dumped = infer.model_dump(mode="json")
+    reloaded = ServiceInference.model_validate(dumped)
+    assert reloaded.domain == "divination/tarot"
+    assert reloaded.confidence == 0.92
+    assert len(reloaded.suggested_sources) == 1
+
+
+def test_confidence_clamped() -> None:
+    with pytest.raises(Exception):
+        ServiceInference(
+            repo_id=uuid.uuid4(),
+            analysis_id=uuid.uuid4(),
+            domain="other",
+            tone="professional",
+            language="en",
+            user_type="consumer",
+            confidence=1.5,  # out of range
+            summary="test",
+        )
+
+
+def test_tone_options_not_empty() -> None:
+    assert len(TONE_OPTIONS) >= 5
+
+
+def test_language_options_includes_ko() -> None:
+    assert "ko" in LANGUAGE_OPTIONS
+
+
+def test_user_type_options_includes_consumer() -> None:
+    assert "consumer" in USER_TYPE_OPTIONS

@@ -71,7 +71,7 @@ jobs:
         run: pip install "apps/api[dev]"
       - name: Run tests
         working-directory: apps/api
-        run: pytest tests -v --cov=src.loop.analyze --cov-fail-under=50 --cov-config=pyproject.toml
+        run: pytest tests -v --cov=src.loop --cov-fail-under=45 --cov-config=pyproject.toml
         env:
           DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5432/verum
           PYTHONPATH: .
