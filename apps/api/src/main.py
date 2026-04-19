@@ -3,9 +3,13 @@ from sqlalchemy import text
 
 from src.db.session import AsyncSessionLocal
 from src.loop.analyze.router import router as analyze_router
+from src.loop.infer.router import router as infer_router
+from src.loop.harvest.router import router as harvest_router
 
 app = FastAPI(title="Verum API", version="0.0.0")
 app.include_router(analyze_router)
+app.include_router(infer_router)
+app.include_router(harvest_router)
 
 
 @app.get("/health")
