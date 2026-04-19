@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch, ApiError } from "@/lib/api";
 
 interface CallSite {
   file_path: string;
@@ -40,9 +39,12 @@ interface AnalysisData {
 }
 
 async function fetchAnalysis(id: string): Promise<AnalysisData> {
-  const res = await fetch(`${apiBase}/v1/analyze/${id}`, { cache: "no-store" });
-  if (res.status === 404) notFound();
-  return res.json();
+  try {
+    return await apiFetch<AnalysisData>(`/v1/analyze/${id}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) notFound();
+    throw err;
+  }
 }
 
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,7 +79,7 @@ function ErrorView({ data }: { data: AnalysisData }) {
     <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
       <h1 style={{ fontSize: 24, marginBottom: 8, color: "red" }}>Analysis failed</h1>
       <pre style={{ background: "#fee", padding: 12, overflowX: "auto" }}>{data.error}</pre>
-      <p><a href="/">Try another repo</a></p>
+      <p><a href="/repos">Back to repos</a></p>
     </main>
   );
 }
@@ -95,7 +97,7 @@ function DoneView({ data }: { data: AnalysisData }) {
 
   return (
     <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <a href="/" style={{ fontSize: 12, color: "#666" }}>← New analysis</a>
+      <a href="/repos" style={{ fontSize: 12, color: "#666" }}>← My Repos</a>
       <h1 style={{ fontSize: 24, margin: "16px 0 4px" }}>Analysis complete</h1>
       <p style={{ color: "#666", marginBottom: 24 }}>
         {callSites.length} call site{callSites.length !== 1 ? "s" : ""} detected

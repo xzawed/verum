@@ -4,6 +4,8 @@ Endpoints:
   POST /v1/infer/{analysis_id}   — start inference job
   GET  /v1/infer/{inference_id}  — get inference result + suggested sources
   GET  /v1/analyses/{id}/inferences — list inferences for an analysis
+  POST /v1/sources/{source_id}/approve
+  POST /v1/sources/{source_id}/reject
 """
 from __future__ import annotations
 
@@ -12,9 +14,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.dependencies import get_current_user
+from src.db.models.analyses import Analysis
+from src.db.models.harvest_sources import HarvestSource
+from src.db.models.inferences import Inference
+from src.db.models.repos import Repo
+from src.db.models.users import User
 from src.db.session import get_db
 from src.loop.analyze.repository import get_analysis
 from .engine import run_infer
@@ -49,11 +58,17 @@ class SourceResponse(BaseModel):
 async def start_infer(
     analysis_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> InferStartResponse:
     analysis = await get_analysis(db, analysis_id)
     if analysis is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+    repo = (await db.execute(select(Repo).where(Repo.id == analysis.repo_id))).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
     if analysis.status != "done":
         raise HTTPException(status_code=409, detail=f"Analysis is not done (status={analysis.status})")
 
@@ -92,10 +107,19 @@ class InferenceSummary(BaseModel):
 @router.get("/infer/{inference_id}", response_model=InferenceResponse)
 async def get_infer_result(
     inference_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> InferenceResponse:
     row = await get_inference(db, inference_id)
     if row is None:
+        raise HTTPException(status_code=404, detail="Inference not found")
+
+    # Verify ownership chain: inference → analysis → repo → owner
+    analysis = await get_analysis(db, row.analysis_id)
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Inference not found")
+    repo = (await db.execute(select(Repo).where(Repo.id == analysis.repo_id))).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Inference not found")
 
     if row.status in ("pending", "running"):
@@ -132,8 +156,16 @@ async def get_infer_result(
 @router.get("/analyses/{analysis_id}/inferences", response_model=list[InferenceSummary])
 async def list_inferences(
     analysis_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[InferenceSummary]:
+    analysis = await get_analysis(db, analysis_id)
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    repo = (await db.execute(select(Repo).where(Repo.id == analysis.repo_id))).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
     rows = await list_analysis_inferences(db, analysis_id)
     return [
         InferenceSummary(
@@ -150,8 +182,10 @@ async def list_inferences(
 @router.post("/sources/{source_id}/approve", response_model=SourceResponse)
 async def approve_harvest_source(
     source_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> SourceResponse:
+    source = await _require_owned_source(db, source_id, current_user.id)
     try:
         row = await approve_source(db, source_id)
     except NoResultFound:
@@ -168,8 +202,10 @@ async def approve_harvest_source(
 @router.post("/sources/{source_id}/reject", response_model=SourceResponse)
 async def reject_harvest_source(
     source_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> SourceResponse:
+    await _require_owned_source(db, source_id, current_user.id)
     try:
         row = await reject_source(db, source_id)
     except NoResultFound:
@@ -181,6 +217,36 @@ async def reject_harvest_source(
         description=row.description,
         status=row.status,
     )
+
+
+async def _require_owned_source(
+    db: AsyncSession, source_id: uuid.UUID, user_id: uuid.UUID
+) -> HarvestSource:
+    source = (
+        await db.execute(select(HarvestSource).where(HarvestSource.id == source_id))
+    ).scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    inference = (
+        await db.execute(select(Inference).where(Inference.id == source.inference_id))
+    ).scalar_one_or_none()
+    if inference is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    analysis = (
+        await db.execute(select(Analysis).where(Analysis.id == inference.analysis_id))
+    ).scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    repo = (
+        await db.execute(select(Repo).where(Repo.id == analysis.repo_id))
+    ).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != user_id:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    return source
 
 
 async def _run_infer_background(
@@ -198,7 +264,6 @@ async def _run_infer_background(
                 await mark_inference_error(db, inference_id, "analysis not found")
                 return
 
-            # Reconstruct AnalysisResult from stored JSONB
             result = AnalysisResult(
                 repo_id=analysis.repo_id,
                 call_sites=[LLMCallSite(**cs) for cs in (analysis.call_sites or [])],
@@ -209,7 +274,6 @@ async def _run_infer_background(
             )
 
             inferred = await run_infer(result)
-            # Patch analysis_id (engine sets it to repo_id as placeholder)
             inferred = inferred.model_copy(update={"analysis_id": analysis_id})
 
             await save_inference_result(

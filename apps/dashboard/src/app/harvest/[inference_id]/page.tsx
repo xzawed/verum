@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch, ApiError } from "@/lib/api";
 
 interface SourceStatus {
   source_id: string;
@@ -16,20 +15,17 @@ interface HarvestStatus {
   sources: SourceStatus[];
 }
 
-async function triggerHarvest(inferenceId: string): Promise<{ status: string; sources_queued?: number; detail?: string }> {
-  const res = await fetch(`${apiBase}/v1/harvest/${inferenceId}`, {
-    method: "POST",
-    cache: "no-store",
-  });
-  return res.json();
+async function triggerHarvest(inferenceId: string): Promise<void> {
+  await apiFetch(`/v1/harvest/${inferenceId}`, { method: "POST" });
 }
 
 async function getHarvestStatus(inferenceId: string): Promise<HarvestStatus> {
-  const res = await fetch(`${apiBase}/v1/harvest/${inferenceId}/status`, {
-    cache: "no-store",
-  });
-  if (res.status === 404) notFound();
-  return res.json();
+  try {
+    return await apiFetch<HarvestStatus>(`/v1/harvest/${inferenceId}/status`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) notFound();
+    throw err;
+  }
 }
 
 export default async function HarvestPage({
@@ -43,7 +39,7 @@ export default async function HarvestPage({
   const { trigger } = await searchParams;
 
   if (trigger === "1") {
-    await triggerHarvest(inference_id);
+    await triggerHarvest(inference_id).catch(() => null);
   }
 
   const status = await getHarvestStatus(inference_id);

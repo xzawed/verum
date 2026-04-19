@@ -17,6 +17,7 @@ import src.db.models.analyses  # noqa: F401
 import src.db.models.inferences  # noqa: F401
 import src.db.models.harvest_sources  # noqa: F401
 import src.db.models.chunks  # noqa: F401
+import src.db.models.users  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

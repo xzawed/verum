@@ -12,8 +12,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.dependencies import get_current_user
+from src.db.models.repos import Repo
+from src.db.models.users import User
 from src.db.session import get_db
 from .cloner import RepoCloneError
 from .pipeline import run_analysis
@@ -50,9 +54,12 @@ class AnalysisSummary(BaseModel):
 async def start_analyze(
     body: AnalyzeRequest,
     background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AnalyzeStartResponse:
-    repo = await get_or_create_repo(db, body.repo_url, body.branch)
+    repo = await get_or_create_repo(
+        db, body.repo_url, body.branch, owner_user_id=current_user.id
+    )
     analysis = await create_pending_analysis(db, repo.id)
 
     background_tasks.add_task(
@@ -81,11 +88,18 @@ class AnalysisResponse(BaseModel):
 @router.get("/analyze/{analysis_id}", response_model=AnalysisResponse)
 async def get_analyze_result(
     analysis_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AnalysisResponse:
     row = await get_analysis(db, analysis_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Verify ownership via the repo
+    repo = (await db.execute(select(Repo).where(Repo.id == row.repo_id))).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
     if row.status in ("pending", "running"):
         return AnalysisResponse(
             status=row.status,
@@ -109,8 +123,13 @@ async def get_analyze_result(
 @router.get("/repos/{repo_id}/analyses", response_model=list[AnalysisSummary])
 async def list_analyses(
     repo_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[AnalysisSummary]:
+    repo = (await db.execute(select(Repo).where(Repo.id == repo_id))).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Repo not found")
+
     rows = await list_repo_analyses(db, repo_id)
     return [
         AnalysisSummary(

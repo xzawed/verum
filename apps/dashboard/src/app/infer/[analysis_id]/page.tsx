@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch, ApiError } from "@/lib/api";
 
 interface Source {
   source_id: string;
@@ -25,20 +24,31 @@ interface InferData {
 }
 
 async function startInfer(analysisId: string): Promise<InferData> {
-  const res = await fetch(`${apiBase}/v1/infer/${analysisId}`, {
-    method: "POST",
-    cache: "no-store",
-  });
-  if (res.status === 404) notFound();
-  return res.json();
+  try {
+    return await apiFetch<InferData>(`/v1/infer/${analysisId}`, {
+      method: "POST",
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) notFound();
+    throw err;
+  }
 }
 
 async function getInfer(inferenceId: string): Promise<InferData> {
-  const res = await fetch(`${apiBase}/v1/infer/${inferenceId}`, {
-    cache: "no-store",
-  });
-  if (res.status === 404) notFound();
-  return res.json();
+  try {
+    return await apiFetch<InferData>(`/v1/infer/${inferenceId}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) notFound();
+    throw err;
+  }
+}
+
+async function approveSource(sourceId: string): Promise<void> {
+  await apiFetch(`/v1/sources/${sourceId}/approve`, { method: "POST" });
+}
+
+async function rejectSource(sourceId: string): Promise<void> {
+  await apiFetch(`/v1/sources/${sourceId}/reject`, { method: "POST" });
 }
 
 export default async function InferPage({
@@ -56,14 +66,8 @@ export default async function InferPage({
   if (inference_id) {
     data = await getInfer(inference_id);
   } else {
-    // Trigger a new inference
     const started = await startInfer(analysis_id);
-    if (started.inference_id) {
-      // Wait briefly then fetch result (server-side polling not ideal — redirect to status page)
-      data = started;
-    } else {
-      data = started;
-    }
+    data = started;
   }
 
   return (
@@ -104,14 +108,13 @@ export default async function InferPage({
             Suggested Sources ({data.suggested_sources?.length ?? 0})
           </h2>
           <p style={{ fontSize: 12, color: "#888", marginBottom: 16 }}>
-            Approve sources you want Verum to crawl for knowledge. Rejected sources will not be crawled.
+            Approve sources you want Verum to crawl for knowledge.
           </p>
 
           {(data.suggested_sources ?? []).map((src) => (
             <SourceCard
               key={src.source_id}
               source={src}
-              inferenceId={data.inference_id!}
             />
           ))}
 
@@ -146,10 +149,16 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SourceCard({ source, inferenceId }: { source: Source; inferenceId: string }) {
+function SourceCard({
+  source,
+}: {
+  source: Source;
+}) {
   const statusColor =
     source.status === "approved" ? "#22c55e" :
     source.status === "rejected" ? "#ef4444" : "#888";
+
+  const sourceId = source.source_id;
 
   return (
     <div style={{ border: "1px solid #ddd", padding: "12px 16px", marginBottom: 8 }}>
@@ -163,41 +172,24 @@ function SourceCard({ source, inferenceId }: { source: Source; inferenceId: stri
             <div style={{ fontSize: 12, color: "#888" }}>{source.description}</div>
           )}
         </div>
-        <div style={{ marginLeft: 16, display: "flex", gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold" }}>
-            {source.status}
-          </span>
-        </div>
+        <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold", marginLeft: 16 }}>
+          {source.status}
+        </span>
       </div>
       {source.status === "proposed" && (
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          <ApproveButton sourceId={source.source_id} action="approve" />
-          <ApproveButton sourceId={source.source_id} action="reject" />
+          <form action={async () => { "use server"; await approveSource(sourceId); }}>
+            <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #22c55e", color: "#22c55e", background: "white", cursor: "pointer" }}>
+              Approve
+            </button>
+          </form>
+          <form action={async () => { "use server"; await rejectSource(sourceId); }}>
+            <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #ef4444", color: "#ef4444", background: "white", cursor: "pointer" }}>
+              Reject
+            </button>
+          </form>
         </div>
       )}
     </div>
-  );
-}
-
-function ApproveButton({ sourceId, action }: { sourceId: string; action: "approve" | "reject" }) {
-  const label = action === "approve" ? "Approve" : "Reject";
-  const color = action === "approve" ? "#22c55e" : "#ef4444";
-  return (
-    <form action={`/api/sources/${sourceId}/${action}`} method="POST">
-      <button
-        type="submit"
-        style={{
-          padding: "4px 12px",
-          fontSize: 12,
-          fontWeight: "bold",
-          border: `1px solid ${color}`,
-          color,
-          background: "white",
-          cursor: "pointer",
-        }}
-      >
-        {label}
-      </button>
-    </form>
   );
 }

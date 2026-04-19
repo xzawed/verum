@@ -16,14 +16,22 @@ async def get_or_create_repo(
     db: AsyncSession,
     github_url: str,
     branch: str = "main",
+    *,
+    owner_user_id: uuid.UUID,
 ) -> Repo:
-    result = await db.execute(select(Repo).where(Repo.github_url == github_url))
+    result = await db.execute(
+        select(Repo).where(
+            Repo.owner_user_id == owner_user_id,
+            Repo.github_url == github_url,
+        )
+    )
     repo = result.scalar_one_or_none()
     if repo is None:
         repo = Repo(
             id=uuid.uuid4(),
             github_url=github_url,
             default_branch=branch,
+            owner_user_id=owner_user_id,
         )
         db.add(repo)
         await db.flush()

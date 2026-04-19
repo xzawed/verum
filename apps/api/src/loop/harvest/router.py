@@ -12,9 +12,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config as cfg
+from src.auth.dependencies import get_current_user
+from src.db.models.analyses import Analysis
+from src.db.models.inferences import Inference
+from src.db.models.repos import Repo
+from src.db.models.users import User
 from src.db.session import get_db
 from src.loop.infer.repository import get_harvest_sources, get_inference
 from .pipeline import harvest_source
@@ -64,11 +70,15 @@ class RetrieveResponse(BaseModel):
 async def trigger_harvest(
     inference_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> HarvestStartResponse:
     inference = await get_inference(db, inference_id)
     if inference is None:
         raise HTTPException(status_code=404, detail="Inference not found")
+
+    await _require_inference_owner(db, inference, current_user.id)
+
     if inference.status != "done":
         raise HTTPException(status_code=409, detail=f"Inference not done (status={inference.status})")
 
@@ -90,11 +100,14 @@ async def trigger_harvest(
 @router.get("/harvest/{inference_id}/status", response_model=HarvestStatusResponse)
 async def get_harvest_status(
     inference_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> HarvestStatusResponse:
     inference = await get_inference(db, inference_id)
     if inference is None:
         raise HTTPException(status_code=404, detail="Inference not found")
+
+    await _require_inference_owner(db, inference, current_user.id)
 
     sources = await get_harvest_sources(db, inference_id)
     total_chunks = await count_chunks(db, inference_id)
@@ -118,10 +131,11 @@ async def get_harvest_status(
 @router.post("/retrieve", response_model=RetrieveResponse)
 async def retrieve(
     body: RetrieveRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> RetrieveResponse:
     try:
-        return await _retrieve_inner(body, db)
+        return await _retrieve_inner(body, db, current_user)
     except HTTPException:
         raise
     except Exception as exc:
@@ -131,10 +145,13 @@ async def retrieve(
 async def _retrieve_inner(
     body: RetrieveRequest,
     db: AsyncSession,
+    current_user: User,
 ) -> RetrieveResponse:
     inference = await get_inference(db, body.inference_id)
     if inference is None:
         raise HTTPException(status_code=404, detail="Inference not found")
+
+    await _require_inference_owner(db, inference, current_user.id)
 
     total_chunks = await count_chunks(db, body.inference_id)
     if total_chunks == 0:
@@ -194,6 +211,22 @@ async def _retrieve_inner(
         results=[SearchResult(content=str(r["content"]), score=float(r["score"])) for r in raw_results],
         total_chunks=total_chunks,
     )
+
+
+async def _require_inference_owner(
+    db: AsyncSession, inference: Inference, user_id: uuid.UUID
+) -> None:
+    """Raise 404 if the inference does not belong to user_id."""
+    analysis = (
+        await db.execute(select(Analysis).where(Analysis.id == inference.analysis_id))
+    ).scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Inference not found")
+    repo = (
+        await db.execute(select(Repo).where(Repo.id == analysis.repo_id))
+    ).scalar_one_or_none()
+    if repo is None or repo.owner_user_id != user_id:
+        raise HTTPException(status_code=404, detail="Inference not found")
 
 
 async def _harvest_all_background(
