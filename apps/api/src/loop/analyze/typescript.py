@@ -283,8 +283,8 @@ def _analyze_class(node: Node, rel_path: str, result: FileAnalysis) -> None:
                     file_path=rel_path,
                     line=line,
                     model=str(params["model"]) if "model" in params else None,
-                    temperature=float(params["temperature"]) if "temperature" in params else None,
-                    max_tokens=int(params["max_tokens"]) if "max_tokens" in params else None,
+                    temperature=float(str(params["temperature"])) if "temperature" in params else None,
+                    max_tokens=int(str(params["max_tokens"])) if "max_tokens" in params else None,
                 ))
 
 
