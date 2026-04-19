@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import ssl
 from logging.config import fileConfig
 from urllib.parse import urlparse
 
@@ -41,10 +42,18 @@ try:
     _db_host = urlparse(DATABASE_URL).hostname or ""
 except Exception:
     _db_host = ""
+# Supabase Connection Pooler uses a self-signed certificate chain; ssl="require"
+# and ssl=True both trigger chain verification which fails. Use a custom SSLContext.
+_ssl_context: ssl.SSLContext | None = None
+if _db_host not in _LOCAL_HOSTS:
+    _ssl_context = ssl.create_default_context()
+    _ssl_context.check_hostname = False
+    _ssl_context.verify_mode = ssl.CERT_NONE
+
 _ENGINE_KWARGS: dict[str, object] = (
-    {"connect_args": {"ssl": "require"}} if _db_host not in _LOCAL_HOSTS else {}
+    {"connect_args": {"ssl": _ssl_context}} if _ssl_context is not None else {}
 )
-logger.info("alembic: host=%s ssl=%s", _db_host, "require" if _ENGINE_KWARGS else "off")
+logger.info("alembic: host=%s ssl=%s", _db_host, "custom-ctx" if _ssl_context else "off")
 
 
 def run_migrations_offline() -> None:
