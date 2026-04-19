@@ -141,15 +141,22 @@ async def _retrieve_inner(
         return RetrieveResponse(results=[], total_chunks=0)
 
     raw_results: list[dict[str, object]]
+
+    async def _safe_vector_search(query_embedding: list[float], top_k: int) -> list[dict[str, object]]:
+        """Run vector search inside a savepoint so a failure doesn't abort the outer tx."""
+        try:
+            async with db.begin_nested():
+                return await vector_search(db, body.inference_id, query_embedding, top_k=top_k)
+        except Exception:
+            return []
+
     if body.hybrid:
+        vec_results: list[dict[str, object]] = []
         try:
             from src.loop.harvest.embedder import embed_texts
             query_embeddings = await embed_texts([body.query], input_type="query")
-            vec_results = await vector_search(
-                db, body.inference_id, query_embeddings[0], top_k=body.top_k * 2
-            )
+            vec_results = await _safe_vector_search(query_embeddings[0], body.top_k * 2)
         except Exception:
-            await db.rollback()
             vec_results = []
 
         text_results = await text_search(
@@ -177,11 +184,10 @@ async def _retrieve_inner(
         try:
             from src.loop.harvest.embedder import embed_texts
             query_embeddings = await embed_texts([body.query], input_type="query")
-            raw_results = await vector_search(  # type: ignore[assignment]
-                db, body.inference_id, query_embeddings[0], top_k=body.top_k
-            )
+            raw_results = await _safe_vector_search(query_embeddings[0], body.top_k)  # type: ignore[assignment]
+            if not raw_results:
+                raw_results = await text_search(db, body.inference_id, body.query, top_k=body.top_k)  # type: ignore[assignment]
         except Exception:
-            await db.rollback()
             raw_results = await text_search(db, body.inference_id, body.query, top_k=body.top_k)  # type: ignore[assignment]
 
     return RetrieveResponse(
