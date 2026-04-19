@@ -23,7 +23,7 @@ try:
 except Exception:
     _db_host = ""
 _ENGINE_KWARGS: dict[str, object] = (
-    {"connect_args": {"ssl": "require"}} if _db_host not in _LOCAL_HOSTS else {}
+    {"connect_args": {"ssl": True}} if _db_host not in _LOCAL_HOSTS else {}
 )
 
 engine = create_async_engine(
