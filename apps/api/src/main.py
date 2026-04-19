@@ -1,10 +1,15 @@
+import logging
+
 from fastapi import FastAPI
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.db.session import AsyncSessionLocal
 from src.loop.analyze.router import router as analyze_router
 from src.loop.infer.router import router as infer_router
 from src.loop.harvest.router import router as harvest_router
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Verum API", version="0.0.0")
 app.include_router(analyze_router)
@@ -13,12 +18,12 @@ app.include_router(harvest_router)
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     db_status = "disconnected"
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
             db_status = "connected"
-    except Exception:
-        pass
+    except SQLAlchemyError as exc:
+        logger.warning("Health DB check failed: %s", exc)
     return {"status": "ok", "version": "0.0.0", "db": db_status}
