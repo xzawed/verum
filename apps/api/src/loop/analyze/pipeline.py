@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from .cloner import RepoCloneError, cloned_repo
+from .cloner import cloned_repo
 from .models import AnalysisResult
 from .prompts import extract_prompt_templates, resolve_prompt_refs
 from .typescript import analyze_directory

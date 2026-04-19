@@ -10,7 +10,6 @@ Pattern A is future-proof for repos that use official SDKs.
 """
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 import tree_sitter_typescript as ts_ts

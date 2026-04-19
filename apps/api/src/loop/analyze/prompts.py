@@ -169,7 +169,7 @@ def _resolve_identifier_in_file(
 
     Looks for:
       - `const identifier = "..."`
-      - `const identifier = \`...\``
+      - `const identifier = <template literal>`
       - `return "..."` in a function named `identifier` or `build${Identifier}`
 
     Returns the raw string content if found, else None.
@@ -282,7 +282,6 @@ def resolve_prompt_refs(
     for pt in prompt_templates:
         by_file.setdefault(pt.file_path, []).append(pt)
 
-    path_aliases = _parse_tsconfig_paths(repo_root)
     updated: list[LLMCallSite] = []
 
     for cs in call_sites:

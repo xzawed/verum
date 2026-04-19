@@ -50,6 +50,12 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
+[tool.coverage.run]
+omit = ["src/loop/analyze/cli.py"]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:"]
+
 [tool.ruff]
 line-length = 100
 
