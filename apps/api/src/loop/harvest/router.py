@@ -120,6 +120,18 @@ async def retrieve(
     body: RetrieveRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> RetrieveResponse:
+    try:
+        return await _retrieve_inner(body, db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+async def _retrieve_inner(
+    body: RetrieveRequest,
+    db: AsyncSession,
+) -> RetrieveResponse:
     inference = await get_inference(db, body.inference_id)
     if inference is None:
         raise HTTPException(status_code=404, detail="Inference not found")
@@ -136,7 +148,7 @@ async def retrieve(
             vec_results = await vector_search(
                 db, body.inference_id, query_embeddings[0], top_k=body.top_k * 2
             )
-        except RuntimeError:
+        except Exception:
             vec_results = []
 
         text_results = await text_search(
@@ -167,7 +179,7 @@ async def retrieve(
             raw_results = await vector_search(  # type: ignore[assignment]
                 db, body.inference_id, query_embeddings[0], top_k=body.top_k
             )
-        except RuntimeError:
+        except Exception:
             raw_results = await text_search(db, body.inference_id, body.query, top_k=body.top_k)  # type: ignore[assignment]
 
     return RetrieveResponse(
