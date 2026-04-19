@@ -18,8 +18,7 @@ dashboard-dev:
 
 # === Loop stage runners ===
 loop-analyze:
-	# TODO: implement in Phase 1 (F-1.3)
-	@echo "Usage: make loop-analyze REPO=https://github.com/owner/repo"
+	cd apps/api && python -m src.loop.analyze.cli --repo $(REPO) --branch $(or $(BRANCH),main)
 
 loop-infer:
 	# TODO: implement in Phase 2 (F-2.1)
@@ -39,8 +38,7 @@ test:
 	@echo "Phase 0: pytest apps/api/tests && cd apps/dashboard && npm test"
 
 test-api:
-	# TODO: implement in Phase 0
-	@echo "Phase 0: pytest apps/api/tests"
+	cd apps/api && pytest tests
 
 test-dashboard:
 	# TODO: implement in Phase 0
@@ -61,12 +59,10 @@ type-check:
 
 # === Database ===
 db-migrate:
-	# TODO: implement in Phase 0
-	@echo "Phase 0: cd apps/api && alembic upgrade head"
+	cd apps/api && alembic upgrade head
 
 db-revision:
-	# TODO: implement in Phase 0
-	@echo "Usage: make db-revision m='describe the change'"
+	cd apps/api && alembic revision --autogenerate -m "$(m)"
 
 db-reset:
 	@echo "WARNING: This destroys all local data."

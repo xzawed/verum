@@ -1,11 +1,20 @@
-# Phase 0 stub — implements F-0.9 (/health endpoint only)
-# Real loop stage routes are added in Phase 1+
-
 from fastapi import FastAPI
+from sqlalchemy import text
+
+from src.db.session import AsyncSessionLocal
+from src.loop.analyze.router import router as analyze_router
 
 app = FastAPI(title="Verum API", version="0.0.0")
+app.include_router(analyze_router)
 
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": "0.0.0", "db": "disconnected"}
+    db_status = "disconnected"
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+            db_status = "connected"
+    except Exception:
+        pass
+    return {"status": "ok", "version": "0.0.0", "db": db_status}
