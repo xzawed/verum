@@ -13,24 +13,21 @@ name = "verum-api"
 version = "0.0.0"
 requires-python = ">=3.13"
 dependencies = [
-    # Phase 0
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
+    # Core
     "pydantic>=2.7",
-    # Phase 0 DB
+    # DB + job queue
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
     "asyncpg>=0.29",
     "pgvector>=0.3",
-    # Phase 1 — ANALYZE
+    # ANALYZE — static analysis
     "tree-sitter>=0.23",
     "tree-sitter-typescript>=0.23",
     "typer>=0.12",
-    # Phase 2 — INFER + HARVEST
+    # INFER + HARVEST — AI + crawling
     "anthropic>=0.49",
     "httpx>=0.27",
     "trafilatura>=1.12",
-    # Phase 2.5 — Auth (trusted-header; no JWE decryption needed)
 ]
 
 [project.optional-dependencies]
@@ -50,7 +47,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
-omit = ["src/loop/analyze/cli.py", "src/loop/infer/cli.py", "src/loop/harvest/cli.py"]
+omit = ["src/loop/analyze/cli.py", "src/loop/infer/cli.py", "src/loop/harvest/cli.py", "src/main.py", "src/worker/main.py"]
 
 [tool.coverage.report]
 exclude_lines = ["if __name__ == .__main__.:"]

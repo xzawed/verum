@@ -1,55 +1,7 @@
-import { notFound } from "next/navigation";
-import { apiFetch, ApiError } from "@/lib/api";
-
-interface Source {
-  source_id: string;
-  url: string;
-  title: string | null;
-  description: string | null;
-  status: string;
-}
-
-interface InferData {
-  status: string;
-  inference_id?: string;
-  analysis_id?: string;
-  domain?: string;
-  tone?: string;
-  language?: string;
-  user_type?: string;
-  confidence?: number;
-  summary?: string;
-  suggested_sources?: Source[];
-  error?: string;
-}
-
-async function startInfer(analysisId: string): Promise<InferData> {
-  try {
-    return await apiFetch<InferData>(`/v1/infer/${analysisId}`, {
-      method: "POST",
-    });
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
-  }
-}
-
-async function getInfer(inferenceId: string): Promise<InferData> {
-  try {
-    return await apiFetch<InferData>(`/v1/infer/${inferenceId}`);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
-  }
-}
-
-async function approveSource(sourceId: string): Promise<void> {
-  await apiFetch(`/v1/sources/${sourceId}/approve`, { method: "POST" });
-}
-
-async function rejectSource(sourceId: string): Promise<void> {
-  await apiFetch(`/v1/sources/${sourceId}/reject`, { method: "POST" });
-}
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { approveSource, rejectSource } from "@/lib/db/jobs";
+import { getInference, getHarvestSources, type HarvestSource } from "@/lib/db/queries";
 
 export default async function InferPage({
   params,
@@ -58,17 +10,23 @@ export default async function InferPage({
   params: Promise<{ analysis_id: string }>;
   searchParams: Promise<{ inference_id?: string }>;
 }) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  if (!userId) redirect("/login");
+
   const { analysis_id } = await params;
   const { inference_id } = await searchParams;
 
-  let data: InferData;
-
-  if (inference_id) {
-    data = await getInfer(inference_id);
-  } else {
-    const started = await startInfer(analysis_id);
-    data = started;
+  if (!inference_id) {
+    redirect(`/repos`);
   }
+
+  const data = await getInference(userId, inference_id);
+  if (!data) notFound();
+
+  const sources = data.status === "done" ? await getHarvestSources(inference_id) : [];
 
   return (
     <main style={{ maxWidth: 720, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
@@ -77,10 +35,8 @@ export default async function InferPage({
 
       {(data.status === "pending" || data.status === "running") && (
         <div>
-          <p style={{ color: "#888" }}>Inference in progress (inference_id: {data.inference_id})…</p>
-          <p>
-            <a href={`/infer/${analysis_id}?inference_id=${data.inference_id}`}>Refresh</a>
-          </p>
+          <p style={{ color: "#888" }}>Inference in progress…</p>
+          <p><a href={`/infer/${analysis_id}?inference_id=${inference_id}`}>Refresh</a></p>
         </div>
       )}
 
@@ -88,7 +44,7 @@ export default async function InferPage({
         <p style={{ color: "red" }}>Error: {data.error}</p>
       )}
 
-      {data.status === "done" && data.inference_id && (
+      {data.status === "done" && (
         <div>
           <table style={{ borderCollapse: "collapse", marginBottom: 24, fontSize: 14 }}>
             <tbody>
@@ -104,32 +60,19 @@ export default async function InferPage({
             <p style={{ marginBottom: 24, color: "#444", lineHeight: 1.5 }}>{data.summary}</p>
           )}
 
-          <h2 style={{ fontSize: 16, marginBottom: 12 }}>
-            Suggested Sources ({data.suggested_sources?.length ?? 0})
-          </h2>
+          <h2 style={{ fontSize: 16, marginBottom: 12 }}>Suggested Sources ({sources.length})</h2>
           <p style={{ fontSize: 12, color: "#888", marginBottom: 16 }}>
             Approve sources you want Verum to crawl for knowledge.
           </p>
 
-          {(data.suggested_sources ?? []).map((src) => (
-            <SourceCard
-              key={src.source_id}
-              source={src}
-            />
+          {sources.map((src) => (
+            <SourceCard key={src.id} source={src} />
           ))}
 
           <div style={{ marginTop: 24 }}>
             <a
-              href={`/harvest/${data.inference_id}`}
-              style={{
-                display: "inline-block",
-                padding: "10px 20px",
-                background: "#0066cc",
-                color: "white",
-                textDecoration: "none",
-                fontWeight: "bold",
-                fontSize: 14,
-              }}
+              href={`/harvest/${inference_id}`}
+              style={{ display: "inline-block", padding: "10px 20px", background: "#0066cc", color: "white", textDecoration: "none", fontWeight: "bold", fontSize: 14 }}
             >
               Start HARVEST →
             </a>
@@ -149,41 +92,29 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SourceCard({
-  source,
-}: {
-  source: Source;
-}) {
+function SourceCard({ source }: { source: HarvestSource }) {
   const statusColor =
     source.status === "approved" ? "#22c55e" :
     source.status === "rejected" ? "#ef4444" : "#888";
-
-  const sourceId = source.source_id;
 
   return (
     <div style={{ border: "1px solid #ddd", padding: "12px 16px", marginBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: "bold", marginBottom: 4, fontSize: 14 }}>
-            {source.title ?? source.url}
-          </div>
+          <div style={{ fontWeight: "bold", marginBottom: 4, fontSize: 14 }}>{source.title ?? source.url}</div>
           <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{source.url}</div>
-          {source.description && (
-            <div style={{ fontSize: 12, color: "#888" }}>{source.description}</div>
-          )}
+          {source.description && <div style={{ fontSize: 12, color: "#888" }}>{source.description}</div>}
         </div>
-        <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold", marginLeft: 16 }}>
-          {source.status}
-        </span>
+        <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold", marginLeft: 16 }}>{source.status}</span>
       </div>
       {source.status === "proposed" && (
         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          <form action={async () => { "use server"; await approveSource(sourceId); }}>
+          <form action={async () => { "use server"; await approveSource(source.id); }}>
             <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #22c55e", color: "#22c55e", background: "white", cursor: "pointer" }}>
               Approve
             </button>
           </form>
-          <form action={async () => { "use server"; await rejectSource(sourceId); }}>
+          <form action={async () => { "use server"; await rejectSource(source.id); }}>
             <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #ef4444", color: "#ef4444", background: "white", cursor: "pointer" }}>
               Reject
             </button>

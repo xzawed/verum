@@ -1,31 +1,11 @@
-import { apiFetch, ApiError } from "@/lib/api";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { enqueueRetrieve } from "@/lib/db/jobs";
+import { getJob } from "@/lib/db/queries";
 
 interface RetrieveResult {
   content: string;
   score: number;
-}
-
-interface RetrieveResponse {
-  results: RetrieveResult[];
-  total_chunks: number;
-}
-
-async function doRetrieve(
-  inferenceId: string,
-  query: string,
-  hybrid: boolean,
-  topK: number,
-): Promise<RetrieveResponse | null> {
-  if (!query) return null;
-  try {
-    return await apiFetch<RetrieveResponse>("/v1/retrieve", {
-      method: "POST",
-      body: JSON.stringify({ inference_id: inferenceId, query, hybrid, top_k: topK }),
-    });
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    throw err;
-  }
 }
 
 export default async function RetrievePage({
@@ -36,22 +16,33 @@ export default async function RetrievePage({
     query?: string;
     hybrid?: string;
     top_k?: string;
+    job_id?: string;
   }>;
 }) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
   const sp = await searchParams;
   const inferenceId = sp.inference_id ?? "";
   const query = sp.query ?? "";
   const hybrid = sp.hybrid !== "false";
   const topK = Number(sp.top_k ?? "5") || 5;
+  const jobId = sp.job_id ?? "";
 
-  let response: RetrieveResponse | null = null;
-  let error: string | null = null;
+  // Check job result if we have a job_id
+  let results: RetrieveResult[] | null = null;
+  let totalChunks = 0;
+  let jobPending = false;
 
-  if (inferenceId && query) {
-    try {
-      response = await doRetrieve(inferenceId, query, hybrid, topK);
-    } catch (err) {
-      error = err instanceof ApiError ? err.message : String(err);
+  if (jobId) {
+    const job = await getJob(jobId);
+    if (job?.status === "done" && job.result) {
+      const r = job.result as { results: RetrieveResult[]; total_chunks: number };
+      results = r.results;
+      totalChunks = r.total_chunks;
+    } else if (job && (job.status === "queued" || job.status === "running")) {
+      jobPending = true;
     }
   }
 
@@ -60,7 +51,20 @@ export default async function RetrievePage({
       <a href="/repos" style={{ fontSize: 12, color: "#666" }}>← My Repos</a>
       <h1 style={{ fontSize: 22, margin: "16px 0 20px" }}>RETRIEVE — Knowledge Search</h1>
 
-      <form method="GET" action="/retrieve">
+      <form
+        action={async (formData: FormData) => {
+          "use server";
+          const s = await auth();
+          if (!s?.user) redirect("/login");
+          const uid = String((s.user as Record<string, unknown>).id ?? "");
+          const infId = formData.get("inference_id") as string;
+          const q = formData.get("query") as string;
+          const hyb = formData.get("hybrid") === "true";
+          const k = Number(formData.get("top_k") ?? "5") || 5;
+          const newJobId = await enqueueRetrieve({ userId: uid, inferenceId: infId, query: q, hybrid: hyb, topK: k });
+          redirect(`/retrieve?inference_id=${infId}&query=${encodeURIComponent(q)}&hybrid=${hyb}&top_k=${k}&job_id=${newJobId}`);
+        }}
+      >
         <label style={{ display: "block", marginBottom: 4, fontWeight: "bold" }}>Inference ID</label>
         <input
           name="inference_id"
@@ -88,47 +92,37 @@ export default async function RetrievePage({
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
             Top K:
-            <input
-              name="top_k"
-              type="number"
-              defaultValue={topK}
-              min={1}
-              max={20}
-              style={{ width: 60, padding: "4px 8px" }}
-            />
+            <input name="top_k" type="number" defaultValue={topK} min={1} max={20} style={{ width: 60, padding: "4px 8px" }} />
           </label>
         </div>
 
-        {error && <p style={{ color: "red", marginBottom: 12 }}>Error: {error}</p>}
-
-        <button
-          type="submit"
-          style={{ padding: "8px 20px", fontWeight: "bold", cursor: "pointer" }}
-        >
+        <button type="submit" style={{ padding: "8px 20px", fontWeight: "bold", cursor: "pointer" }}>
           Search
         </button>
       </form>
 
-      {response && (
-        <p style={{ marginTop: 20, fontSize: 12, color: "#888" }}>
-          {response.results.length} result{response.results.length !== 1 ? "s" : ""} from{" "}
-          {response.total_chunks.toLocaleString()} total chunks
+      {jobPending && (
+        <p style={{ marginTop: 20, color: "#888" }}>
+          Search in progress…{" "}
+          <a href={`/retrieve?inference_id=${inferenceId}&query=${encodeURIComponent(query)}&hybrid=${hybrid}&top_k=${topK}&job_id=${jobId}`}>
+            Refresh
+          </a>
         </p>
       )}
 
-      {response?.results.map((r, i) => (
-        <div
-          key={i}
-          style={{ marginTop: 12, padding: "12px 14px", background: "#f9f9f9", border: "1px solid #ddd" }}
-        >
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
-            Score: {r.score.toFixed(4)}
-          </div>
-          <pre style={{ fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
-            {r.content}
-          </pre>
-        </div>
-      ))}
+      {results !== null && (
+        <>
+          <p style={{ marginTop: 20, fontSize: 12, color: "#888" }}>
+            {results.length} result{results.length !== 1 ? "s" : ""} from {totalChunks.toLocaleString()} total chunks
+          </p>
+          {results.map((r, i) => (
+            <div key={i} style={{ marginTop: 12, padding: "12px 14px", background: "#f9f9f9", border: "1px solid #ddd" }}>
+              <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Score: {r.score.toFixed(4)}</div>
+              <pre style={{ fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>{r.content}</pre>
+            </div>
+          ))}
+        </>
+      )}
     </main>
   );
 }

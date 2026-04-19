@@ -1,0 +1,186 @@
+/**
+ * Read-only Drizzle queries used by server components.
+ * All queries enforce owner_user_id so users only see their own data.
+ */
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db } from "./client";
+import {
+  analyses,
+  harvest_sources,
+  inferences,
+  repos,
+  users,
+  verum_jobs,
+  worker_heartbeat,
+  type Analysis,
+  type HarvestSource,
+  type Inference,
+  type Repo,
+  type VerumJob,
+} from "./schema";
+
+export type { Analysis, HarvestSource, Inference, Repo, VerumJob };
+
+export async function getUserByGithubId(githubId: number) {
+  const rows = await db.select().from(users).where(eq(users.github_id, githubId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function upsertUser(opts: {
+  githubId: number;
+  githubLogin: string;
+  email: string | null;
+  avatarUrl: string | null;
+}) {
+  const rows = await db
+    .insert(users)
+    .values({
+      github_id: opts.githubId,
+      github_login: opts.githubLogin,
+      email: opts.email,
+      avatar_url: opts.avatarUrl,
+      last_login_at: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: users.github_id,
+      set: {
+        github_login: opts.githubLogin,
+        email: opts.email,
+        last_login_at: new Date(),
+      },
+    })
+    .returning();
+  return rows[0]!;
+}
+
+export async function getRepos(userId: string): Promise<Repo[]> {
+  return db
+    .select()
+    .from(repos)
+    .where(eq(repos.owner_user_id, userId))
+    .orderBy(desc(repos.created_at));
+}
+
+export async function getRepo(userId: string, repoId: string): Promise<Repo | null> {
+  const rows = await db
+    .select()
+    .from(repos)
+    .where(and(eq(repos.id, repoId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getLatestAnalysis(repoId: string): Promise<Analysis | null> {
+  const rows = await db
+    .select()
+    .from(analyses)
+    .where(eq(analyses.repo_id, repoId))
+    .orderBy(desc(analyses.started_at))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getAnalysis(
+  userId: string,
+  analysisId: string,
+): Promise<Analysis | null> {
+  // Verify ownership: analysis → repo → owner
+  const rows = await db
+    .select({ a: analyses })
+    .from(analyses)
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(analyses.id, analysisId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0]?.a ?? null;
+}
+
+export async function getLatestInference(repoId: string): Promise<Inference | null> {
+  const rows = await db
+    .select()
+    .from(inferences)
+    .where(eq(inferences.repo_id, repoId))
+    .orderBy(desc(inferences.created_at))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getInference(
+  userId: string,
+  inferenceId: string,
+): Promise<Inference | null> {
+  const rows = await db
+    .select({ i: inferences })
+    .from(inferences)
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(inferences.id, inferenceId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0]?.i ?? null;
+}
+
+export async function getHarvestSources(inferenceId: string): Promise<HarvestSource[]> {
+  return db
+    .select()
+    .from(harvest_sources)
+    .where(eq(harvest_sources.inference_id, inferenceId))
+    .orderBy(harvest_sources.created_at);
+}
+
+export async function countChunks(inferenceId: string): Promise<number> {
+  const rows = await db.execute(
+    sql`SELECT COUNT(*)::int AS n FROM chunks WHERE inference_id = ${inferenceId}::uuid`,
+  );
+  return (rows.rows[0] as { n: number }).n ?? 0;
+}
+
+export async function getJob(jobId: string): Promise<VerumJob | null> {
+  const rows = await db.select().from(verum_jobs).where(eq(verum_jobs.id, jobId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getWorkerAlive(): Promise<boolean> {
+  const rows = await db.execute(
+    sql`SELECT last_seen_at FROM worker_heartbeat WHERE id = 1`,
+  );
+  const row = rows.rows[0] as { last_seen_at: Date } | undefined;
+  if (!row) return false;
+  const ageMs = Date.now() - new Date(row.last_seen_at).getTime();
+  return ageMs < 90_000; // 90 s threshold
+}
+
+// Repo status summary used in repos dashboard
+export interface RepoStatus {
+  repo: Repo;
+  latestAnalysis: Analysis | null;
+  latestInference: Inference | null;
+  harvestChunks: number;
+  harvestSourcesDone: number;
+  harvestSourcesTotal: number;
+}
+
+export async function getRepoStatus(userId: string, repoId: string): Promise<RepoStatus | null> {
+  const repo = await getRepo(userId, repoId);
+  if (!repo) return null;
+
+  const latestAnalysis = await getLatestAnalysis(repoId);
+  const latestInference = await getLatestInference(repoId);
+
+  let harvestChunks = 0;
+  let harvestSourcesDone = 0;
+  let harvestSourcesTotal = 0;
+  if (latestInference) {
+    const sources = await getHarvestSources(latestInference.id);
+    harvestSourcesTotal = sources.length;
+    harvestSourcesDone = sources.filter((s) => s.status === "done").length;
+    harvestChunks = await countChunks(latestInference.id);
+  }
+
+  return {
+    repo,
+    latestAnalysis,
+    latestInference,
+    harvestChunks,
+    harvestSourcesDone,
+    harvestSourcesTotal,
+  };
+}

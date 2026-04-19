@@ -1,59 +1,25 @@
 import { redirect } from "next/navigation";
-import { signOut } from "@/auth";
-import { apiFetch, ApiError } from "@/lib/api";
+import { signOut, auth } from "@/auth";
+import { createRepo, deleteRepo } from "@/lib/db/jobs";
+import { getRepos, getRepoStatus } from "@/lib/db/queries";
 
-interface RepoDetail {
-  repo_id: string;
-  github_url: string;
-  default_branch: string;
-  last_analyzed_at: string | null;
-  created_at: string;
-}
+export default async function ReposPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
 
-interface RepoStatus {
-  repo: RepoDetail;
-  latest_analysis: {
-    analysis_id: string;
-    status: string;
-    call_sites_count: number | null;
-    analyzed_at: string | null;
-  } | null;
-  latest_inference: {
-    inference_id: string;
-    status: string;
-    domain: string | null;
-    confidence: number | null;
-    approved_sources: number;
-    total_sources: number;
-  } | null;
-  latest_harvest: {
-    inference_id: string;
-    sources_done: number;
-    sources_total: number;
-    total_chunks: number;
-  } | null;
-}
+  const u = session.user as Record<string, unknown>;
+  const userId = String(u.id ?? "");
+  if (!userId) redirect("/login");
 
-async function fetchRepos(): Promise<RepoDetail[]> {
-  try {
-    return await apiFetch<RepoDetail[]>("/v1/me/repos");
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) redirect("/login");
-    throw err;
-  }
-}
-
-async function fetchRepoStatus(repoId: string): Promise<RepoStatus> {
-  return apiFetch<RepoStatus>(`/v1/me/repos/${repoId}/status`);
-}
-
-export default async function ReposPage() {
-  const repos = await fetchRepos();
+  const { error } = await searchParams;
+  const repos = await getRepos(userId);
 
   const statuses = await Promise.all(
-    repos.map((r) =>
-      fetchRepoStatus(r.repo_id).catch(() => null as RepoStatus | null)
-    )
+    repos.map((r) => getRepoStatus(userId, r.id).catch(() => null)),
   );
 
   return (
@@ -75,34 +41,26 @@ export default async function ReposPage() {
         </form>
       </div>
 
-      {/* Register form */}
+      {error && (
+        <p style={{ color: "red", marginBottom: 16, fontSize: 13 }}>Error: {error}</p>
+      )}
+
       <form
         action={async (formData: FormData) => {
           "use server";
+          const session2 = await auth();
+          if (!session2?.user) redirect("/login");
+          const uid = String((session2.user as Record<string, unknown>).id ?? "");
           const repoUrl = formData.get("repo_url") as string;
           const branch = (formData.get("branch") as string) || "main";
           try {
-            const repo = await apiFetch<RepoDetail>("/v1/me/repos", {
-              method: "POST",
-              body: JSON.stringify({ repo_url: repoUrl, default_branch: branch }),
-            });
-            redirect(`/repos/${repo.repo_id}`);
-          } catch (err) {
-            if (err instanceof ApiError) {
-              // Redirect back with error — simplified for MVP
-              redirect(`/repos?error=${encodeURIComponent(err.message)}`);
-            }
-            throw err;
+            const repo = await createRepo(uid, repoUrl, branch);
+            redirect(`/repos/${repo.id}`);
+          } catch {
+            redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
           }
         }}
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 32,
-          padding: "16px",
-          background: "#f9f9f9",
-          border: "1px solid #eee",
-        }}
+        style={{ display: "flex", gap: 8, marginBottom: 32, padding: "16px", background: "#f9f9f9", border: "1px solid #eee" }}
       >
         <input
           name="repo_url"
@@ -118,10 +76,7 @@ export default async function ReposPage() {
           defaultValue="main"
           style={{ width: 80, padding: "8px 10px", fontSize: 13, border: "1px solid #ccc" }}
         />
-        <button
-          type="submit"
-          style={{ padding: "8px 18px", fontWeight: "bold", fontSize: 13, cursor: "pointer" }}
-        >
+        <button type="submit" style={{ padding: "8px 18px", fontWeight: "bold", fontSize: 13, cursor: "pointer" }}>
           + Register
         </button>
       </form>
@@ -135,74 +90,58 @@ export default async function ReposPage() {
       {repos.map((repo, i) => {
         const status = statuses[i];
         return (
-          <div
-            key={repo.repo_id}
-            style={{ border: "1px solid #ddd", padding: "16px 20px", marginBottom: 12 }}
-          >
+          <div key={repo.id} style={{ border: "1px solid #ddd", padding: "16px 20px", marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <a
-                  href={`/repos/${repo.repo_id}`}
+                  href={`/repos/${repo.id}`}
                   style={{ fontWeight: "bold", fontSize: 15, color: "#0066cc", textDecoration: "none" }}
                 >
                   {repo.github_url.replace("https://github.com/", "")}
                 </a>
-                <span style={{ marginLeft: 10, fontSize: 12, color: "#888" }}>
-                  branch: {repo.default_branch}
-                </span>
+                <span style={{ marginLeft: 10, fontSize: 12, color: "#888" }}>branch: {repo.default_branch}</span>
               </div>
               <form
                 action={async () => {
                   "use server";
-                  await apiFetch(`/v1/me/repos/${repo.repo_id}`, { method: "DELETE" });
+                  const s = await auth();
+                  if (!s?.user) return;
+                  const uid = String((s.user as Record<string, unknown>).id ?? "");
+                  await deleteRepo(uid, repo.id);
                   redirect("/repos");
                 }}
               >
-                <button
-                  type="submit"
-                  style={{
-                    fontSize: 11,
-                    color: "#999",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
+                <button type="submit" style={{ fontSize: 11, color: "#999", background: "none", border: "none", cursor: "pointer" }}>
                   delete
                 </button>
               </form>
             </div>
 
-            {/* Status chips */}
             <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
               <StatusChip
                 label="ANALYZE"
-                status={status?.latest_analysis?.status ?? null}
+                status={status?.latestAnalysis?.status ?? null}
                 detail={
-                  status?.latest_analysis?.call_sites_count != null
-                    ? `${status.latest_analysis.call_sites_count} call sites`
+                  status?.latestAnalysis?.call_sites != null
+                    ? `${(status.latestAnalysis.call_sites as unknown[]).length} call sites`
                     : undefined
                 }
               />
               <StatusChip
                 label="INFER"
-                status={status?.latest_inference?.status ?? null}
-                detail={status?.latest_inference?.domain ?? undefined}
+                status={status?.latestInference?.status ?? null}
+                detail={status?.latestInference?.domain ?? undefined}
               />
               <StatusChip
                 label="HARVEST"
                 status={
-                  status?.latest_harvest
-                    ? status.latest_harvest.sources_done >= status.latest_harvest.sources_total
+                  status?.harvestChunks
+                    ? status.harvestSourcesDone >= status.harvestSourcesTotal && status.harvestSourcesTotal > 0
                       ? "done"
                       : "running"
                     : null
                 }
-                detail={
-                  status?.latest_harvest
-                    ? `${status.latest_harvest.total_chunks.toLocaleString()} chunks`
-                    : undefined
-                }
+                detail={status?.harvestChunks ? `${status.harvestChunks.toLocaleString()} chunks` : undefined}
               />
             </div>
           </div>
@@ -212,44 +151,17 @@ export default async function ReposPage() {
   );
 }
 
-function StatusChip({
-  label,
-  status,
-  detail,
-}: {
-  label: string;
-  status: string | null;
-  detail?: string;
-}) {
+function StatusChip({ label, status, detail }: { label: string; status: string | null; detail?: string }) {
   const color =
-    status === "done"
-      ? "#22c55e"
-      : status === "error"
-        ? "#ef4444"
-        : status === "running" || status === "pending"
-          ? "#f59e0b"
-          : "#ccc";
+    status === "done" ? "#22c55e" :
+    status === "error" ? "#ef4444" :
+    status === "running" || status === "pending" ? "#f59e0b" : "#ccc";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-      <span
-        style={{
-          display: "inline-block",
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-        }}
-      />
+      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
       <span style={{ fontWeight: "bold", color: "#444" }}>{label}</span>
-      {status && (
-        <span style={{ color: "#888" }}>
-          {status}
-          {detail ? ` · ${detail}` : ""}
-        </span>
-      )}
-      {!status && <span style={{ color: "#ccc" }}>—</span>}
+      {status ? <span style={{ color: "#888" }}>{status}{detail ? ` · ${detail}` : ""}</span> : <span style={{ color: "#ccc" }}>—</span>}
     </div>
   );
 }

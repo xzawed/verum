@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
-import { apiFetch, ApiError } from "@/lib/api";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { getAnalysis } from "@/lib/db/queries";
 
 interface CallSite {
   file_path: string;
@@ -26,69 +27,44 @@ interface ModelConfig {
   max_tokens: number | null;
 }
 
-interface AnalysisData {
-  status: string;
-  analysis_id: string;
-  call_sites?: CallSite[];
-  prompt_templates?: PromptTemplate[];
-  model_configs?: ModelConfig[];
-  language_breakdown?: Record<string, number>;
-  analyzed_at?: string;
-  error?: string;
-  started_at?: string;
-}
-
-async function fetchAnalysis(id: string): Promise<AnalysisData> {
-  try {
-    return await apiFetch<AnalysisData>(`/v1/analyze/${id}`);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
-  }
-}
-
 export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  if (!userId) redirect("/login");
+
   const { id } = await params;
-  const data = await fetchAnalysis(id);
+  const data = await getAnalysis(userId, id);
+  if (!data) notFound();
 
   if (data.status === "pending" || data.status === "running") {
-    return <PendingView data={data} />;
+    return (
+      <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
+        <h1 style={{ fontSize: 24, marginBottom: 8 }}>Analysis in progress</h1>
+        <p style={{ color: "#666" }}>Status: {data.status}</p>
+        {data.started_at && <p style={{ color: "#666" }}>Started: {new Date(data.started_at).toLocaleString()}</p>}
+        <p style={{ marginTop: 24 }}>
+          <a href={`/analyses/${data.id}`}>Refresh</a>
+        </p>
+      </main>
+    );
   }
 
   if (data.status === "error") {
-    return <ErrorView data={data} />;
+    return (
+      <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
+        <h1 style={{ fontSize: 24, marginBottom: 8, color: "red" }}>Analysis failed</h1>
+        <pre style={{ background: "#fee", padding: 12, overflowX: "auto" }}>{data.error}</pre>
+        <p><a href="/repos">Back to repos</a></p>
+      </main>
+    );
   }
 
-  return <DoneView data={data} />;
-}
-
-function PendingView({ data }: { data: AnalysisData }) {
-  return (
-    <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Analysis in progress</h1>
-      <p style={{ color: "#666" }}>Status: {data.status}</p>
-      {data.started_at && <p style={{ color: "#666" }}>Started: {data.started_at}</p>}
-      <p style={{ marginTop: 24 }}>Refresh this page to check for results.</p>
-      <p><a href={`/analyses/${data.analysis_id}`}>Refresh</a></p>
-    </main>
-  );
-}
-
-function ErrorView({ data }: { data: AnalysisData }) {
-  return (
-    <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8, color: "red" }}>Analysis failed</h1>
-      <pre style={{ background: "#fee", padding: 12, overflowX: "auto" }}>{data.error}</pre>
-      <p><a href="/repos">Back to repos</a></p>
-    </main>
-  );
-}
-
-function DoneView({ data }: { data: AnalysisData }) {
-  const callSites = data.call_sites ?? [];
-  const promptTemplates = data.prompt_templates ?? [];
-  const modelConfigs = data.model_configs ?? [];
-  const languageBreakdown = data.language_breakdown ?? {};
+  const callSites = (data.call_sites as CallSite[]) ?? [];
+  const promptTemplates = (data.prompt_templates as PromptTemplate[]) ?? [];
+  const modelConfigs = (data.model_configs as ModelConfig[]) ?? [];
+  const languageBreakdown = (data.language_breakdown as Record<string, number>) ?? {};
 
   const byFile = callSites.reduce<Record<string, CallSite[]>>((acc, cs) => {
     (acc[cs.file_path] ??= []).push(cs);
@@ -131,9 +107,7 @@ function DoneView({ data }: { data: AnalysisData }) {
               <div key={i} style={{ padding: "6px 12px", background: "#f5f5f5", marginBottom: 4, fontSize: 13 }}>
                 <span style={{ fontWeight: "bold", color: "#0066cc" }}>[{cs.sdk}]</span>{" "}
                 line {cs.line} — {cs.function}
-                {cs.prompt_ref && (
-                  <span style={{ color: "#888", marginLeft: 8 }}>prompt: {cs.prompt_ref.slice(0, 8)}…</span>
-                )}
+                {cs.prompt_ref && <span style={{ color: "#888", marginLeft: 8 }}>prompt: {cs.prompt_ref.slice(0, 8)}…</span>}
               </div>
             ))}
           </div>
