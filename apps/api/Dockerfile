@@ -26,5 +26,6 @@ COPY apps/api/alembic/ ./alembic/
 COPY apps/api/alembic.ini ./alembic.ini
 
 EXPOSE 8000
-# alembic upgrade head runs migrations on every start; safe because Alembic is idempotent
-CMD ["sh", "-c", "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Migrations are applied via Supabase MCP or Railway Pre-Deploy command.
+# Alembic upgrade is NOT run here to avoid startup failures on DB connectivity issues.
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
