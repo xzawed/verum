@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import re
 import shutil
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 from uuid import UUID
 
 _GITHUB_URL_RE = re.compile(r"^https://github\.com/[\w.\-]+/[\w.\-]+(\.git)?$")
-_CLONE_BASE = Path("/tmp/verum-clones")
+_CLONE_BASE = Path(tempfile.gettempdir()) / "verum-clones"
 
 _CLONE_ERRORS = {
     "not found": "not_found",
