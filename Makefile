@@ -2,7 +2,30 @@
         lint type-check db-migrate db-revision db-reset \
         sdk-python-build sdk-ts-build sdk-publish-dry \
         deploy-staging deploy-prod \
-        loop-analyze loop-infer loop-harvest loop-full
+        loop-analyze loop-infer loop-harvest loop-full \
+        verify-deploy verify-deploy-clean
+
+# === Pre-deploy verification (run before ANY push touching Dockerfile, alembic/, or db/) ===
+# Uses Railway-style postgres:// URL to exercise the full conversion + SSL detection path.
+# Requires: Docker running, Python 3.13+ in path.
+verify-deploy:
+	@echo "--- [1/4] Starting test Postgres (port 5433) ---"
+	docker compose -f docker-compose.test.yml up -d
+	@until docker exec verum-db-test-1 pg_isready -U verum -q 2>/dev/null; do sleep 1; done
+	@echo "--- [2/4] Running alembic with Railway-style URL ---"
+	cd apps/api && DATABASE_URL=postgres://verum:verum@localhost:5433/verum alembic upgrade head
+	@echo "--- [3/4] Testing /health endpoint ---"
+	cd apps/api && DATABASE_URL=postgres://verum:verum@localhost:5433/verum uvicorn src.main:app --host 0.0.0.0 --port 8001 &
+	@sleep 4
+	curl -sf http://localhost:8001/health | python -m json.tool
+	@echo "--- [4/4] Cleanup ---"
+	@-pkill -f "uvicorn src.main:app" 2>/dev/null || true
+	docker compose -f docker-compose.test.yml down
+	@echo "=== verify-deploy PASSED ==="
+
+verify-deploy-clean:
+	docker compose -f docker-compose.test.yml down -v
+	@-pkill -f "uvicorn src.main:app" 2>/dev/null || true
 
 # === Local development ===
 dev:

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from logging.config import fileConfig
+from urllib.parse import urlparse
 
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -21,6 +23,8 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+logger = logging.getLogger("alembic.env")
+
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     config.get_main_option("sqlalchemy.url", "postgresql+asyncpg://verum:verum@localhost:5432/verum"),
@@ -30,6 +34,17 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+# Remote hosts (Railway, etc.) require SSL; local/Docker hosts do not.
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "db", "db-test", ""}
+try:
+    _db_host = urlparse(DATABASE_URL).hostname or ""
+except Exception:
+    _db_host = ""
+_ENGINE_KWARGS: dict[str, object] = (
+    {"connect_args": {"ssl": "require"}} if _db_host not in _LOCAL_HOSTS else {}
+)
+logger.info("alembic: host=%s ssl=%s", _db_host, "require" if _ENGINE_KWARGS else "off")
 
 
 def run_migrations_offline() -> None:
@@ -50,7 +65,7 @@ def do_run_migrations(connection: object) -> None:
 
 
 async def run_async_migrations() -> None:
-    engine = create_async_engine(DATABASE_URL, echo=False)
+    engine = create_async_engine(DATABASE_URL, echo=False, **_ENGINE_KWARGS)  # type: ignore[arg-type]
     async with engine.begin() as conn:
         await conn.run_sync(do_run_migrations)
     await engine.dispose()
