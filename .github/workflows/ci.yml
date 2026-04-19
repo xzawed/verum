@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"  # weekly Monday 06:00 UTC — runs dogfood-arcana
+  workflow_dispatch:
+    inputs:
+      dogfood:
+        description: "Run dogfood-arcana job"
+        required: false
+        default: "false"
 
 jobs:
   lint-python:
@@ -34,7 +42,8 @@ jobs:
           node-version: "20"
       - name: tsc — sdk-typescript
         run: cd packages/sdk-typescript && npm install --no-audit --no-fund && npx tsc --noEmit
-      # Dashboard tsc activated in Phase 3 once Next.js app scaffold lands
+      - name: tsc — dashboard
+        run: cd apps/dashboard && npm install --no-audit --no-fund && npx tsc --noEmit
 
   test-api:
     name: Python tests
@@ -62,7 +71,50 @@ jobs:
         run: pip install "apps/api[dev]"
       - name: Run tests
         working-directory: apps/api
-        run: pytest tests -v
+        run: pytest tests -v --cov=src.loop.analyze --cov-fail-under=50 --cov-config=pyproject.toml
         env:
           DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5432/verum
+          PYTHONPATH: .
+
+  dogfood-arcana:
+    name: Dogfood — ArcanaInsight ANALYZE
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: verum
+          POSTGRES_PASSWORD: verum
+          POSTGRES_DB: verum
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install API + dev deps
+        run: pip install "apps/api[dev]"
+      - name: Run ANALYZE against ArcanaInsight
+        working-directory: apps/api
+        run: |
+          python -m src.loop.analyze.cli \
+            --repo https://github.com/xzawed/ArcanaInsight \
+            --branch main \
+            > /tmp/arcana-result.json
+          python - <<'EOF'
+          import json, sys
+          data = json.load(open("/tmp/arcana-result.json"))
+          count = len(data.get("call_sites", []))
+          print(f"call_sites: {count}")
+          assert count >= 4, f"Expected >= 4 call sites, got {count}"
+          print("PASS: dogfood-arcana")
+          EOF
+        env:
           PYTHONPATH: .
