@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 _DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# Support both postgresql+asyncpg:// and plain postgresql:// (convert)
-if _DATABASE_URL.startswith("postgresql://"):
+# Railway provides postgres://, standard is postgresql://, asyncpg needs postgresql+asyncpg://
+if _DATABASE_URL.startswith("postgres://"):
+    _DATABASE_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif _DATABASE_URL.startswith("postgresql://"):
     _DATABASE_URL = _DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(

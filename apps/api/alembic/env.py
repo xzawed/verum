@@ -25,7 +25,10 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     config.get_main_option("sqlalchemy.url", "postgresql+asyncpg://verum:verum@localhost:5432/verum"),
 )
-if DATABASE_URL.startswith("postgresql://"):
+# Railway provides postgres://, standard is postgresql://, asyncpg needs postgresql+asyncpg://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
