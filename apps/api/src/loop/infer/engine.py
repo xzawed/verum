@@ -110,7 +110,10 @@ async def run_infer(result: AnalysisResult) -> ServiceInference:
         messages=[{"role": "user", "content": _build_user_message(result)}],
     )
 
-    raw_text = message.content[0].text if message.content else "{}"
+    raw_text = next(
+        (block.text for block in message.content if hasattr(block, "text")),
+        "{}",
+    )
 
     # Strip markdown code fences if present
     raw_text = raw_text.strip()
