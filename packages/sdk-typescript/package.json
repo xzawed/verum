@@ -1,0 +1,21 @@
+{
+  "name": "@verum/sdk",
+  "version": "0.0.0",
+  "description": "Verum SDK — connect your AI service to The Verum Loop",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xzawed/verum"
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5"
+  }
+}

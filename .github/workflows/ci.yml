@@ -1,0 +1,64 @@
+# Phase 0 stub — jobs are placeholders until apps/api and apps/dashboard have real code.
+# Will run real lint/test once Phase 0 (F-0.7) is complete.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-python:
+    name: Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install linters
+        run: pip install ruff pylint bandit mypy
+      - name: ruff
+        run: ruff check apps/api/src packages/sdk-python/src || true  # TODO: remove || true in Phase 0
+      - name: bandit
+        run: bandit -r apps/api/src || true
+      - name: mypy
+        run: mypy apps/api/src || true
+
+  lint-typescript:
+    name: TypeScript lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: tsc
+        run: echo "TODO Phase 0 F-0.7 - add tsc --noEmit"
+
+  test-api:
+    name: Python tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: verum
+          POSTGRES_PASSWORD: verum
+          POSTGRES_DB: verum
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: pip install pytest pytest-asyncio httpx || true
+      - name: Run tests
+        run: echo "TODO Phase 0 F-0.7 - add pytest apps/api/tests"

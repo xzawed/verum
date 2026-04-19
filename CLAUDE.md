@@ -1,0 +1,657 @@
+# CLAUDE.md
+
+This file is the single source of truth for Claude Code working on **Verum**.
+Read it completely before any significant action, and re-read it when starting a new session.
+
+---
+
+## 🎯 프로젝트 정체성
+
+### Verum이란
+
+**Verum** (라틴어로 "진실")은 **AI 서비스를 자동으로 분석하고 최적화하는 플랫폼**입니다.
+
+핵심 동작 원리는 단순합니다:
+
+> **사용자가 Repo를 연결한다 → Verum이 코드를 분석한다 → LLM 호출 패턴을 이해한다 → 최적 프롬프트·RAG·평가셋·대시보드를 자동으로 만들어준다 → 실제 운영 중 A/B 테스트로 계속 진화한다.**
+
+### 한 줄 정의
+
+> *Connect your repo. Verum learns how your AI actually behaves, then auto-builds and auto-evolves everything around it — prompts, RAG, evals, observability.*
+
+### 경쟁 포지셔닝
+
+| 비교 대상 | 그들이 하는 것 | Verum이 추가로 하는 것 |
+|-----------|---------------|----------------------|
+| **Langfuse / LangSmith** | LLM 호출 관측 | 관측 결과로 프롬프트·RAG 자동 생성·진화 |
+| **RAGAS** | RAG 평가 | 서비스 맞춤 평가셋 자동 구축 |
+| **PromptLayer** | 프롬프트 버전 관리 | 프롬프트를 AI가 만들고 A/B 테스트로 고름 |
+| **CodeRabbit / SCAManager** | 코드 리뷰 | 코드 분석 결과를 AI 서비스 최적화에 사용 |
+
+**한 마디로**: 시장의 다른 도구들은 "사람이 LLM 시스템을 운영하는 걸 돕는" 도구이고, Verum은 "LLM 시스템이 스스로 개선되도록 돕는" 도구입니다.
+
+### 왜 만드는가
+
+1. **제품적 목적**: xzawed의 여러 AI 서비스(ArcanaInsight 외 앞으로 만들 것들)를 자동으로 고도화
+2. **경력적 목적**: AI/LLM 엔지니어로 포지셔닝. "Auto-optimizing LLM infrastructure"라는 키워드는 이력서에서 희소성 최상
+3. **생태계적 목적**: 오픈소스 공개. 한국발 LLM 인프라 도구로 기여
+
+### 핵심 가치
+
+- **Automation over instrumentation**: 사람이 손으로 하던 걸 자동화. 이게 Verum의 본질
+- **Observe → Learn → Generate → Evolve**: 이 루프가 닫혀서 돌아야 Verum이다
+- **Repo-first**: 모든 분석의 출발점은 Repo. 서비스 실행 중이 아니어도 분석 가능해야 함
+- **Dogfood relentlessly**: xzawed 본인의 서비스에 먼저 적용. 안 되면 남에게 파는 게 의미 없음
+
+---
+
+## 🔁 The Verum Loop (핵심 루프)
+
+Verum이 하는 모든 일은 이 루프 안에 있습니다. 새 기능을 만들 때 "이게 루프의 어느 단계에 해당하는가"를 먼저 답할 수 없으면 그 기능은 Verum의 기능이 아닙니다.
+
+```
+  ┌─────────────────────────────────────────────────────────────┐
+  │                                                             │
+  │   [1] ANALYZE         Repo 정적 분석으로 LLM 호출 패턴 추출  │
+  │         ↓                                                   │
+  │   [2] INFER           서비스 도메인·목적·스타일을 추론       │
+  │         ↓                                                   │
+  │   [3] HARVEST         도메인 관련 외부 지식을 자동 수집      │
+  │         ↓                                                   │
+  │   [4] GENERATE        프롬프트·RAG·평가셋·대시보드 자동 생성 │
+  │         ↓                                                   │
+  │   [5] DEPLOY          생성물을 서비스에 SDK/API로 주입       │
+  │         ↓                                                   │
+  │   [6] OBSERVE         실제 운영 중 호출·결과를 추적          │
+  │         ↓                                                   │
+  │   [7] EXPERIMENT      A/B 테스트로 여러 버전 비교 실행       │
+  │         ↓                                                   │
+  │   [8] EVOLVE          승자 버전 선택 → 패배 버전 폐기        │
+  │         ↓                                                   │
+  └──────── [1]로 복귀. 계속 학습하고 계속 개선 ────────────────┘
+```
+
+### 각 단계의 구체적 정의
+
+**[1] ANALYZE — Repo 정적 분석**
+- AST 파싱으로 LLM 호출 지점 탐지 (OpenAI/Anthropic/Grok SDK 사용 위치)
+- 프롬프트 문자열·템플릿 추출
+- 입력 변수·출력 소비 패턴 추적
+- 모델·파라미터(temperature 등) 설정 파악
+- 서비스 실행 필요 없음 — 이게 "정적 분석" 원칙
+
+**[2] INFER — 서비스 의도 추론**
+- 추출된 프롬프트 + Repo 문서(README, 주석) + 타입 정의를 LLM에 입력
+- "이 서비스는 무엇을 하는가? 어떤 도메인인가? 어떤 톤을 원하는가?"를 구조화된 JSON으로 응답받음
+- 예: `{"domain": "tarot_divination", "tone": "mystical", "language": "ko", "user_type": "consumer"}`
+
+**[3] HARVEST — 도메인 지식 자동 수집**
+- INFER 결과의 `domain`에 따라 크롤링 전략 선택
+- 전략 예시:
+  - `tarot_divination` → 타로 해석서 사이트, Wikipedia 타로 카테고리
+  - `code_review` → StackOverflow 태그별, ESLint 문서
+  - `legal_qa` → 국가법령정보센터, 판례 데이터베이스
+- LLM이 자체적으로 "이 도메인에는 어떤 소스가 권위 있는가"를 제안하고 사용자 승인 후 크롤링
+- 수집 결과는 청킹·임베딩·pgvector 저장
+
+**[4] GENERATE — 자산 자동 생성**
+- **프롬프트 템플릿**: 기존 프롬프트의 여러 변형(Chain-of-Thought, Few-shot 등) 생성
+- **RAG 인덱스**: HARVEST 결과를 서비스 맞춤으로 청킹·임베딩
+- **평가셋**: 예상 질의 20~50개를 LLM이 생성하고 정답 쌍을 만들어 보관
+- **대시보드 설정**: 서비스 특성에 맞는 메트릭 자동 선택 (B2C 서비스라면 지연시간·만족도 우선)
+
+**[5] DEPLOY — 서비스에 주입**
+- Python SDK: 기존 `openai.chat.completions.create()`를 `verum.chat()`으로 감싸기만 하면 자동 적용
+- TypeScript SDK: 동일 패턴
+- Verum 대시보드에서 "이 프롬프트를 운영 중 10%에 시험 배포" 같은 제어
+
+**[6] OBSERVE — 운영 중 추적**
+- OpenTelemetry 호환 trace/span 수집
+- 입력·출력·모델·지연·비용 모두 기록
+- 사용자 피드백(👍👎) 수집
+
+**[7] EXPERIMENT — 자동 A/B**
+- 여러 프롬프트 변형이 존재하면 트래픽을 자동 분할
+- RAG 전략 여러 개(예: semantic chunking vs recursive chunking)도 동시 비교
+- 통계적 유의성 확보까지 자동 모니터링
+
+**[8] EVOLVE — 승자 채택**
+- 평가 지표(사용자 만족도 + LLM-as-Judge + 비용)의 가중 합이 우위인 버전이 승자
+- 승자를 기본 프롬프트로 승격, 패배자는 아카이브
+- 다음 개선 사이클을 위해 [1]로 복귀
+
+---
+
+## 👤 작업자 정보
+
+- **소유자**: xzawed (GitHub: xzawed)
+- **위치**: 서울, 한국
+- **주 언어**: 한국어 (대화), 영어 (코드·커밋·문서)
+- **작업 스타일**: Claude Code와 협업. 세부 구현보다 방향·의사결정 중심
+
+### Claude와의 대화 규칙
+
+- **한국어로 대화하기**. 코드·커밋 메시지·PR 설명·문서는 영어
+- **과도한 기초 설명 자제**. xzawed는 풀스택 경험자
+- **결정이 필요한 순간은 명시적으로 물어보기**. 혼자 판단해서 진행하지 말 것
+- **실수는 즉시 인정**. "죄송합니다" 한 번, 수정안 바로 제시
+- **"모른다"고 솔직히 말하기**. 추측을 사실처럼 말하면 프로젝트가 산으로 간다
+- **루프의 어느 단계인지 항상 의식**. "이건 [4] GENERATE의 세부 구현"처럼 구조화해서 대화
+
+---
+
+## 🎭 타겟 사용자와 배포 모델
+
+### 두 종류 사용자
+
+**① 비개발자 (SaaS 사용자)**
+- Verum 클라우드(verum.dev)에 가입
+- GitHub OAuth로 Repo 연결
+- 대시보드에서 클릭만으로 전체 루프 실행
+- 월 구독 모델 (Phase 5 이후)
+
+**② 개발자 (셀프 호스팅)**
+- `docker compose up`으로 전체 스택 자체 호스팅
+- SDK를 자기 서비스에 직접 통합
+- 모든 자동 생성 자산을 사람이 수정 가능
+- MIT 라이선스 오픈소스
+
+### 듀얼 모드 배포 원칙
+
+| 컴포넌트 | 오픈소스 | 클라우드 |
+|---------|---------|---------|
+| 엔진(The Verum Loop) | ✅ MIT | ✅ 동일 엔진 사용 |
+| 대시보드 | ✅ MIT | ✅ 동일 |
+| SDK (Python/TS) | ✅ MIT | ✅ 동일 |
+| 호스팅·스케일링·백업 | ❌ | ✅ Verum이 운영 |
+| GitHub OAuth 통합 | ✅ 사용자가 직접 설정 | ✅ 원클릭 |
+| 협업 기능(팀·권한) | ❌ (Phase 5 이후) | ✅ |
+| 엔터프라이즈 지원 | ❌ | ✅ (유료) |
+
+**핵심 원칙**: **기능에 유료/무료 경계가 있어선 안 된다. 오직 "운영을 누가 하는가"가 차이다.** Langfuse 모델을 따라간다.
+
+---
+
+## 🏗 기술 스택
+
+### 백엔드 (Python)
+
+- **Python**: 3.13+
+- **웹 프레임워크**: FastAPI + Uvicorn
+- **ORM**: SQLAlchemy 2 + Alembic
+- **비동기**: asyncio 전면 사용
+- **정적 분석(ANALYZE 단계)**: `ast` 모듈 + `libcst` (보존형 변환) + `tree-sitter` (다언어 지원)
+- **크롤링(HARVEST 단계)**: `httpx` + `trafilatura` + `playwright` (JS 렌더링 필요 시)
+- **테스트**: pytest + pytest-asyncio + httpx TestClient
+- **Lint**: pylint + flake8 + bandit + ruff
+
+### 프론트엔드 (대시보드)
+
+- **프레임워크**: Next.js 16 (App Router) + React 19
+- **언어**: TypeScript strict
+- **스타일링**: Tailwind CSS v4
+- **차트**: Recharts
+- **상태 관리**: Zustand
+- **인증**: NextAuth (GitHub OAuth 포함)
+
+### 데이터베이스
+
+- **주 DB**: PostgreSQL 16+
+- **벡터 확장**: pgvector. **다른 벡터 DB 절대 금지** — xzawed의 PostgreSQL 전문성 활용
+- **전문 검색**: PostgreSQL의 tsvector (하이브리드 검색)
+- **트레이스 저장**: Phase 1-3은 PostgreSQL, Phase 4+ 고볼륨 시 ClickHouse 추가 검토
+
+### AI / LLM
+
+- **LLM 추상화 레이어**: 자체 구현 (OpenAI, Anthropic, Grok 통합)
+- **INFER 단계 LLM**: Claude Sonnet 4.6 이상 (구조화된 추론 필요)
+- **임베딩**: OpenAI text-embedding-3-small (기본) + BGE-M3 (실험용)
+- **재순위**: BGE-reranker-v2-m3 (로컬) + Cohere Rerank (대안)
+- **평가**: RAGAS + LLM-as-a-Judge 자체 구현
+
+### Observability
+
+- **표준**: OpenTelemetry (OTLP 호환)
+- **SDK**: Python + TypeScript 2종
+
+### 인프라
+
+- **배포**: Railway (초기) → Docker Compose (자체 호스팅) → Kubernetes (엔터프라이즈)
+- **CI/CD**: GitHub Actions
+- **컨테이너**: Docker (멀티스테이지 빌드 필수, 최종 이미지 1GB 미만)
+- **도메인**: verum.dev (verumai.com 충돌 회피)
+
+---
+
+## 📁 프로젝트 구조
+
+```
+verum/
+├── .claude/                    # Claude Code 전용 설정
+├── .github/                    # GitHub Actions, issue/PR 템플릿
+├── docs/
+│   ├── ARCHITECTURE.md        # The Verum Loop 상세 설계
+│   ├── DECISIONS.md           # ADR (Architecture Decision Records)
+│   ├── ROADMAP.md             # 6개월 로드맵
+│   ├── LOOP.md                # 루프 각 단계의 구현 문서
+│   └── guides/                # 사용자 가이드
+├── apps/
+│   ├── api/                   # FastAPI 백엔드
+│   │   ├── src/
+│   │   │   ├── main.py
+│   │   │   ├── loop/          # The Verum Loop 구현
+│   │   │   │   ├── analyze/   # [1] Repo 정적 분석
+│   │   │   │   ├── infer/     # [2] 서비스 의도 추론
+│   │   │   │   ├── harvest/   # [3] 도메인 지식 수집
+│   │   │   │   ├── generate/  # [4] 자산 자동 생성
+│   │   │   │   ├── deploy/    # [5] 서비스 주입
+│   │   │   │   ├── observe/   # [6] 운영 추적
+│   │   │   │   ├── experiment/# [7] A/B 테스트
+│   │   │   │   └── evolve/    # [8] 승자 선택
+│   │   │   ├── integrations/  # GitHub, OAuth 등
+│   │   │   └── db/            # 모델, 마이그레이션
+│   │   ├── tests/
+│   │   └── alembic/
+│   └── dashboard/             # Next.js 대시보드
+├── packages/
+│   ├── sdk-python/            # `pip install verum`
+│   └── sdk-typescript/        # `npm install @verum/sdk`
+├── examples/
+│   └── arcana-integration/    # ArcanaInsight 통합 예제 (첫 dogfood)
+├── docker-compose.yml
+├── CLAUDE.md
+├── README.md                  # 영문
+├── README.ko.md               # 한글
+└── LICENSE                    # MIT
+```
+
+### 디렉토리 설계 원칙
+
+- **`apps/api/src/loop/`는 신성불가침**. The Verum Loop의 각 단계가 디렉토리로 존재해야 함. 이걸 함부로 리팩터링하지 말 것
+- **`apps/` = 실행 가능한 애플리케이션**
+- **`packages/` = 재사용 패키지 (SDK)**
+- **`examples/` = 실전 통합 사례**. ArcanaInsight는 예제이자 첫 사용자
+
+---
+
+## 🗓 6개월 로드맵
+
+### Phase 0: Foundation (Week 1-2)
+
+**목표**: 프로젝트 기반. "Hello World" 수준이라도 배포까지.
+
+- [ ] Monorepo 초기화 (pnpm workspace + pip workspace)
+- [ ] GitHub 저장소 생성 (`github.com/xzawed/verum`)
+- [ ] MIT 라이선스
+- [ ] 영문 README + 한글 README
+- [ ] Docker Compose (FastAPI + PostgreSQL + pgvector + Next.js)
+- [ ] GitHub Actions CI (lint + test)
+- [ ] Railway 배포 파이프라인
+- [ ] `/health` 헬스체크 엔드포인트
+
+**완료 기준**: `curl https://verum-api.up.railway.app/health` → 200 OK
+
+---
+
+### Phase 1: ANALYZE (Week 3-5)
+
+**목표**: 루프 1단계 — Repo를 받아서 LLM 호출 패턴을 추출.
+
+- [ ] GitHub OAuth 통합 (사용자가 Repo 접근 권한 부여)
+- [ ] Repo 클론 & 격리된 임시 환경
+- [ ] Python AST 기반 LLM 호출 탐지 (openai, anthropic, google.generativeai 등)
+- [ ] TypeScript/JavaScript tree-sitter 기반 동일 기능
+- [ ] 프롬프트 문자열 추출 (f-string, template literal 등 포함)
+- [ ] 모델·파라미터 설정 추출
+- [ ] 분석 결과를 구조화된 JSON으로 저장
+
+**완료 기준**: ArcanaInsight의 Grok 호출 지점을 모두 자동 탐지하고, 프롬프트와 파라미터를 정확히 추출
+
+---
+
+### Phase 2: INFER + HARVEST (Week 6-9)
+
+**목표**: 루프 2-3단계 — 서비스 의도를 이해하고 지식을 수집.
+
+- [ ] INFER 엔진: 프롬프트 + 문서 → 도메인 JSON
+- [ ] 도메인 분류 체계 정의 (초기 20개 도메인 카테고리)
+- [ ] HARVEST 엔진: 도메인별 크롤링 전략
+- [ ] 크롤링 소스 제안 + 사용자 승인 플로우
+- [ ] 크롤링 결과 청킹 (Recursive + Semantic 비교)
+- [ ] pgvector에 임베딩 저장
+- [ ] 대시보드: INFER 결과 시각화, HARVEST 진행 상황
+
+**완료 기준**: ArcanaInsight → `{"domain": "divination/tarot"}` 추론 성공, 타로 관련 지식 1,000 청크 이상 자동 수집
+
+---
+
+### Phase 3: GENERATE + DEPLOY (Week 10-13)
+
+**목표**: 루프 4-5단계 — 자동으로 만들고 자동으로 주입.
+
+- [ ] 프롬프트 변형 생성기 (Chain-of-Thought, Few-shot, Role-play 등 5가지 패턴)
+- [ ] RAG 인덱스 자동 구성 (수집한 청크를 서비스 맞춤 청킹으로 재구성)
+- [ ] 평가셋 자동 생성 (예상 질의 + 정답 쌍 30-50개)
+- [ ] 대시보드 설정 자동 구성 (서비스 타입별 메트릭 선택)
+- [ ] Python SDK: `verum.chat()`, `verum.retrieve()` 고수준 API
+- [ ] TypeScript SDK: 동일 API
+- [ ] **ArcanaInsight에 SDK 적용** (첫 완전 dogfood)
+
+**완료 기준**: ArcanaInsight의 타로 상담이 Verum이 생성한 프롬프트와 RAG로 작동
+
+---
+
+### Phase 4: OBSERVE + EXPERIMENT + EVOLVE (Week 14-18)
+
+**목표**: 루프 6-8단계 — 닫힌 루프 완성. 자동 진화.
+
+- [ ] OpenTelemetry 호환 trace/span 수집
+- [ ] 비용·지연·품질 메트릭 대시보드
+- [ ] A/B 테스트 엔진: 트래픽 분할, 통계적 유의성 검정
+- [ ] 평가 지표 통합 (RAGAS + LLM-as-Judge + 사용자 피드백)
+- [ ] 자동 승자 선택 로직 (가중 평균 + 신뢰구간)
+- [ ] 승자 승격 + 패배자 아카이브
+- [ ] **ArcanaInsight에서 프롬프트 자동 진화 시연**
+
+**완료 기준**: ArcanaInsight 프롬프트가 사람 개입 없이 1회 이상 자동 개선되어 메트릭 향상 측정됨
+
+---
+
+### Phase 5: Launch (Week 19-24)
+
+**목표**: 오픈소스 공개. 첫 외부 사용자.
+
+- [ ] 영문 문서 완성 (docs.verum.dev)
+- [ ] "How Verum Works" 기술 블로그 3편 (dev.to + Medium + velog)
+- [ ] Hacker News / Reddit r/MachineLearning 런칭
+- [ ] Langfuse vs Verum 정직한 비교 문서
+- [ ] 3-5분 데모 영상 (ArcanaInsight 자동 최적화 실시간 시연)
+- [ ] 클라우드 SaaS MVP 오픈 (verum.dev)
+- [ ] 초기 10명 베타 사용자 확보
+
+**완료 기준**: GitHub 스타 100+, 비-xzawed 사용자 10명 이상의 Repo 연결
+
+---
+
+## 🎨 코딩 컨벤션
+
+### Python
+
+- **Type hints 필수**. 모든 공개 함수
+- **Async-first**. I/O는 `async def` 기본
+- **Pydantic v2**. 모든 데이터 구조
+- **Google 스타일 docstring**. 공개 API
+- **파일 최대 500줄**. 초과 시 분리
+- **한 함수 최대 50줄**. 초과 시 리팩터링
+
+```python
+# ✅ 좋은 예
+async def analyze_repository(
+    repo_url: str,
+    *,
+    branch: str = "main",
+    depth: int | None = None,
+) -> AnalysisResult:
+    """Run ANALYZE stage on a repository.
+
+    This is step [1] of The Verum Loop. It statically analyzes the code
+    to extract LLM call patterns without executing the service.
+
+    Args:
+        repo_url: GitHub repository URL.
+        branch: Target branch. Defaults to main.
+        depth: Optional shallow clone depth.
+
+    Returns:
+        Structured analysis including detected LLM call sites.
+
+    Raises:
+        RepoCloneError: If the repo cannot be cloned.
+        UnsupportedLanguageError: If no supported language is detected.
+    """
+    ...
+```
+
+### TypeScript
+
+- **Strict mode**. 모든 strict 옵션 true
+- **`any` 금지**. `unknown` 사용 후 좁히기
+- **Zod로 API 응답 검증**
+- **Named exports 선호**
+
+### SQL
+
+- **Alembic 필수**. 직접 SQL 실행 금지
+- **성능 영향 쿼리는 의도적 인덱스 설계**
+- **SCAManager의 FailoverSessionFactory 패턴 재사용**
+
+### 커밋 메시지 (Conventional Commits)
+
+루프 단계를 스코프로 사용:
+
+```
+feat(analyze): add tree-sitter based JS/TS call detection
+fix(infer): prevent domain misclassification for mixed-content repos
+feat(harvest): implement Wikipedia crawling strategy
+feat(generate): add chain-of-thought prompt variant template
+fix(deploy): handle SDK version mismatch gracefully
+feat(observe): add user feedback collection endpoint
+feat(experiment): implement Bayesian A/B stopping criterion
+feat(evolve): auto-promote winner when confidence > 0.95
+
+docs: update Korean README with Phase 2 completion
+refactor(sdk-python): extract embedding provider interface
+test(generate): add prompt variant generation test cases
+```
+
+### 테스트
+
+- **Phase 1까지**: 빠른 프로토타이핑 허용. 커버리지 무관
+- **Phase 2 이상**: 커버리지 80% 이상
+- **Unit + Integration + E2E (Playwright)** 3단 구조
+- **CI 실패 시 머지 차단**
+
+---
+
+## ⚠️ 하지 말아야 할 것 (Do Not List)
+
+절대 금지. 예외가 필요하면 xzawed 승인.
+
+1. **커밋 메시지·코드·주석·README에 Claude 언급 금지**
+   - "Generated by Claude", "Co-authored by Claude" 등 전부 금지
+   - 저자는 xzawed. Claude는 도구이자 협업자이지 공동 저자 아님
+
+2. **비-pgvector 벡터 DB 도입 금지**
+   - Pinecone/Weaviate/Qdrant/Chroma 등 전부 금지
+   - PostgreSQL 통일 원칙
+
+3. **LangChain/LlamaIndex 의존 금지**
+   - Verum은 이들의 대안이자 상위 레이어
+   - 의존하면 Verum의 정체성 소실
+   - 저수준 라이브러리(`openai`, `anthropic`)만 직접 사용
+
+4. **The Verum Loop 구조 훼손 금지**
+   - `apps/api/src/loop/` 아래 8개 서브디렉토리 구조 유지
+   - 새 기능은 반드시 "어느 단계에 속하는가" 명시
+   - 단계 간 경계 모호한 PR은 반려
+
+5. **유료/무료 기능 경계 만들지 말 것**
+   - Verum의 모든 "기능"은 오픈소스. 차이는 "호스팅·운영"뿐
+   - 오픈소스에서 막힌 기능이 유료에만 있으면 안 됨
+
+6. **영문 README 없이 배포 금지**
+   - 영어가 기본, 한글은 병기
+   - `README.md` = 영문, `README.ko.md` = 한글
+
+7. **ArcanaInsight 미적용 상태로 Phase 완료 선언 금지**
+   - 모든 Phase는 ArcanaInsight에서 실제 작동해야 완료
+   - "이론상 작동할 것"은 완료가 아님
+
+8. **브랜드 혼동 유발 금지**
+   - 정식 명칭은 **"Verum"** 단독
+   - "Verum AI" 표기 금지 (verumai.com과 혼동 방지)
+   - README 상단에 `> Not affiliated with Verum AI Platform (verumai.com).` 명시
+
+9. **서비스 실행을 요구하는 분석 금지**
+   - ANALYZE는 **정적 분석** 전제
+   - "서비스를 돌려놔야 분석 가능"한 기능은 Verum의 핵심 원칙 위배
+   - OBSERVE 단계만 예외 (당연히 운영 중 데이터 필요)
+
+10. **자동 생성물을 강제 적용 금지**
+    - GENERATE가 만든 프롬프트/RAG는 **제안**. 사용자 승인 필요
+    - DEPLOY 단계에서 사람 손 거치지 않고 프로덕션 반영은 위험
+    - Phase 5 이후 신뢰 축적 시 옵션으로 자동 적용 검토
+
+---
+
+## 🛠 개발 명령어
+
+```bash
+# === 로컬 개발 ===
+make dev                 # 전체 스택 실행
+make api-dev             # API만 (port 8000)
+make dashboard-dev       # 대시보드만 (port 3000)
+
+# === 루프 단계별 테스트 ===
+make loop-analyze REPO=https://github.com/xzawed/ArcanaInsight
+make loop-infer ANALYSIS_ID=xxx
+make loop-harvest DOMAIN=tarot
+make loop-full REPO=https://github.com/xzawed/ArcanaInsight  # 전체 루프 실행
+
+# === 테스트 ===
+make test                # 전체
+make test-api            # Python
+make test-dashboard      # Next.js + Playwright
+make test-cov            # 커버리지
+
+# === 품질 ===
+make lint                # pylint + flake8 + bandit + ruff + eslint
+make type-check          # mypy + tsc --noEmit
+
+# === DB ===
+make db-migrate
+make db-revision m="설명"
+make db-reset            # 주의: 로컬 DB 초기화
+
+# === SDK ===
+make sdk-python-build
+make sdk-ts-build
+make sdk-publish-dry
+
+# === 배포 ===
+make deploy-staging
+make deploy-prod         # 수동 승인 필요
+```
+
+---
+
+## 📊 핵심 지표 (KPI)
+
+매주 금요일 `docs/WEEKLY.md`에 기록:
+
+### 루프 건전성 지표
+- ANALYZE 성공률 (연결된 Repo 중 분석 성공 비율)
+- INFER 정확도 (사용자 확인 후 "맞다" 비율)
+- HARVEST 지식 품질 (샘플 청크에 대한 수작업 평가)
+- GENERATE 채택률 (자동 생성 프롬프트가 실제 승자가 되는 비율)
+- EXPERIMENT 수렴 시간 (A/B 테스트가 유의미한 결과 내기까지)
+- EVOLVE 개선폭 (승자 승격 후 메트릭 향상 %)
+
+### 제품 지표
+- 연결된 Repo 수
+- ArcanaInsight의 주간 LLM 호출 수
+- 자동 생성된 프롬프트 중 운영 중인 것
+- 주간 Verum 자체 비용 ($)
+
+### 커뮤니티 지표 (Phase 5+)
+- GitHub 스타, 이슈, PR
+- 클라우드 베타 가입자
+- Discord/Slack 커뮤니티 규모
+
+---
+
+## 🧭 의사결정 가이드
+
+Claude Code가 판단이 애매할 때 참고:
+
+### "A와 B 중 무엇을 먼저?"
+→ **The Verum Loop에서 더 앞 단계인 쪽 우선**. 뒷 단계는 앞 단계 없이 작동 안 함
+
+### "간단한 구현 vs 확장성 있는 구현?"
+→ **Phase 0-1은 간단하게. Phase 2부터 확장성**
+→ 루프 코어(`apps/api/src/loop/`)는 처음부터 확장 가능하게
+
+### "직접 구현 vs 라이브러리?"
+→ **루프 8단계의 핵심은 직접 구현** (Verum의 차별점이니까)
+→ **주변 기능(인증·업로드·결제)은 라이브러리**
+
+### "추상화 계층을 지금 만들까?"
+→ **3번째 사용처가 생겼을 때 추상화**. 그 전엔 복붙 허용
+→ 단, 루프 단계 간 인터페이스는 처음부터 명확히
+
+### "이 PR을 머지해도 될까?"
+체크리스트:
+1. 테스트 통과?
+2. 린트 통과?
+3. 루프의 어느 단계에 속하는지 명시했나?
+4. ArcanaInsight가 여전히 작동하나?
+5. `docs/DECISIONS.md`에 기록할 결정이 있으면 기록했나?
+
+모두 Yes면 머지. 하나라도 No면 xzawed에게 확인.
+
+### "이건 오픈소스에 넣을까, 클라우드 전용으로 할까?"
+→ **기능은 무조건 오픈소스**. "호스팅·운영·백업·모니터링"만 클라우드 차별점
+
+---
+
+## 🌐 외부 리소스
+
+- **프로젝트 홈**: `github.com/xzawed/verum` (예정)
+- **클라우드**: `verum.dev` (예정)
+- **문서**: `docs.verum.dev` (예정)
+- **데모**: `demo.verum.dev` (예정)
+
+### 참고 프로젝트
+
+- **Langfuse** — Observability 표준. 구조 참고.
+- **RAGAS** — 평가. 직접 통합.
+- **pgvector** — 벡터 저장소. 공식 문서 숙지.
+- **OpenTelemetry** — Observability 표준. 호환 필수.
+- **tree-sitter** — 다언어 AST 파싱. ANALYZE 단계 코어.
+- **libcst** — Python 보존형 CST. 프롬프트 추출 정확도.
+
+### 참고 논문
+
+- Contextual Retrieval (Anthropic, 2024) — HARVEST/GENERATE에서 참고
+- Self-RAG (Asai et al., 2024) — GENERATE의 적응형 검색
+- HyDE (Gao et al., 2023) — 쿼리 생성 패턴
+- DSPy (Stanford, 2024) — 프롬프트 자동 최적화 이론. EVOLVE 단계 참고.
+
+---
+
+## 🔄 이 문서의 관리
+
+- **xzawed만 수정**. Claude Code는 수정 금지.
+- 기술 스택·로드맵 변경은 xzawed와 논의 후 xzawed가 직접 수정.
+- **모든 세션 시작 시 이 문서를 먼저 읽기**.
+- Phase 완료 시 xzawed가 체크박스 갱신.
+- 루프의 단계가 추가/변경되면 이 문서가 먼저 업데이트되어야 함.
+
+---
+
+## 📜 프로젝트 철학
+
+> *Verum watches what your AI actually does, understands what it's trying to do, and makes it better — without you writing a single prompt.*
+
+자동화가 본질이다.
+루프가 닫혀야 한다.
+Repo가 출발점이다.
+ArcanaInsight가 먼저다.
+측정 없는 개선은 없다.
+
+이게 Verum이다.
+
+---
+
+_Last updated: 2026-04-19_
+_Maintainer: xzawed_
