@@ -149,6 +149,7 @@ async def _retrieve_inner(
                 db, body.inference_id, query_embeddings[0], top_k=body.top_k * 2
             )
         except Exception:
+            await db.rollback()
             vec_results = []
 
         text_results = await text_search(
@@ -180,6 +181,7 @@ async def _retrieve_inner(
                 db, body.inference_id, query_embeddings[0], top_k=body.top_k
             )
         except Exception:
+            await db.rollback()
             raw_results = await text_search(db, body.inference_id, body.query, top_k=body.top_k)  # type: ignore[assignment]
 
     return RetrieveResponse(

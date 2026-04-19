@@ -91,12 +91,13 @@ async def vector_search(
     query_embedding: list[float],
     top_k: int = 5,
 ) -> list[dict[str, object]]:
+    dim = len(query_embedding)
     vec_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     result = await db.execute(
         text(
-            "SELECT id, content, 1 - (embedding_vec <=> :vec::vector) AS score "
+            f"SELECT id, content, 1 - (embedding_vec <=> :vec::vector({dim})) AS score "
             "FROM chunks WHERE inference_id = :inf_id AND embedding_vec IS NOT NULL "
-            "ORDER BY embedding_vec <=> :vec::vector "
+            f"ORDER BY embedding_vec <=> :vec::vector({dim}) "
             "LIMIT :k"
         ),
         {"vec": vec_str, "inf_id": str(inference_id), "k": top_k},
