@@ -3,7 +3,8 @@
         sdk-python-build sdk-ts-build sdk-publish-dry \
         deploy-staging deploy-prod \
         loop-analyze loop-infer loop-harvest loop-full \
-        verify-deploy verify-deploy-clean
+        verify-deploy verify-deploy-clean \
+        docker-healthcheck
 
 # === Pre-deploy verification (run before ANY push touching Dockerfile, alembic/, or db/) ===
 # Uses Railway-style postgres:// URL to exercise the full conversion + SSL detection path.
@@ -26,6 +27,29 @@ verify-deploy:
 verify-deploy-clean:
 	docker compose -f docker-compose.test.yml down -v
 	@-pkill -f "uvicorn src.main:app" 2>/dev/null || true
+
+# === Railway smoke test (run before ANY push that touches Dockerfile) ===
+# Simulates Railway's environment: PORT=8080 injected, no HOSTNAME override from host.
+# Success signal: "Local: http://0.0.0.0:8080" in container logs + /health returns 200.
+docker-healthcheck:
+	@echo "--- [1/3] Building image ---"
+	docker build -t verum:smoke .
+	@echo "--- [2/3] Starting container (Railway-style: PORT=8080, no HOSTNAME) ---"
+	docker run -d --name verum-smoke \
+		-p 8080:8080 \
+		-e PORT=8080 \
+		-e NODE_ENV=production \
+		-e AUTH_SECRET=smoke-test-secret \
+		-e AUTH_GITHUB_ID=smoke \
+		-e AUTH_GITHUB_SECRET=smoke \
+		verum:smoke
+	@echo "--- Waiting 10s for server startup ---"
+	@sleep 10
+	@echo "--- [3/3] Checking /health ---"
+	@curl -sf http://localhost:8080/health && echo "\n=== docker-healthcheck PASSED ===" \
+		|| (echo "\n=== FAILED — check: docker logs verum-smoke ===" && docker logs verum-smoke && exit 1)
+	@docker rm -f verum-smoke
+	@docker rmi verum:smoke
 
 # === Local development ===
 dev:
