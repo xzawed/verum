@@ -563,7 +563,7 @@ Self-hosting: `docker compose up` 으로 전체 스택 실행. DB는 별도 `pos
 - **단일 서비스**: `verum` — `Dockerfile` (repo root), `railway.toml`
 - **DB**: Railway PostgreSQL plugin (pgvector extension 활성화 필수)
 - **Healthcheck**: `/health` path, 60s timeout, `ON_FAILURE` restart policy
-- **필수 env vars**: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `ANTHROPIC_API_KEY`
+- **필수 env vars**: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`
 - **레거시 제거**: `VERUM_API_URL`, `VERUM_INTERNAL_API_TOKEN`, `NEXTAUTH_SECRET` — Railway 대시보드에서 삭제
 
 ### Image Size Constraint
