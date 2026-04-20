@@ -1,14 +1,9 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
 import { upsertUser } from "@/lib/db/queries";
+import authConfig from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers: [
-    GitHub({
-      authorization: { params: { scope: "read:user user:email" } },
-    }),
-  ],
-  session: { strategy: "jwt" },
+  ...authConfig,
   callbacks: {
     async jwt({ token, profile }) {
       if (profile) {
