@@ -17,9 +17,10 @@ export async function GET() {
     // fall through with defaults
   }
 
-  const healthy = dbStatus === "connected";
+  // Always return 200 — Railway uses this as a liveness probe.
+  // DB/worker status is informational only.
   return NextResponse.json(
-    { status: healthy ? "ok" : "degraded", db: dbStatus, worker: workerAlive ? "alive" : "unreachable" },
-    { status: healthy ? 200 : 503 },
+    { status: "ok", db: dbStatus, worker: workerAlive ? "alive" : "unreachable" },
+    { status: 200 },
   );
 }
