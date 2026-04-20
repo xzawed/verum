@@ -1,6 +1,5 @@
 import {
   bigint,
-  boolean,
   integer,
   jsonb,
   pgTable,
@@ -11,10 +10,9 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   github_id: bigint("github_id", { mode: "number" }).notNull().unique(),
   github_login: varchar("github_login", { length: 64 }).notNull(),
   email: varchar("email", { length: 255 }),
@@ -26,7 +24,7 @@ export const users = pgTable("users", {
 export const repos = pgTable(
   "repos",
   {
-    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     github_url: text("github_url").notNull(),
     owner_user_id: uuid("owner_user_id")
       .notNull()
@@ -39,7 +37,7 @@ export const repos = pgTable(
 );
 
 export const analyses = pgTable("analyses", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   repo_id: uuid("repo_id")
     .notNull()
     .references(() => repos.id, { onDelete: "cascade" }),
@@ -54,7 +52,7 @@ export const analyses = pgTable("analyses", {
 });
 
 export const inferences = pgTable("inferences", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   repo_id: uuid("repo_id").notNull(),
   analysis_id: uuid("analysis_id").notNull(),
   status: varchar("status", { length: 32 }).notNull().default("pending"),
@@ -70,7 +68,7 @@ export const inferences = pgTable("inferences", {
 });
 
 export const harvest_sources = pgTable("harvest_sources", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   inference_id: uuid("inference_id")
     .notNull()
     .references(() => inferences.id, { onDelete: "cascade" }),
@@ -84,7 +82,7 @@ export const harvest_sources = pgTable("harvest_sources", {
 });
 
 export const verum_jobs = pgTable("verum_jobs", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   kind: text("kind").notNull(),
   payload: jsonb("payload").notNull().default({}),
   status: text("status").notNull().default("queued"),
