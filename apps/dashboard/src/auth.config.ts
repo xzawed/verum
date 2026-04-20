@@ -4,7 +4,7 @@ import type { NextAuthConfig } from "next-auth";
 export default {
   providers: [
     GitHub({
-      authorization: { params: { scope: "read:user user:email" } },
+      authorization: { params: { scope: "read:user user:email public_repo" } },
     }),
   ],
   session: { strategy: "jwt" },

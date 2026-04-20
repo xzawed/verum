@@ -7,7 +7,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   callbacks: {
-    async jwt({ token, profile }) {
+    async jwt({ token, profile, account }) {
+      if (account?.access_token) {
+        (token as Record<string, unknown>).github_access_token = account.access_token;
+      }
       if (profile) {
         // Initial sign-in: upsert user and store internal UUID
         const user = await upsertUser({
@@ -36,9 +39,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
+        const t = token as Record<string, unknown>;
         (session.user as unknown as Record<string, unknown>).id = token.sub;
-        (session.user as unknown as Record<string, unknown>).github_login =
-          (token as Record<string, unknown>).github_login ?? null;
+        (session.user as unknown as Record<string, unknown>).github_login = t.github_login ?? null;
+        (session.user as unknown as Record<string, unknown>).github_access_token =
+          t.github_access_token ?? null;
       }
       return session;
     },
