@@ -22,12 +22,13 @@ status: active
 |---|---|---|---|
 | ADR-001 | Vector storage | pgvector only — no Pinecone, Weaviate, Qdrant, Chroma | [ARCHITECTURE.md §ADR-001](ARCHITECTURE.md#adr-001-pgvector-only--no-external-vector-db) |
 | ADR-002 | LLM framework | No LangChain / LlamaIndex in any package | [ARCHITECTURE.md §ADR-002](ARCHITECTURE.md#adr-002-no-langchain--llamaindex-in-any-package) |
-| ADR-003 | Web framework | FastAPI + Uvicorn (not Django / Flask / Litestar) | [ARCHITECTURE.md §ADR-003](ARCHITECTURE.md#adr-003-fastapi--uvicorn) |
+| ~~ADR-003~~ | ~~Web framework~~ | ~~FastAPI + Uvicorn~~ — **Superseded by ADR-009** (2026-04-20) | [ARCHITECTURE.md §ADR-003](ARCHITECTURE.md#adr-003-fastapi--uvicorn) |
 | ADR-004 | DB access | SQLAlchemy 2 async + Alembic, no raw SQL | [ARCHITECTURE.md §ADR-004](ARCHITECTURE.md#adr-004-sqlalchemy-2-async--alembic--no-raw-sql) |
 | ADR-005 | Python style | `async def` for all I/O; no sync in `apps/` or `packages/sdk-python/` | [ARCHITECTURE.md §ADR-005](ARCHITECTURE.md#adr-005-async-first-python) |
 | ADR-006 | Dashboard | Next.js 16 App Router + React 19 + Tailwind CSS v4 + Zustand | [ARCHITECTURE.md §ADR-006](ARCHITECTURE.md#adr-006-nextjs-16-app-router--react-19) |
 | ADR-007 | Embedding dims | Never hardcode — store per-collection in `harvest_sources.embedding_dim` | [ARCHITECTURE.md §ADR-007](ARCHITECTURE.md#adr-007-never-hardcode-embedding-dimensions) |
 | ADR-008 | Loop directory | `apps/api/src/loop/{8 stages}/` is sacred — CLAUDE.md update required before adding/removing a stage | [ARCHITECTURE.md §ADR-008](ARCHITECTURE.md#adr-008-appsapisrclop-directory-structure-is-sacred) |
+| ADR-009 | Runtime architecture | Single container: Node.js PID 1 + Python worker child + Postgres job queue. Supersedes ADR-003. | [ARCHITECTURE.md §ADR-009](ARCHITECTURE.md#adr-009-single-container--nodejs-pid-1--python-worker-child--postgres-job-queue) |
 
 ---
 
@@ -67,6 +68,7 @@ These are product-level choices that are not implementation ADRs but define the 
 | Decision | Superseded by | Date |
 |---|---|---|
 | RAG = Operational Knowledge Only | CLAUDE.md §🔁 The Verum Loop / Stage [3] HARVEST | 2026-04-19 |
+| ADR-003: FastAPI + Uvicorn | ADR-009: Single Container pivot | 2026-04-20 |
 
 **Supersession detail:** A prior approved spec (`2026-04-19-verum-rag-scope-realignment`) defined Verum's RAG as indexing *operational LLM knowledge only* (system prompts, personas, business rules) and explicitly excluded domain content (tarot meanings, legal texts, etc.).
 

@@ -17,28 +17,51 @@ status: active
 
 ## 1. System Overview
 
+> **Architecture pivot (2026-04-20):** FastAPI/Uvicorn 제거. 단일 Railway 서비스, 단일 Docker 이미지.
+> Node.js(Next.js)가 PID 1로 동작하며 Python worker를 child process로 spawn합니다.
+> 두 프로세스는 `verum_jobs` PostgreSQL 테이블로만 협업합니다 — HTTP 결합 없음.
+
 ```
-                        ┌─────────────────────────────────────────┐
-                        │              Verum Platform              │
-                        │                                          │
-  ┌──────────┐  GitHub  │  ┌─────────────────────────────────┐    │
-  │   Repo   │─OAuth──→ │  │      The Verum Loop Engine       │    │
-  └──────────┘          │  │  [1]ANALYZE → [2]INFER →        │    │
-                        │  │  [3]HARVEST → [4]GENERATE →     │    │
-  ┌──────────┐  SDK     │  │  [5]DEPLOY → [6]OBSERVE →      │    │
-  │Connected │←────────→│  │  [7]EXPERIMENT → [8]EVOLVE      │    │
-  │ Service  │          │  └────────────┬────────────────────┘    │
-  └──────────┘          │               │                          │
-                        │  ┌────────────▼───────────────────┐     │
-  ┌──────────┐  Browser │  │       FastAPI (apps/api/)       │     │
-  │Dashboard │←────────→│  │    REST API + WebSocket         │     │
-  │(Next.js) │          │  └────────────┬───────────────────┘     │
-  └──────────┘          │               │                          │
-                        │  ┌────────────▼───────────────────┐     │
-                        │  │    PostgreSQL 16 + pgvector     │     │
-                        │  │    tsvector (hybrid search)     │     │
-                        │  └────────────────────────────────┘     │
-                        └─────────────────────────────────────────┘
+  Railway Service: verum (single service, single deploy)
+  ┌────────────────────────────────────────────────────────────┐
+  │ Container (Node PID 1 + Python worker child)                │
+  │                                                             │
+  │  ┌──────────────────────────────────────────────────────┐  │
+  │  │ Next.js / Node.js  (PID 1, :8080)                    │  │
+  │  │  • App Router — UI pages + SDK API (/api/v1/...)     │  │
+  │  │  • Auth.js v5 — GitHub OAuth, JWT session            │  │
+  │  │  • Drizzle ORM — Postgres direct R/W                 │  │
+  │  │  • Server Actions → INSERT INTO verum_jobs           │  │
+  │  │  • instrumentation.ts → spawn Python worker ↓        │  │
+  │  │                                                      │  │
+  │  │  ┌────────────────────────────────────────────────┐  │  │
+  │  │  │ Python Worker  (asyncio child process)          │  │  │
+  │  │  │  • LISTEN verum_jobs + SKIP LOCKED poll         │  │  │
+  │  │  │  • Handlers: analyze / infer / harvest          │  │  │
+  │  │  │  • Writes results back to Postgres              │  │  │
+  │  │  │  • Heartbeat → worker_heartbeat table           │  │  │
+  │  │  └────────────────────────────────────────────────┘  │  │
+  │  └──────────────────────────────────────────────────────┘  │
+  └────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+              ┌────────────────────────────┐
+              │  PostgreSQL 16 + pgvector   │
+              │   • verum_jobs  (queue)     │
+              │   • worker_heartbeat        │
+              │   • users / repos           │
+              │   • analyses / inferences   │
+              │   • knowledge_chunks        │
+              └────────────────────────────┘
+
+  External connections:
+  ┌──────────┐  GitHub OAuth   ┌─────────────┐
+  │  Browser │────────────────→│ Next.js :8080│
+  └──────────┘                 └─────────────┘
+  ┌──────────┐  SDK HTTP        ┌─────────────┐
+  │Connected │─────────────────→│/api/v1/...  │ (Phase 4+)
+  │ Service  │                  └─────────────┘
+  └──────────┘
 ```
 
 ---
@@ -62,13 +85,17 @@ verum/
 │   ├── ARCHITECTURE.md         # This file (tier-2)
 │   ├── DECISIONS.md            # ADR index + product-scope decisions (tier-2)
 │   ├── ROADMAP.md              # Phase timing + F-IDs (tier-2)
+│   ├── WEEKLY.md               # Weekly KPI log (xzawed updates every Friday)
 │   ├── GLOSSARY.md             # Vocabulary (tier-3)
 │   └── guides/                 # Phase 5+ end-user docs
 ├── apps/
-│   ├── api/                    # FastAPI backend
+│   ├── api/                    # Python Worker (asyncio subprocess — ADR-009)
 │   │   ├── src/
-│   │   │   ├── main.py         # FastAPI app entry + /health
-│   │   │   ├── loop/           # The Verum Loop — SACRED (ADR-008)
+│   │   │   ├── worker/         # Node.js가 spawn하는 entrypoint
+│   │   │   │   ├── main.py     # asyncio.run(run_loop()) — PID는 Node.js가 관리
+│   │   │   │   ├── runner.py   # LISTEN/NOTIFY + SKIP LOCKED job dispatch
+│   │   │   │   └── handlers/   # analyze.py / infer.py / harvest.py
+│   │   │   ├── loop/           # The Verum Loop core logic — SACRED (ADR-008)
 │   │   │   │   ├── analyze/    # [1] Repo static analysis
 │   │   │   │   ├── infer/      # [2] Service intent inference
 │   │   │   │   ├── harvest/    # [3] Domain knowledge crawling
@@ -77,17 +104,17 @@ verum/
 │   │   │   │   ├── observe/    # [6] Runtime tracing
 │   │   │   │   ├── experiment/ # [7] A/B testing
 │   │   │   │   └── evolve/     # [8] Winner promotion
-│   │   │   ├── integrations/   # GitHub OAuth, webhook handlers
 │   │   │   └── db/             # SQLAlchemy models, session factory
 │   │   ├── tests/
-│   │   ├── alembic/
-│   │   ├── pyproject.toml
-│   │   └── Dockerfile
-│   └── dashboard/              # Next.js 16 App Router
-│       ├── src/app/
-│       ├── src/components/
-│       ├── package.json
-│       └── Dockerfile
+│   │   ├── alembic/            # Schema SoT (verum_jobs + worker_heartbeat included)
+│   │   └── pyproject.toml
+│   └── dashboard/              # Next.js 16 — public HTTP 전담 (ADR-009)
+│       └── src/
+│           ├── app/            # App Router pages + /api/v1/... SDK routes
+│           ├── worker/         # spawn.ts — Python worker lifecycle management
+│           ├── lib/
+│           │   └── db/         # Drizzle ORM client + introspected schema
+│           └── middleware.ts   # Auth.js v5 route protection
 ├── packages/
 │   ├── sdk-python/             # pip install verum
 │   │   ├── src/verum/
@@ -96,10 +123,12 @@ verum/
 │       ├── src/
 │       └── package.json
 ├── examples/
-│   └── arcana-integration/     # ArcanaInsight dogfood (first real user)
+│   └── arcana-integration/     # ArcanaInsight dogfood (Phase 3, F-3.10)
+├── Dockerfile                  # Single multi-stage image: Node + Python (ADR-009)
 ├── docker-compose.yml
+├── railway.toml
 ├── Makefile
-├── CLAUDE.md                   # Tier-1 authority — xzawed-only edits
+├── CLAUDE.md                   # Tier-1 authority — xzawed-only for identity/roadmap
 ├── README.md
 ├── README.ko.md
 └── LICENSE                     # MIT
@@ -113,7 +142,7 @@ verum/
 |---|---|---|
 | [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast`, `libcst`, `tree-sitter` |
 | [2] INFER | `apps/api/src/loop/infer/` | `anthropic` (Claude Sonnet 4.6+) |
-| [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura`, `playwright` |
+| [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura` (+ `playwright` Phase 3 예정) |
 | [4] GENERATE | `apps/api/src/loop/generate/` | `openai` / `anthropic`, `pgvector` |
 | [5] DEPLOY | `apps/api/src/loop/deploy/` | `sdk-python`, `sdk-typescript` |
 | [6] OBSERVE | `apps/api/src/loop/observe/` | OpenTelemetry SDK |
@@ -271,13 +300,18 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 
 ## 5. API Surface
 
-Base path: `/v1`. All endpoints return JSON. Authentication: Bearer token (Phase 1+).
+> **Architecture pivot (2026-04-20):** 모든 HTTP 엔드포인트는 **Next.js App Router**가 서빙합니다.
+> FastAPI REST 서버는 제거됐습니다. `/health`는 `apps/dashboard/src/app/health/route.ts`,
+> SDK API(`/api/v1/...`)는 `apps/dashboard/src/app/api/v1/.../route.ts`로 구현됩니다.
+> Loop 실행은 Server Action → `verum_jobs` enqueue → Python worker 처리 순서로 동작합니다.
+
+Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication: Auth.js v5 JWT (Phase 1+).
 
 ### Health
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Returns `{"status": "ok", "version": "...", "db": "connected"}` |
+| GET | `/health` | Returns `{"status": "ok"}` — pure liveness probe, no DB I/O |
 
 ### [1] ANALYZE
 
@@ -419,11 +453,11 @@ Full ADR text lives here. The index and product-scope decisions are in [DECISION
 
 ### ADR-003: FastAPI + Uvicorn
 
-**Status:** Accepted | **Date:** 2026-04-19
+**Status:** ~~Accepted~~ **Superseded by ADR-009** | **Date:** 2026-04-19 | **Superseded:** 2026-04-20
 
-**Decision:** API is FastAPI + Uvicorn. Django, Flask, and Litestar are prohibited.
+**Decision (original):** API is FastAPI + Uvicorn. Django, Flask, and Litestar are prohibited.
 
-**Why:** FastAPI is async-first (matches ADR-005), has native Pydantic v2 integration, and auto-generates OpenAPI docs. Django's ORM conflicts with SQLAlchemy; Flask lacks async.
+**Supersession reason:** Architecture pivot to single Railway container. FastAPI/Uvicorn 완전 제거. 공개 HTTP는 Next.js가 전담하고 Python은 asyncio worker child process로만 동작. See ADR-009.
 
 ---
 
@@ -443,17 +477,17 @@ Full ADR text lives here. The index and product-scope decisions are in [DECISION
 
 **Decision:** All I/O-bound functions in `apps/api/` and `packages/sdk-python/` must be `async def`. Synchronous I/O is prohibited in these packages.
 
-**Why:** Blocking I/O stalls FastAPI's event loop. HARVEST (crawler) and OBSERVE (SDK instrumentation) are heavily I/O-bound.
+**Why:** Blocking I/O stalls the asyncio worker event loop. HARVEST (crawler) and OBSERVE (SDK instrumentation) are heavily I/O-bound.
 
 ---
 
 ### ADR-006: Next.js 16 App Router + React 19
 
-**Status:** Accepted | **Date:** 2026-04-19
+**Status:** Accepted (updated 2026-04-20) | **Date:** 2026-04-19
 
-**Decision:** Dashboard is Next.js 16 App Router, React 19, TypeScript strict, Tailwind CSS v4, Recharts, Zustand, NextAuth.
+**Decision:** Dashboard is Next.js 16 App Router (standalone output), React 19, TypeScript strict, Tailwind CSS v4, Recharts, Zustand, Auth.js v5 (`next-auth@5` beta), Drizzle ORM.
 
-**Why:** Server components reduce bundle size. React 19 server actions simplify forms. NextAuth covers GitHub OAuth natively (required for ANALYZE repo connection).
+**Why:** Server components reduce bundle size. React 19 server actions simplify forms and job enqueuing. Auth.js v5 covers GitHub OAuth natively. Drizzle ORM provides type-safe Postgres access without a separate API layer (replaces `apiFetch` + FastAPI after ADR-009 pivot).
 
 ---
 
@@ -483,23 +517,68 @@ Full ADR text lives here. The index and product-scope decisions are in [DECISION
 
 ---
 
+### ADR-009: Single Container — Node.js PID 1 + Python Worker Child + Postgres Job Queue
+
+**Status:** Accepted | **Date:** 2026-04-20 | **Supersedes:** ADR-003
+
+**Decision:** Verum runs as a single Railway service with a single Docker image. Node.js (Next.js) is PID 1. Python runs as a child process spawned by Node.js at boot via `instrumentation.ts`. The two runtimes communicate exclusively through the `verum_jobs` PostgreSQL table — no HTTP between them.
+
+**Why:**
+- Railway의 hard constraint: 서비스는 반드시 1개. 2개 이상이면 배포·관리 복잡도 급증.
+- Python ML 스택 보존 (tree-sitter, trafilatura, RAGAS, pgvector 임베딩 등).
+- HTTP 결합 제거 — `VERUM_API_URL`, 내부 토큰, URL 동기화 문제 전부 사라짐.
+- Long-running batch (ANALYZE, HARVEST)가 HTTP timeout 없이 실행 가능.
+- SDK는 단일 URL만 알면 됨 (`verum.dev`).
+
+**Constraints:**
+- `ENV HOSTNAME=0.0.0.0` must be set in Dockerfile — Docker auto-injects `HOSTNAME=<container_id>` which prevents Next.js standalone from binding to all interfaces.
+- Python worker crash는 Node.js가 respawn (backoff 포함). 5회 연속 crash 시 healthcheck 503 → Railway 컨테이너 재시작.
+- `verum_jobs.status = 'running'` 행은 부팅 시 `queued`로 reset (stale job recovery).
+
+**Trade-off accepted:** 단일 컨테이너이므로 Node과 Python이 같은 머신의 CPU/메모리를 공유. Phase 4+ 부하 급증 시 Railway replica 증설 또는 worker 분리 서비스 재검토.
+
+**Revisit trigger:** 단일 컨테이너의 메모리/CPU 한계 도달 시 (Phase 4+ 예상).
+
+---
+
 ## 8. Infrastructure & Deployment
 
-### Docker Compose (Self-Hosted)
+### Docker (Single Image — ADR-009)
 
-Three services: `api` (FastAPI), `dashboard` (Next.js), `db` (PostgreSQL 16 + pgvector).
+단일 멀티스테이지 `Dockerfile` (repo root). Node.js + Python 모두 포함.
 
-Self-hosting is a first-class requirement. `docker compose up` must bring up the full stack.
+```
+Stage 1: web-build   — Next.js standalone 빌드 (node:20-slim)
+Stage 2: py-build    — Python 의존성 wheel 설치 (python:3.13-slim)
+Stage 3: runtime     — python:3.13-slim base + NodeSource Node.js 20 overlay
+                       ENV HOSTNAME=0.0.0.0  ← 필수 (Docker HOSTNAME 주입 차단)
+                       ENV NODE_ENV=production
+                       CMD ["node", "server.js"]
+```
+
+Self-hosting: `docker compose up` 으로 전체 스택 실행. DB는 별도 `postgres:16` 컨테이너.
 
 ### Railway (Initial Cloud)
 
-- API: Railway service pulling from `apps/api/Dockerfile`
-- Dashboard: Railway service pulling from `apps/dashboard/Dockerfile`
-- DB: Railway PostgreSQL plugin with pgvector extension enabled
+- **단일 서비스**: `verum` — `Dockerfile` (repo root), `railway.toml`
+- **DB**: Railway PostgreSQL plugin (pgvector extension 활성화 필수)
+- **Healthcheck**: `/health` path, 60s timeout, `ON_FAILURE` restart policy
+- **필수 env vars**: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `ANTHROPIC_API_KEY`
+- **레거시 제거**: `VERUM_API_URL`, `VERUM_INTERNAL_API_TOKEN`, `NEXTAUTH_SECRET` — Railway 대시보드에서 삭제
 
 ### Image Size Constraint
 
-Final Docker images must be under 1GB. Use multistage builds.
+Final Docker image must be under 1GB. Use multistage builds.
+
+### Deployment Pre-Flight Checklist
+
+Dockerfile, `alembic/`, 또는 `apps/api/src/worker/` 변경 시 push 전 필수:
+
+```bash
+make docker-healthcheck   # Railway 환경(PORT=8080, HOSTNAME 미주입) 로컬 재현
+```
+
+성공 신호: 컨테이너 로그에 `Local: http://0.0.0.0:8080` 확인.
 
 ### CI/CD
 
