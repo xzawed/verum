@@ -1,8 +1,11 @@
 export async function register() {
   // Only run in the Node.js runtime (not Edge), and only once per process.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { execFileSync } = await import("node:child_process");
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
     const { resolve } = await import("node:path");
+
+    const execFileAsync = promisify(execFile);
 
     const workerCwd =
       process.env.PYTHON_WORKER_CWD ??
@@ -11,15 +14,17 @@ export async function register() {
 
     try {
       console.log("[alembic] running migrations…");
-      execFileSync(
+      // Use async execFile so the event loop stays unblocked (healthcheck can respond).
+      const { stdout, stderr } = await execFileAsync(
         pythonBin,
         ["-m", "alembic", "upgrade", "head"],
         {
           cwd: workerCwd,
           env: { ...process.env, PYTHONUNBUFFERED: "1" },
-          stdio: "inherit",
         },
       );
+      if (stdout) process.stdout.write(stdout);
+      if (stderr) process.stderr.write(stderr);
       console.log("[alembic] migrations complete");
     } catch (err) {
       console.error("[alembic] migration failed:", err);
