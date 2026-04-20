@@ -19,8 +19,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as Record<string, unknown>).id = token.sub;
-        (session.user as Record<string, unknown>).github_login =
+        (session.user as unknown as Record<string, unknown>).id = token.sub;
+        (session.user as unknown as Record<string, unknown>).github_login =
           (token as Record<string, unknown>).github_login ?? null;
       }
       return session;
