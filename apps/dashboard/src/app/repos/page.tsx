@@ -137,12 +137,10 @@ export default async function ReposPage({
                         const s = await auth();
                         if (!s?.user) redirect("/login");
                         const uid = String((s.user as Record<string, unknown>).id ?? "");
-                        try {
-                          const repo = await createRepo(uid, ghRepo.html_url, ghRepo.default_branch);
-                          redirect(`/repos/${repo.id}`);
-                        } catch {
-                          redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
-                        }
+                        // redirect() throws internally — keep it outside try-catch
+                        const repo = await createRepo(uid, ghRepo.html_url, ghRepo.default_branch).catch(() => null);
+                        if (!repo) redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
+                        redirect(`/repos/${repo.id}`);
                       }}
                     >
                       <button
