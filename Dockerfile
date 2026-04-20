@@ -56,6 +56,7 @@ ENV PYTHONPATH=/py-deps:/app/apps/api
 ENV PYTHON_WORKER_CWD=/app/apps/api
 ENV PYTHON_BIN=python3
 
-EXPOSE 3000
+ENV HOSTNAME=0.0.0.0
+EXPOSE 8080
 # Node is PID 1; it spawns the Python worker via instrumentation.ts
 CMD ["node", "server.js"]
