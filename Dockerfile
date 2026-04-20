@@ -25,16 +25,18 @@ COPY apps/api/pyproject.toml ./
 RUN pip install --no-cache-dir --target /py-deps "hatchling" \
     && pip install --no-cache-dir --target /py-deps .
 
-# ── Stage 3: Runtime (Node base + Python overlaid) ───────────────────────────
-FROM node:20-slim AS runtime
+# ── Stage 3: Runtime (Python base + Node.js overlaid) ────────────────────────
+# python:3.13-slim is Trixie-based and ships Python 3.13 natively.
+# node:20-slim is Bookworm-based where python3.13 is NOT in apt — hence we
+# invert the base and install Node.js from NodeSource instead.
+FROM python:3.13-slim AS runtime
 
-# Install Python 3.13 runtime (not dev) and git (for repo cloning in ANALYZE)
+# Install Node.js 20 from NodeSource + git (for ANALYZE repo cloning)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.13 python3.13-venv git \
+    curl ca-certificates git \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
-
-# Python bin alias so spawn.ts can call "python3" uniformly
-RUN ln -sf /usr/bin/python3.13 /usr/local/bin/python3
 
 WORKDIR /app
 ENV NODE_ENV=production
