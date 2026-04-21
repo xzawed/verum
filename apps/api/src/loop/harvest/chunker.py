@@ -84,7 +84,7 @@ def semantic_split(
     Overlap is applied by repeating the tail of the previous chunk.
     Fallback: if no sentence boundaries found, delegates to recursive_split.
     """
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = _SENTENCE_ENDINGS.split(text.strip())
     sentences = [s.strip() for s in sentences if s.strip()]
 
     if len(sentences) <= 1:

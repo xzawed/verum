@@ -47,4 +47,5 @@ LLM_PATH_SUFFIX_PATTERNS: list[tuple[str, list[str]]] = [
 ]
 
 # ── GENERATE stage ────────────────────────────────────────────────────────────
+GENERATE_MODEL: str = os.environ.get("GENERATE_MODEL", INFER_MODEL)
 GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "2048"))

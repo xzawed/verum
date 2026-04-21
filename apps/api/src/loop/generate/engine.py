@@ -32,7 +32,7 @@ def _best_prompt(templates: list[dict[str, Any]]) -> str:
 
 async def _call_claude(client: anthropic.AsyncAnthropic, prompt: str) -> Any:
     msg = await client.messages.create(
-        model=cfg.INFER_MODEL,
+        model=cfg.GENERATE_MODEL,
         max_tokens=cfg.GENERATE_MAX_TOKENS,
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],

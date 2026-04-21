@@ -39,7 +39,7 @@ export async function rerunHarvest(inferenceId: string, analysisId: string) {
 export async function rerunGenerate(inferenceId: string) {
   "use server";
   const session = await auth();
-  if (!session?.user) throw new Error("unauthorized");
+  if (!session?.user) redirect("/login");
   const uid = String((session.user as Record<string, unknown>).id ?? "");
 
   const { db } = await import("@/lib/db/client");
@@ -52,4 +52,10 @@ export async function rerunGenerate(inferenceId: string) {
     sql`INSERT INTO verum_jobs (kind, payload, owner_user_id, status)
         VALUES ('generate', ${JSON.stringify({ inference_id: inferenceId, generation_id: generationId })}::jsonb, ${uid}::uuid, 'queued')`
   );
+
+  const rows = await db.execute(
+    sql`SELECT repo_id::text FROM inferences WHERE id = ${inferenceId}::uuid`
+  );
+  const repoId = (rows.rows[0] as Record<string, string>)?.repo_id;
+  redirect(`/repos/${repoId}`);
 }

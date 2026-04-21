@@ -10,9 +10,9 @@ import logging
 import uuid
 from typing import Any
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.loop.generate.repository import create_pending_generation
 from src.loop.harvest.pipeline import harvest_source
 from src.worker.chain import enqueue_next
 
@@ -40,13 +40,9 @@ async def handle_harvest(
 
     # Chain HARVEST → GENERATE
     generation_id = uuid.uuid4()
-    await db.execute(
-        text(
-            "INSERT INTO generations (id, inference_id, status)"
-            " VALUES (:id, :inf, 'pending')"
-        ),
-        {"id": str(generation_id), "inf": str(inference_id)},
-    )
+    # create_pending_generation flushes and commits the generation row
+    await create_pending_generation(db, inference_id, generation_id)
+    # enqueue_next inserts the job without committing (caller owns commit)
     await enqueue_next(
         db,
         kind="generate",
