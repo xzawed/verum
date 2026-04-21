@@ -9,8 +9,8 @@ export async function rerunAnalyze(repoId: string, repoUrl: string, branch: stri
   const session = await auth();
   if (!session?.user) redirect("/login");
   const uid = String((session.user as Record<string, unknown>).id ?? "");
-  const analysis = await enqueueAnalyze({ userId: uid, repoId, repoUrl, branch });
-  redirect(`/analyses/${analysis.id}`);
+  await enqueueAnalyze({ userId: uid, repoId, repoUrl, branch });
+  redirect(`/repos/${repoId}`);
 }
 
 export async function rerunInfer(repoId: string, analysisId: string) {
