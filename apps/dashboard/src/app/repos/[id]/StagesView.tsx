@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { RepoStatus } from "@/lib/db/queries";
-import { rerunAnalyze, rerunInfer, rerunHarvest } from "./actions";
+import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
 
 interface Props {
   initial: RepoStatus;
@@ -37,7 +37,7 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
     };
   }, [repoId]);
 
-  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal } = status;
+  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration } = status;
   const isRunning = (s: string | null | undefined) => s === "pending" || s === "running";
 
   return (
@@ -139,8 +139,37 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
         )}
       </Section>
 
+      {/* ── GENERATE ── */}
+      <Section title="[4] GENERATE" color="#dc2626">
+        {latestGeneration ? (
+          <div>
+            <StatusRow
+              label="Status"
+              value={isRunning(latestGeneration.status) ? `${latestGeneration.status} (running...)` : latestGeneration.status}
+            />
+            {latestGeneration.status === "done" && (
+              <>
+                <StatusRow label="Prompt variants" value={String(latestGeneration.variant_count)} />
+                <StatusRow label="Eval pairs" value={String(latestGeneration.eval_count)} />
+              </>
+            )}
+          </div>
+        ) : (
+          <p style={{ color: "#888", fontSize: 13 }}>
+            {harvestChunks > 0 ? "Generate in progress or not started." : "Complete HARVEST first."}
+          </p>
+        )}
+        {latestInference?.status === "done" && harvestChunks > 0 && (
+          <form action={rerunGenerate.bind(null, latestInference.id)} style={{ marginTop: 12 }}>
+            <button type="submit" style={{ ...btnStyle, background: "#dc2626" }}>
+              {latestGeneration ? "Re-run GENERATE" : "Run GENERATE"}
+            </button>
+          </form>
+        )}
+      </Section>
+
       {/* ── RETRIEVE ── */}
-      <Section title="[4] RETRIEVE" color="#b45309">
+      <Section title="[5] RETRIEVE" color="#b45309">
         {latestInference?.status === "done" && harvestChunks > 0 ? (
           <div>
             <StatusRow label="Chunks available" value={harvestChunks.toLocaleString()} />

@@ -35,3 +35,21 @@ export async function rerunHarvest(inferenceId: string, analysisId: string) {
   });
   redirect(`/harvest/${inferenceId}`);
 }
+
+export async function rerunGenerate(inferenceId: string) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) throw new Error("unauthorized");
+  const uid = String((session.user as Record<string, unknown>).id ?? "");
+
+  const { db } = await import("@/lib/db/client");
+  const { sql } = await import("drizzle-orm");
+  const generationId = crypto.randomUUID();
+  await db.execute(
+    sql`INSERT INTO generations (id, inference_id, status) VALUES (${generationId}::uuid, ${inferenceId}::uuid, 'pending')`
+  );
+  await db.execute(
+    sql`INSERT INTO verum_jobs (kind, payload, owner_user_id, status)
+        VALUES ('generate', ${JSON.stringify({ inference_id: inferenceId, generation_id: generationId })}::jsonb, ${uid}::uuid, 'queued')`
+  );
+}
