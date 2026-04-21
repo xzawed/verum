@@ -6,17 +6,21 @@ Payload schema:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.analyses import Analysis
 from src.loop.analyze.models import AnalysisResult
 from src.loop.infer.engine import run_infer
 from src.loop.infer.repository import mark_inference_error, save_inference_result
+from src.worker.chain import enqueue_next
+
+logger = logging.getLogger(__name__)
 
 
 async def handle_infer(
@@ -54,6 +58,43 @@ async def handle_infer(
             "summary": result.summary,
         }
         await save_inference_result(db, inference_id, result, raw)
+
+        # Auto-approve all proposed harvest sources, then enqueue HARVEST
+        await db.execute(
+            text(
+                "UPDATE harvest_sources SET status = 'approved'"
+                " WHERE inference_id = :i AND status = 'proposed'"
+            ),
+            {"i": str(inference_id)},
+        )
+        await db.commit()
+
+        rows = (
+            await db.execute(
+                text(
+                    "SELECT id, url FROM harvest_sources"
+                    " WHERE inference_id = :i AND status = 'approved'"
+                ),
+                {"i": str(inference_id)},
+            )
+        ).fetchall()
+
+        if rows:
+            await enqueue_next(
+                db,
+                kind="harvest",
+                payload={
+                    "inference_id": str(inference_id),
+                    "source_ids": [[str(r[0]), r[1]] for r in rows],
+                },
+                owner_user_id=owner_user_id,
+            )
+        else:
+            logger.warning(
+                "INFER→HARVEST chain: no approved harvest sources found for inference_id=%s",
+                inference_id,
+            )
+
         return {"inference_id": str(inference_id), "domain": result.domain}
     except Exception as exc:
         await mark_inference_error(db, inference_id, str(exc))
