@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
 from src.db.session import AsyncSessionLocal
 from .handlers.analyze import handle_analyze
 from .handlers.harvest import handle_harvest
