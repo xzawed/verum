@@ -1,6 +1,8 @@
 """Recursive text chunker — splits long text into overlapping chunks."""
 from __future__ import annotations
 
+import re
+
 _SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 
@@ -67,3 +69,44 @@ def _pick_separator(text: str, separators: list[str], chunk_size: int) -> str:
         if len(parts) > 1 and any(len(p) <= chunk_size for p in parts):
             return sep
     return ""
+
+
+_SENTENCE_ENDINGS = re.compile(r'(?<=[.!?])\s+')
+
+
+def semantic_split(
+    text: str,
+    chunk_size: int = 512,
+    overlap: int = 50,
+) -> list[str]:
+    """Split text at sentence boundaries, grouping sentences until chunk_size.
+
+    Overlap is applied by repeating the tail of the previous chunk.
+    Fallback: if no sentence boundaries found, delegates to recursive_split.
+    """
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    if len(sentences) <= 1:
+        return recursive_split(text, chunk_size=chunk_size, overlap=overlap)
+
+    chunks: list[str] = []
+    current_sentences: list[str] = []
+    current_len = 0
+
+    for sentence in sentences:
+        if current_len + len(sentence) + 1 > chunk_size and current_sentences:
+            chunk = " ".join(current_sentences)
+            chunks.append(chunk)
+            # Keep last sentence as overlap seed
+            tail = current_sentences[-1] if len(current_sentences[-1]) <= overlap else current_sentences[-1][-overlap:]
+            current_sentences = [tail, sentence]
+            current_len = len(tail) + len(sentence) + 1
+        else:
+            current_sentences.append(sentence)
+            current_len += len(sentence) + 1
+
+    if current_sentences:
+        chunks.append(" ".join(current_sentences))
+
+    return [c for c in chunks if c.strip()]

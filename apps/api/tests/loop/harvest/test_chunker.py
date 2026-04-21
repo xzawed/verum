@@ -1,7 +1,7 @@
 """Tests for the recursive text chunker."""
 from __future__ import annotations
 
-from src.loop.harvest.chunker import recursive_split
+from src.loop.harvest.chunker import recursive_split, semantic_split
 
 
 def test_short_text_returns_single_chunk() -> None:
@@ -39,3 +39,18 @@ def test_paragraph_separator_preferred() -> None:
     chunks = recursive_split(text, chunk_size=20, overlap=0)
     assert any("Para one" in c for c in chunks)
     assert any("Para two" in c for c in chunks)
+
+
+def test_semantic_split_basic() -> None:
+    text = "The Tower card means sudden change. It often signals upheaval. Reversed, it suggests resistance to change."
+    chunks = semantic_split(text, chunk_size=80, overlap=20)
+    assert len(chunks) >= 1
+    assert all(isinstance(c, str) for c in chunks)
+    assert all(c.strip() for c in chunks)
+
+
+def test_semantic_split_short_text_no_split() -> None:
+    text = "Short sentence."
+    chunks = semantic_split(text, chunk_size=512, overlap=50)
+    assert len(chunks) == 1
+    assert chunks[0] == "Short sentence."
