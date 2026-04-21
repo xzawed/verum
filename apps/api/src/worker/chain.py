@@ -24,4 +24,4 @@ async def enqueue_next(
         ),
         {"k": kind, "p": json.dumps(payload, default=str), "u": str(owner_user_id)},
     )
-    await db.commit()
+    # Caller owns commit — do not commit here

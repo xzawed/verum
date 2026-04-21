@@ -89,6 +89,7 @@ async def handle_infer(
                 },
                 owner_user_id=owner_user_id,
             )
+            await db.commit()
         else:
             logger.warning(
                 "INFER→HARVEST chain: no approved harvest sources found for inference_id=%s",

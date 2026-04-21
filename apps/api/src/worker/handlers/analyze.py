@@ -14,7 +14,6 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.loop.analyze.cloner import RepoCloneError
 from src.loop.analyze.pipeline import run_analysis
 from src.loop.analyze.repository import mark_analysis_error, save_analysis_result
 from src.worker.chain import enqueue_next
@@ -57,6 +56,7 @@ async def handle_analyze(
             },
             owner_user_id=owner_user_id,
         )
+        await db.commit()
 
         return {
             "analysis_id": str(analysis_id),
@@ -64,9 +64,6 @@ async def handle_analyze(
             "language_breakdown": result.language_breakdown,
             "inference_id": str(inference_id),
         }
-    except RepoCloneError as exc:
-        await mark_analysis_error(db, analysis_id, str(exc))
-        raise
     except Exception as exc:
         await mark_analysis_error(db, analysis_id, str(exc))
         raise
