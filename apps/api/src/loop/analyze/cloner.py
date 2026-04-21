@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import shutil
+import stat
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,6 +22,15 @@ _CLONE_ERRORS = {
     "could not resolve host": "network",
     "error: pathspec": "branch_missing",
 }
+
+
+def _rmtree(path: Path) -> None:
+    """Remove a directory tree, handling Windows read-only files in .git."""
+    def _on_error(func, fpath, exc_info):  # noqa: ANN001
+        os.chmod(fpath, stat.S_IWRITE)
+        func(fpath)
+
+    shutil.rmtree(path, onerror=_on_error)
 
 
 class RepoCloneError(Exception):
@@ -59,7 +70,7 @@ async def clone_repo(
     target.parent.mkdir(parents=True, exist_ok=True)
 
     if target.exists():
-        shutil.rmtree(target)
+        _rmtree(target)
 
     cmd = [
         "git", "clone",
@@ -81,7 +92,7 @@ async def clone_repo(
         stderr = stderr_bytes.decode(errors="replace")
         kind, detail = _classify_error(stderr)
         if target.exists():
-            shutil.rmtree(target)
+            _rmtree(target)
         raise RepoCloneError(kind, detail)
 
     return target
@@ -100,4 +111,4 @@ async def cloned_repo(
         yield path
     finally:
         if path.exists():
-            shutil.rmtree(path)
+            _rmtree(path)
