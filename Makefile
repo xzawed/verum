@@ -43,8 +43,7 @@ loop-analyze:
 	cd apps/api && python -m src.loop.analyze.cli --repo $(REPO) --branch $(or $(BRANCH),main)
 
 loop-infer:
-	# Phase 2 (F-2.1)
-	@echo "Usage: make loop-infer ANALYSIS_ID=<uuid>"
+	cd apps/api && python -m src.loop.infer.cli --analysis-id $(ANALYSIS_ID)
 
 loop-harvest:
 	# Phase 2 (F-2.4)
