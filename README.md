@@ -3,7 +3,7 @@
 # Verum
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Phase-2%20Complete%20%E2%80%94%20HARVEST-brightgreen)](docs/ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-3%20In%20Progress%20%E2%80%94%20GENERATE-orange)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
@@ -42,7 +42,7 @@ Register a GitHub repo once. The loop runs automatically.
 | 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
 | 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
 | 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge |
-| ✨ GENERATE | 🔲 Next | Prompt variants, RAG config, eval dataset generation |
+| ✨ GENERATE | 🚧 In Progress | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
 | 🚀 DEPLOY | 🔲 Planned | SDK-based canary deployment with traffic splitting |
 | 👁️ OBSERVE | 🔲 Planned | OpenTelemetry trace ingestion + cost/latency metrics |
 | 🧪 EXPERIMENT | 🔲 Planned | Bayesian A/B testing across prompt variants |
@@ -76,7 +76,7 @@ docker compose up
 
 **Backend** — Python 3.13, asyncio, SQLAlchemy 2, Alembic, PostgreSQL 16 + pgvector  
 **Frontend** — Next.js 16, React 19, TypeScript strict, Auth.js v5, Drizzle ORM  
-**AI** — Claude Sonnet 4.6 (INFER), OpenAI `text-embedding-3-small` (embeddings)  
+**AI** — Claude Sonnet 4.6 (INFER + GENERATE), Voyage AI `voyage-3.5` (embeddings, 1024-dim)  
 **Infra** — Railway, Docker (single image: Node PID1 + Python worker subprocess)
 
 ---
