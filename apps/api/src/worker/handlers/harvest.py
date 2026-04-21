@@ -6,12 +6,17 @@ Payload schema:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.loop.harvest.pipeline import harvest_source
+from src.worker.chain import enqueue_next
+
+logger = logging.getLogger(__name__)
 
 
 async def handle_harvest(
@@ -32,6 +37,29 @@ async def handle_harvest(
             results.append({"source_id": source_id_str, "chunks": count, "status": "done"})
         except Exception as exc:
             results.append({"source_id": source_id_str, "error": str(exc), "status": "error"})
+
+    # Chain HARVEST → GENERATE
+    generation_id = uuid.uuid4()
+    await db.execute(
+        text(
+            "INSERT INTO generations (id, inference_id, status)"
+            " VALUES (:id, :inf, 'pending')"
+        ),
+        {"id": str(generation_id), "inf": str(inference_id)},
+    )
+    await enqueue_next(
+        db,
+        kind="generate",
+        payload={"inference_id": str(inference_id), "generation_id": str(generation_id)},
+        owner_user_id=owner_user_id,
+    )
+    await db.commit()
+
+    logger.info(
+        "HARVEST→GENERATE chain: enqueued generation_id=%s for inference_id=%s",
+        generation_id,
+        inference_id,
+    )
 
     return {
         "inference_id": str(inference_id),
