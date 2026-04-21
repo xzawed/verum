@@ -40,3 +40,6 @@ Thumbs.db
 
 # DB
 *.sqlite3
+
+# Local-only docs (not for version control)
+Verum_소개.md
