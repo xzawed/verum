@@ -43,3 +43,9 @@ Thumbs.db
 
 # Local-only docs (not for version control)
 Verum_소개.md
+
+# Build artifacts
+*.tsbuildinfo
+
+# Claude internal
+.claude/scheduled_tasks.lock
