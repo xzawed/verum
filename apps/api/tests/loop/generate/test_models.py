@@ -258,3 +258,72 @@ class TestGenerateResult:
         assert "prompt_variants" in schema["properties"]
         assert "rag_config" in schema["properties"]
         assert "eval_pairs" in schema["properties"]
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case tests (appended)
+# ---------------------------------------------------------------------------
+
+
+class TestRagConfigChunkOverlapBoundaries:
+    """Explicit boundary tests for chunk_overlap — not covered by existing suite."""
+
+    def test_chunk_overlap_min_boundary(self):
+        """chunk_overlap=0 (exact minimum) must be accepted."""
+        config = RagConfig(chunk_overlap=0)
+        assert config.chunk_overlap == 0
+
+    def test_chunk_overlap_max_boundary(self):
+        """chunk_overlap=256 (exact maximum) must be accepted."""
+        config = RagConfig(chunk_overlap=256)
+        assert config.chunk_overlap == 256
+
+    def test_chunk_overlap_below_min_rejected(self):
+        """chunk_overlap=-1 (below minimum) must be rejected."""
+        with pytest.raises(ValueError):
+            RagConfig(chunk_overlap=-1)
+
+    def test_chunk_overlap_above_max_rejected(self):
+        """chunk_overlap=257 (above maximum) must be rejected."""
+        with pytest.raises(ValueError):
+            RagConfig(chunk_overlap=257)
+
+
+class TestRagConfigChunkOverlapExceedsChunkSize:
+    """Document the current model behaviour when chunk_overlap >= chunk_size.
+
+    The Pydantic model has no cross-field validator enforcing
+    chunk_overlap < chunk_size.  This test pins the *current* behaviour so
+    that any future validator addition produces an explicit, intentional
+    test failure rather than a silent regression.
+    """
+
+    def test_chunk_overlap_greater_than_chunk_size_is_currently_accepted(self):
+        """chunk_overlap > chunk_size is NOT validated — this is a known gap.
+
+        If a cross-field validator is ever added (recommended), flip the
+        assertion to expect ValueError and remove this comment.
+        """
+        # chunk_size=128 is the minimum; overlap=200 exceeds it — still accepted
+        config = RagConfig(chunk_size=128, chunk_overlap=200)
+        # Document current (permissive) behaviour explicitly
+        assert config.chunk_overlap > config.chunk_size
+
+
+class TestGenerateResultEmptyVariants:
+    """GenerateResult with an empty prompt_variants list is currently accepted.
+
+    The model has no min-length constraint on the list.  This test pins the
+    behaviour so that any future min_length=1 annotation is an intentional,
+    visible change.
+    """
+
+    def test_empty_prompt_variants_currently_accepted(self):
+        """GenerateResult accepts prompt_variants=[] — known permissive behaviour."""
+        result = GenerateResult(
+            inference_id=uuid.uuid4(),
+            prompt_variants=[],
+            rag_config=RagConfig(),
+            eval_pairs=[EvalPair(query="q", expected_answer="a")],
+        )
+        assert result.prompt_variants == []

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.generations import Generation
 from src.loop.generate.models import GenerateResult
+
+_logger = logging.getLogger(__name__)
 
 
 async def create_pending_generation(
@@ -33,7 +36,9 @@ async def save_generate_result(
     result: GenerateResult,
 ) -> None:
     stmt = select(Generation).where(Generation.id == generation_id)
-    row = (await db.execute(stmt)).scalar_one()
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        raise ValueError(f"Generation {generation_id} not found — cannot save result")
     row.status = "done"
     row.generated_at = datetime.now(tz=timezone.utc)
 
@@ -94,7 +99,10 @@ async def mark_generate_error(
     error: str,
 ) -> None:
     stmt = select(Generation).where(Generation.id == generation_id)
-    row = (await db.execute(stmt)).scalar_one()
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        _logger.warning("mark_generate_error: generation %s not found, skipping", generation_id)
+        return
     row.status = "error"
     row.error = error[:1024]
     await db.commit()
