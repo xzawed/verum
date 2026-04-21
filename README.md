@@ -1,82 +1,87 @@
+<div align="center">
+
 # Verum
 
-> *Connect your repo. Verum learns how your AI actually behaves, then auto-builds and auto-evolves everything around it — prompts, RAG, evals, observability.*
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Phase](https://img.shields.io/badge/Phase-2%20Complete%20%E2%80%94%20HARVEST-brightgreen)](docs/ROADMAP.md)
+[![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
+[![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20+%20pgvector-4169E1?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 
-> **Not affiliated with Verum AI Platform (verumai.com).**
+**Connect your repo. Verum learns how your AI actually behaves,  
+then auto-builds and auto-evolves everything around it.**
 
----
+[Roadmap](docs/ROADMAP.md) · [Architecture](docs/ARCHITECTURE.md) · [Loop Reference](docs/LOOP.md)
 
-## What Verum Does
+> Not affiliated with Verum AI Platform (verumai.com).
 
-Verum is an open-source platform that auto-analyzes and auto-optimizes AI services.
-
-Connect a GitHub repo → Verum statically analyzes your LLM calls → understands your service's domain → automatically builds prompts, RAG pipelines, and evaluation sets → deploys them with A/B testing → evolves the winners without manual intervention.
-
-```
-[1] ANALYZE  →  [2] INFER  →  [3] HARVEST  →  [4] GENERATE
-      ↑                                               ↓
-[8] EVOLVE   ←  [7] EXPERIMENT  ←  [6] OBSERVE  ←  [5] DEPLOY
-```
-
-This loop runs continuously. Your AI service gets better without you writing a single prompt.
+</div>
 
 ---
 
-## How Verum Differs
+## 🔁 The Loop
 
-| Tool | What it does | What Verum adds |
+Verum runs an 8-stage pipeline from static analysis to autonomous evolution — no manual prompting required.
+
+```
+🔬 ANALYZE  →  🧠 INFER  →  🌾 HARVEST  →  ✨ GENERATE
+     ↑                                              ↓
+🔄 EVOLVE   ←  🧪 EXPERIMENT  ←  👁️ OBSERVE  ←  🚀 DEPLOY
+```
+
+Register a GitHub repo once. The loop runs automatically.
+
+---
+
+## ✅ What's Live
+
+| Stage | Status | Description |
 |---|---|---|
-| Langfuse / LangSmith | Observe LLM calls | Auto-generates and evolves prompts + RAG from observations |
-| RAGAS | Evaluate RAG | Auto-builds the evaluation dataset and runs it in CI |
-| PromptLayer | Version prompts | AI writes the prompts and picks winners via A/B |
+| 🔬 ANALYZE | ✅ Done | AST-based LLM call detection across Python + JS/TS repos |
+| 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
+| 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
+| 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge |
+| ✨ GENERATE | 🔲 Next | Prompt variants, RAG config, eval dataset generation |
+| 🚀 DEPLOY | 🔲 Planned | SDK-based canary deployment with traffic splitting |
+| 👁️ OBSERVE | 🔲 Planned | OpenTelemetry trace ingestion + cost/latency metrics |
+| 🧪 EXPERIMENT | 🔲 Planned | Bayesian A/B testing across prompt variants |
+| 🔄 EVOLVE | 🔲 Planned | Auto-promote winners, archive losers |
 
 ---
 
-## Quickstart
-
-> Coming in [Phase 5](docs/ROADMAP.md#phase-5-launch-week-19-24).
-
-Self-hosted preview (Phase 0):
+## ⚡ Self-Hosted Preview
 
 ```bash
 git clone https://github.com/xzawed/verum
 cd verum
 docker compose up
-curl http://localhost:8000/health
+# Dashboard: http://localhost:3000
+# Health:    http://localhost:3000/health
 ```
 
 ---
 
-## Repository Layout
+## 🆚 How Verum Differs
 
-See [docs/ARCHITECTURE.md §2](docs/ARCHITECTURE.md#2-repository-layout) for the full annotated file tree.
-
-Key directories:
-
-| Path | Purpose |
-|---|---|
-| `apps/api/src/loop/` | The 8-stage loop implementation (sacred — see ADR-008) |
-| `apps/dashboard/` | Next.js 16 observability + control dashboard |
-| `packages/sdk-python/` | `pip install verum` |
-| `packages/sdk-typescript/` | `npm install @verum/sdk` |
-| `examples/arcana-integration/` | First dogfood: ArcanaInsight integration |
-| `docs/` | Architecture, roadmap, loop reference, ADRs |
+| Tool | What it does | What Verum adds |
+|---|---|---|
+| Langfuse / LangSmith | Observe LLM calls | Auto-generates and evolves prompts + RAG from observations |
+| RAGAS | Evaluate RAG | Auto-builds the eval dataset and runs it in CI |
+| PromptLayer | Version prompts | AI writes the prompts and picks winners via A/B |
 
 ---
 
-## Documentation
+## 🏗️ Tech Stack
 
-| Document | Purpose |
-|---|---|
-| [docs/INDEX.md](docs/INDEX.md) | Navigation hub — read second, after CLAUDE.md |
-| [docs/LOOP.md](docs/LOOP.md) | Stage algorithms, I/O contracts, completion criteria |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Schemas, API surface, SDK surface, ADRs |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | 6-month roadmap with F-IDs |
-| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Vocabulary reference |
+**Backend** — Python 3.13, asyncio, SQLAlchemy 2, Alembic, PostgreSQL 16 + pgvector  
+**Frontend** — Next.js 16, React 19, TypeScript strict, Auth.js v5, Drizzle ORM  
+**AI** — Claude Sonnet 4.6 (INFER), OpenAI `text-embedding-3-small` (embeddings)  
+**Infra** — Railway, Docker (single image: Node PID1 + Python worker subprocess)
 
 ---
 
-## License
+## 📄 License
 
 MIT — see [LICENSE](LICENSE).
 

@@ -2,7 +2,7 @@
 type: roadmap
 authority: tier-2
 canonical-for: [phase-timing, completion-gates, deliverable-ids]
-last-updated: 2026-04-19
+last-updated: 2026-04-22
 status: active
 ---
 
@@ -26,15 +26,15 @@ status: active
 
 | ID | Deliverable | Status |
 |---|---|---|
-| F-0.1 | Monorepo structure initialized (`apps/`, `packages/`, `docs/`, `.github/`) | 🔲 |
-| F-0.2 | GitHub repository created (`github.com/xzawed/verum`) | 🔲 |
-| F-0.3 | MIT license added | 🔲 |
-| F-0.4 | English README (`README.md`) with brand-safety statement | 🔲 |
-| F-0.5 | Korean README (`README.ko.md`) | 🔲 |
-| F-0.6 | Docker Compose: `api` + `db` (PostgreSQL 16 + pgvector) + `dashboard` services | 🔲 |
-| F-0.7 | GitHub Actions CI: `ruff`, `pylint`, `bandit`, `mypy`, `tsc --noEmit`, `pytest` | 🔲 |
-| F-0.8 | Railway deployment pipeline configured | 🔲 |
-| F-0.9 | `GET /health` endpoint returning `{"status": "ok", "version": "...", "db": "connected"}` | 🔲 |
+| F-0.1 | Monorepo structure initialized (`apps/`, `packages/`, `docs/`, `.github/`) | ✅ |
+| F-0.2 | GitHub repository created (`github.com/xzawed/verum`) | ✅ |
+| F-0.3 | MIT license added | ✅ |
+| F-0.4 | English README (`README.md`) with brand-safety statement | ✅ |
+| F-0.5 | Korean README (`README.ko.md`) | ✅ |
+| F-0.6 | Docker Compose: `api` + `db` (PostgreSQL 16 + pgvector) + `dashboard` services | ✅ |
+| F-0.7 | GitHub Actions CI: `ruff`, `pylint`, `bandit`, `mypy`, `tsc --noEmit`, `pytest` | 🚧 |
+| F-0.8 | Railway deployment pipeline configured | ✅ |
+| F-0.9 | `GET /health` endpoint returning `{"status": "ok", "version": "...", "db": "connected"}` | ✅ |
 
 ### ArcanaInsight Validation
 
@@ -56,15 +56,15 @@ Do not implement any loop stage logic. Infrastructure only.
 
 | ID | Deliverable | Status |
 |---|---|---|
-| F-1.1 | GitHub OAuth integration (user grants repo access) | 🔲 |
-| F-1.2 | Repo clone to isolated temp environment | 🔲 |
-| F-1.3 | Python AST-based LLM call detection (`openai`, `anthropic`, `xai_grok`, `google.generativeai`) | 🔲 |
-| F-1.4 | TypeScript/JavaScript `tree-sitter` based LLM call detection | 🔲 |
-| F-1.5 | Prompt string extraction (string literals, f-strings, template literals) | 🔲 |
-| F-1.6 | Model + parameter extraction (`model`, `temperature`, `max_tokens`) | 🔲 |
-| F-1.7 | Analysis result stored as structured JSON (`AnalysisResult` Pydantic model) | 🔲 |
-| F-1.8 | `POST /v1/analyze` + `GET /v1/analyze/{id}` endpoints | 🔲 |
-| F-1.9 | Dashboard: repo connection UI + analysis result viewer | 🔲 |
+| F-1.1 | GitHub OAuth integration (user grants repo access) | ✅ |
+| F-1.2 | Repo clone to isolated temp environment | ✅ |
+| F-1.3 | Python AST-based LLM call detection (`openai`, `anthropic`, `xai_grok`, `google.generativeai`) | ✅ |
+| F-1.4 | TypeScript/JavaScript `tree-sitter` based LLM call detection | 🚧 |
+| F-1.5 | Prompt string extraction (string literals, f-strings, template literals) | ✅ |
+| F-1.6 | Model + parameter extraction (`model`, `temperature`, `max_tokens`) | ✅ |
+| F-1.7 | Analysis result stored as structured JSON (`AnalysisResult` Pydantic model) | ✅ |
+| F-1.8 | `POST /v1/analyze` + `GET /v1/analyze/{id}` endpoints | 🚧 note: job-queue based, not REST |
+| F-1.9 | Dashboard: repo connection UI + analysis result viewer | ✅ |
 
 ### ArcanaInsight Validation
 
@@ -88,18 +88,20 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 
 | ID | Deliverable | Status |
 |---|---|---|
-| F-2.1 | INFER engine: prompts + README → `ServiceInference` JSON via Claude Sonnet 4.6+ | 🔲 |
-| F-2.2 | Domain classification taxonomy (initial 20 categories) | 🔲 |
-| F-2.3 | `POST /v1/infer` + `GET /v1/infer/{id}` + `PATCH /v1/infer/{id}/confirm` endpoints | 🔲 |
-| F-2.4 | HARVEST engine: domain-aware crawling strategy with LLM-proposed sources | 🔲 |
-| F-2.5 | Source proposal + user approval flow (dashboard UI) | 🔲 |
-| F-2.6 | Crawling: `httpx` (static) + `playwright` (JS-rendered) | 🔲 |
-| F-2.7 | Text extraction with `trafilatura` | 🔲 |
-| F-2.8 | Recursive chunking (mandatory) + Semantic chunking (Phase 2) | 🔲 |
-| F-2.9 | Embedding pipeline: OpenAI `text-embedding-3-small` (default) | 🔲 |
-| F-2.10 | pgvector storage + `tsvector` column for hybrid search | 🔲 |
-| F-2.11 | `POST /v1/harvest/propose` + `POST /v1/harvest/start` + `POST /v1/retrieve` | 🔲 |
-| F-2.12 | Dashboard: INFER result visualization + HARVEST progress + chunk search UI | 🔲 |
+| F-2.1 | INFER engine: prompts + README → `ServiceInference` JSON via Claude Sonnet 4.6+ | ✅ |
+| F-2.2 | Domain classification taxonomy (initial 20 categories) | ✅ |
+| F-2.3 | `POST /v1/infer` + `GET /v1/infer/{id}` + `PATCH /v1/infer/{id}/confirm` endpoints | 🚧 note: job-queue based |
+| F-2.4 | HARVEST engine: domain-aware crawling strategy with LLM-proposed sources | ✅ |
+| F-2.5 | Source proposal + user approval flow (dashboard UI) | ✅ auto-approved; manual toggle deferred |
+| F-2.6 | Crawling: `httpx` (static) + `playwright` (JS-rendered) | 🚧 httpx done; playwright Phase 3 |
+| F-2.7 | Text extraction with `trafilatura` | ✅ |
+| F-2.8 | Recursive chunking (mandatory) + Semantic chunking (Phase 2) | 🚧 recursive done; semantic Phase 3 |
+| F-2.9 | Embedding pipeline: OpenAI `text-embedding-3-small` (default) | ✅ |
+| F-2.10 | pgvector storage + `tsvector` column for hybrid search | ✅ |
+| F-2.11 | `POST /v1/harvest/propose` + `POST /v1/harvest/start` + `POST /v1/retrieve` | 🚧 note: job-queue based |
+| F-2.12 | Dashboard: INFER result visualization + HARVEST progress + chunk search UI | ✅ |
+| F-2.13 | Auto-chain ANALYZE → INFER → HARVEST on repo registration (no manual steps) | ✅ |
+| F-2.14 | Real-time progress polling (3s) on repo detail page | ✅ |
 
 ### ArcanaInsight Validation
 
@@ -231,4 +233,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-19_
+_Maintainer: xzawed | Last updated: 2026-04-22_
