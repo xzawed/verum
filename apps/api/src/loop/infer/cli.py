@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid as uuid_mod
-from datetime import datetime, timezone
 from typing import Annotated
 
 import typer
@@ -21,8 +20,8 @@ from sqlalchemy import select
 from src.db.models.analyses import Analysis
 from src.db.session import AsyncSessionLocal
 from src.loop.analyze.models import AnalysisResult
-from src.loop.infer.engine import run_infer
-from src.loop.infer.models import ServiceInference
+from .engine import run_infer
+from .models import ServiceInference
 
 app = typer.Typer(add_completion=False)
 
@@ -38,7 +37,12 @@ def main(
         typer.echo(f"Error: '{analysis_id}' is not a valid UUID", err=True)
         raise typer.Exit(code=1)
 
-    result = asyncio.run(_run(uid))
+    try:
+        result = asyncio.run(_run(uid))
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+
     print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
 
 
@@ -49,8 +53,10 @@ async def _run(analysis_id: uuid_mod.UUID) -> ServiceInference:
         ).scalar_one_or_none()
 
     if row is None:
-        typer.echo(f"Error: analysis {analysis_id} not found in database", err=True)
-        raise typer.Exit(code=1)
+        raise ValueError(f"analysis {analysis_id} not found in database")
+
+    if row.status != "done":
+        raise ValueError(f"analysis {analysis_id} has status '{row.status}', expected 'done'")
 
     ar = AnalysisResult(
         repo_id=row.repo_id,
@@ -58,7 +64,7 @@ async def _run(analysis_id: uuid_mod.UUID) -> ServiceInference:
         prompt_templates=row.prompt_templates or [],
         model_configs=row.model_configs or [],
         language_breakdown=row.language_breakdown or {},
-        analyzed_at=row.analyzed_at or datetime.now(tz=timezone.utc),
+        analyzed_at=row.analyzed_at,
     )
 
     return await run_infer(ar, analysis_id=analysis_id)
