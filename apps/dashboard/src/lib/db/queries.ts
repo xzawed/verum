@@ -149,6 +149,14 @@ export async function getWorkerAlive(): Promise<boolean> {
 }
 
 // Repo status summary used in repos dashboard
+export interface GenerationSummary {
+  id: string;
+  status: string;
+  generated_at: string | null;
+  variant_count: number;
+  eval_count: number;
+}
+
 export interface RepoStatus {
   repo: Repo;
   latestAnalysis: Analysis | null;
@@ -156,6 +164,20 @@ export interface RepoStatus {
   harvestChunks: number;
   harvestSourcesDone: number;
   harvestSourcesTotal: number;
+  latestGeneration: GenerationSummary | null;
+}
+
+async function getLatestGenerationSummary(inferenceId: string): Promise<GenerationSummary | null> {
+  const rows = await db.execute(
+    sql`SELECT g.id::text, g.status, g.generated_at::text,
+        (SELECT COUNT(*)::int FROM prompt_variants WHERE generation_id = g.id) AS variant_count,
+        (SELECT COUNT(*)::int FROM eval_pairs WHERE generation_id = g.id) AS eval_count
+        FROM generations g
+        WHERE g.inference_id = ${inferenceId}::uuid
+        ORDER BY g.created_at DESC LIMIT 1`,
+  );
+  const row = rows.rows[0] as unknown as GenerationSummary | undefined;
+  return row ?? null;
 }
 
 export async function getRepoStatus(userId: string, repoId: string): Promise<RepoStatus | null> {
@@ -175,6 +197,11 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     harvestChunks = await countChunks(latestInference.id);
   }
 
+  let latestGeneration: GenerationSummary | null = null;
+  if (latestInference?.status === "done") {
+    latestGeneration = await getLatestGenerationSummary(String(latestInference.id));
+  }
+
   return {
     repo,
     latestAnalysis,
@@ -182,5 +209,6 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     harvestChunks,
     harvestSourcesDone,
     harvestSourcesTotal,
+    latestGeneration,
   };
 }
