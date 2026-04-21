@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
 from src.db.session import AsyncSessionLocal
 from .handlers.analyze import handle_analyze
+from .handlers.generate import handle_generate
 from .handlers.harvest import handle_harvest
 from .handlers.infer import handle_infer
 from .handlers.retrieve import handle_retrieve
@@ -33,6 +34,7 @@ _HANDLERS = {
     "infer": handle_infer,
     "harvest": handle_harvest,
     "retrieve": handle_retrieve,
+    "generate": handle_generate,
 }
 
 
