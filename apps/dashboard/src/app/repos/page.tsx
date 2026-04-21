@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { signOut, auth } from "@/auth";
-import { createRepo, deleteRepo } from "@/lib/db/jobs";
-import { getRepos, getRepoStatus } from "@/lib/db/queries";
+import { createRepo, deleteRepo, enqueueAnalyze } from "@/lib/db/jobs";
+import { getRepos, getRepoStatus, getLatestAnalysis } from "@/lib/db/queries";
 import { listUserRepos } from "@/lib/github/repos";
 
 export default async function ReposPage({
@@ -140,6 +140,18 @@ export default async function ReposPage({
                         // redirect() throws internally — keep it outside try-catch
                         const repo = await createRepo(uid, ghRepo.html_url, ghRepo.default_branch).catch(() => null);
                         if (!repo) redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
+
+                        // Auto-enqueue ANALYZE immediately after repo registration
+                        const latest = await getLatestAnalysis(repo.id);
+                        if (!latest || (latest.status !== "pending" && latest.status !== "running")) {
+                          await enqueueAnalyze({
+                            userId: uid,
+                            repoId: repo.id,
+                            repoUrl: repo.github_url,
+                            branch: repo.default_branch,
+                          });
+                        }
+
                         redirect(`/repos/${repo.id}`);
                       }}
                     >
