@@ -45,3 +45,6 @@ LLM_PATH_SUFFIX_PATTERNS: list[tuple[str, list[str]]] = [
     ("/v1/messages", ["anthropic"]),
     ("/chat/completions", ["openai", "grok"]),
 ]
+
+# ── GENERATE stage ────────────────────────────────────────────────────────────
+GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "2048"))
