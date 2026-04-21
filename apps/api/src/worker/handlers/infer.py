@@ -44,9 +44,7 @@ async def handle_infer(
     )
 
     try:
-        result = await run_infer(ar)
-        # Override analysis_id — the engine sets it to repo_id by mistake in v0
-        result = result.model_copy(update={"analysis_id": analysis_id})
+        result = await run_infer(ar, analysis_id=analysis_id)
         raw: dict[str, Any] = {
             "domain": result.domain,
             "tone": result.tone,

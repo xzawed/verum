@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.loop.analyze.models import AnalysisResult, LLMCallSite, PromptTemplate
+from src.loop.infer.engine import run_infer
 from src.loop.infer.models import (
     DOMAIN_TAXONOMY,
     LANGUAGE_OPTIONS,
@@ -78,3 +82,44 @@ def test_language_options_includes_ko() -> None:
 
 def test_user_type_options_includes_consumer() -> None:
     assert "consumer" in USER_TYPE_OPTIONS
+
+
+@pytest.fixture
+def sample_analysis() -> AnalysisResult:
+    return AnalysisResult(
+        repo_id=uuid.uuid4(),
+        call_sites=[
+            LLMCallSite(file_path="a.ts", line=1, sdk="grok", function="generate"),
+        ],
+        prompt_templates=[
+            PromptTemplate(
+                id="abc123",
+                file_path="a.ts",
+                line=5,
+                content="You are a tarot reader",
+            )
+        ],
+        model_configs=[],
+        language_breakdown={"typescript": 10},
+        analyzed_at=datetime.now(tz=timezone.utc),
+    )
+
+
+async def test_run_infer_uses_passed_analysis_id(sample_analysis: AnalysisResult) -> None:
+    """run_infer must set analysis_id from the parameter, not from result.repo_id."""
+    expected_analysis_id = uuid.uuid4()
+    assert expected_analysis_id != sample_analysis.repo_id
+
+    mock_message = MagicMock()
+    mock_message.content = [MagicMock(text='{"domain": "divination/tarot", "tone": "mystical", "language": "ko", "user_type": "consumer", "confidence": 0.9, "summary": "A tarot service."}')]
+
+    with patch("src.loop.infer.engine.anthropic.AsyncAnthropic") as mock_cls:
+        mock_client = AsyncMock()
+        mock_cls.return_value = mock_client
+        mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+            result = await run_infer(sample_analysis, analysis_id=expected_analysis_id)
+
+    assert result.analysis_id == expected_analysis_id
+    assert result.repo_id == sample_analysis.repo_id

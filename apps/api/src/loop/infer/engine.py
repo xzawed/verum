@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 
 import anthropic
 
@@ -91,8 +92,12 @@ Infer the following as JSON:
 }}"""
 
 
-async def run_infer(result: AnalysisResult) -> ServiceInference:
+async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> ServiceInference:
     """Call Claude Sonnet to infer service domain from an AnalysisResult.
+
+    Args:
+        result: The analysis result to infer from.
+        analysis_id: The analysis ID to associate with the inference result.
 
     Raises:
         RuntimeError: if ANTHROPIC_API_KEY is not set.
@@ -136,7 +141,7 @@ async def run_infer(result: AnalysisResult) -> ServiceInference:
 
     return ServiceInference(
         repo_id=result.repo_id,
-        analysis_id=result.repo_id,  # will be replaced by caller with actual analysis_id
+        analysis_id=analysis_id,
         domain=domain,
         tone=parsed.get("tone", "professional"),
         language=parsed.get("language", "en"),
