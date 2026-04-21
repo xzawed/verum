@@ -6,6 +6,7 @@ LISTEN verum_jobs for instant wakeup on INSERT (avoids tight polling).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -78,7 +79,7 @@ async def _mark_done(db: AsyncSession, job_id: uuid.UUID, result: Any) -> None:
             "UPDATE verum_jobs SET status = 'done', result = :result, finished_at = now()"
             " WHERE id = :id"
         ),
-        {"id": job_id, "result": result},
+        {"id": job_id, "result": json.dumps(result, default=str)},
     )
     await db.commit()
 
