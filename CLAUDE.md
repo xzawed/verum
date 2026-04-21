@@ -309,16 +309,16 @@ verum/
 
 **목표**: 프로젝트 기반. "Hello World" 수준이라도 배포까지.
 
-- [ ] Monorepo 초기화 (pnpm workspace + pip workspace)
-- [ ] GitHub 저장소 생성 (`github.com/xzawed/verum`)
-- [ ] MIT 라이선스
-- [ ] 영문 README + 한글 README
-- [ ] Docker Compose (FastAPI + PostgreSQL + pgvector + Next.js)
-- [ ] GitHub Actions CI (lint + test)
-- [ ] Railway 배포 파이프라인
-- [ ] `/health` 헬스체크 엔드포인트
+- [x] Monorepo 초기화 (pnpm workspace + pip workspace)
+- [x] GitHub 저장소 생성 (`github.com/xzawed/verum`)
+- [x] MIT 라이선스
+- [x] 영문 README + 한글 README
+- [x] Docker Compose + Dockerfile (Node PID1 + Python worker child + PostgreSQL + pgvector)
+- [ ] GitHub Actions CI (lint + test) — CI workflow 존재, lint/test 타겟 구현 필요
+- [x] Railway 배포 파이프라인
+- [x] `/health` 헬스체크 엔드포인트
 
-**완료 기준**: `curl https://verum-api.up.railway.app/health` → 200 OK
+**완료 기준**: `curl https://verum-production.up.railway.app/health` → 200 OK ✅
 
 ---
 
@@ -326,7 +326,7 @@ verum/
 
 **목표**: 루프 1단계 — Repo를 받아서 LLM 호출 패턴을 추출.
 
-- [ ] GitHub OAuth 통합 (사용자가 Repo 접근 권한 부여)
+- [x] GitHub OAuth 통합 (사용자가 Repo 접근 권한 부여) — public_repo scope, 스크롤 picker UI
 - [ ] Repo 클론 & 격리된 임시 환경
 - [ ] Python AST 기반 LLM 호출 탐지 (openai, anthropic, google.generativeai 등)
 - [ ] TypeScript/JavaScript tree-sitter 기반 동일 기능
