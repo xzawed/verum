@@ -37,7 +37,7 @@ status: active
   │  │  ┌────────────────────────────────────────────────┐  │  │
   │  │  │ Python Worker  (asyncio child process)          │  │  │
   │  │  │  • LISTEN verum_jobs + SKIP LOCKED poll         │  │  │
-  │  │  │  • Handlers: analyze / infer / harvest          │  │  │
+  │  │  │  • Handlers: analyze / infer / harvest / generate│  │  │
   │  │  │  • Writes results back to Postgres              │  │  │
   │  │  │  • Heartbeat → worker_heartbeat table           │  │  │
   │  │  └────────────────────────────────────────────────┘  │  │
@@ -94,7 +94,7 @@ verum/
 │   │   │   ├── worker/         # Node.js가 spawn하는 entrypoint
 │   │   │   │   ├── main.py     # asyncio.run(run_loop()) — PID는 Node.js가 관리
 │   │   │   │   ├── runner.py   # LISTEN/NOTIFY + SKIP LOCKED job dispatch
-│   │   │   │   └── handlers/   # analyze.py / infer.py / harvest.py
+│   │   │   │   └── handlers/   # analyze.py / infer.py / harvest.py / generate.py
 │   │   │   ├── loop/           # The Verum Loop core logic — SACRED (ADR-008)
 │   │   │   │   ├── analyze/    # [1] Repo static analysis
 │   │   │   │   ├── infer/      # [2] Service intent inference
@@ -143,7 +143,7 @@ verum/
 | [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast`, `libcst`, `tree-sitter` |
 | [2] INFER | `apps/api/src/loop/infer/` | `anthropic` (Claude Sonnet 4.6+) |
 | [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura` (+ `playwright` Phase 3 예정) |
-| [4] GENERATE | `apps/api/src/loop/generate/` | `openai` / `anthropic`, `pgvector` |
+| [4] GENERATE | `apps/api/src/loop/generate/` | `anthropic` (Claude Sonnet 4.6+), `pgvector` |
 | [5] DEPLOY | `apps/api/src/loop/deploy/` | `sdk-python`, `sdk-typescript` |
 | [6] OBSERVE | `apps/api/src/loop/observe/` | OpenTelemetry SDK |
 | [7] EXPERIMENT | `apps/api/src/loop/experiment/` | `scipy` (Bayesian stats) |
@@ -218,17 +218,50 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | `metadata` | `JSONB` | `{"domain": ..., "source_url": ...}` |
 | `created_at` | `TIMESTAMPTZ` | |
 
-### `generated_assets`
+### `generations`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `harvest_source_id` | `UUID` FK → harvest_sources | |
-| `prompt_variants` | `JSONB` | list of PromptVariant |
-| `rag_config` | `JSONB` | chunking strategy + retrieval params |
-| `eval_dataset` | `JSONB` | list of {query, expected_answer} |
-| `dashboard_profile` | `JSONB` | metric weights |
-| `status` | `TEXT` | `"pending_approval"` / `"approved"` / `"archived"` |
+| `inference_id` | `UUID` FK → inferences | |
+| `status` | `TEXT` | `"pending"` / `"done"` / `"error"` |
+| `error` | `TEXT` | nullable |
+| `generated_at` | `TIMESTAMPTZ` | nullable |
+| `created_at` | `TIMESTAMPTZ` | |
+
+### `prompt_variants`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `generation_id` | `UUID` FK → generations | |
+| `variant_type` | `TEXT` | `"original"` / `"cot"` / `"few_shot"` / `"role_play"` / `"concise"` |
+| `content` | `TEXT` | full prompt text with {variable} placeholders |
+| `variables` | `JSONB` | list of variable names |
+| `created_at` | `TIMESTAMPTZ` | |
+
+### `rag_configs`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `generation_id` | `UUID` FK → generations | |
+| `chunking_strategy` | `TEXT` | `"recursive"` / `"semantic"` |
+| `chunk_size` | `INT` | default 512 |
+| `chunk_overlap` | `INT` | default 50 |
+| `top_k` | `INT` | default 5 |
+| `hybrid_alpha` | `FLOAT` | 0.0–1.0 (higher = more vector weight) |
+| `created_at` | `TIMESTAMPTZ` | |
+
+### `eval_pairs`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `generation_id` | `UUID` FK → generations | |
+| `query` | `TEXT` | realistic user query |
+| `expected_answer` | `TEXT` | outline of correct answer |
+| `context_needed` | `BOOL` | whether RAG context is required |
 | `created_at` | `TIMESTAMPTZ` | |
 
 ### `deployments`
@@ -236,7 +269,7 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `asset_id` | `UUID` FK → generated_assets | |
+| `generation_id` | `UUID` FK → generations | |
 | `status` | `TEXT` | `"shadow"` / `"canary"` / `"full"` / `"rolled_back"` / `"archived"` |
 | `traffic_split` | `JSONB` | `{"baseline": 0.9, "variant": 0.1}` |
 | `deployed_at` | `TIMESTAMPTZ` | |
@@ -590,4 +623,4 @@ make docker-healthcheck   # Railway 환경(PORT=8080, HOSTNAME 미주입) 로컬
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-19_
+_Maintainer: xzawed | Last updated: 2026-04-22_

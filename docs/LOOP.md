@@ -261,56 +261,51 @@ Phase 2 target: 1,000+ chunks from tarot knowledge sources. The `collection_name
 
 ### Purpose
 
-Using the HARVEST knowledge base and ANALYZE prompt templates as seeds, automatically generate: prompt variants, RAG index configurations, evaluation datasets, and dashboard metric profiles.
+Using the HARVEST knowledge base and ANALYZE prompt templates as seeds, automatically generate: prompt variants, RAG index configurations, and evaluation datasets.
 
 ### Inputs
 
 | Field | Type | Description |
 |---|---|---|
-| `harvest_id` | `UUID` | ID of a completed `HarvestResult` |
-| `generation_config` | `GenerationConfig` | Which asset types to generate |
+| `inference_id` | `UUID` | ID of a completed `ServiceInference` (with HARVEST done) |
+| `generation_id` | `UUID` | Pre-created pending generation row ID |
 
-### Outputs — `GeneratedAssets`
+### Outputs — `GenerateResult`
 
 | Field | Type | Description |
 |---|---|---|
-| `asset_id` | `UUID` | Stable identifier |
-| `prompt_variants` | `list[PromptVariant]` | Generated prompt templates |
-| `rag_config` | `RAGConfig` | Chunking strategy + retrieval parameters |
-| `eval_dataset` | `EvalDataset` | 30–50 query/answer pairs |
-| `dashboard_profile` | `DashboardProfile` | Recommended metrics for this service type |
+| `inference_id` | `UUID` | Source inference |
+| `prompt_variants` | `list[PromptVariant]` | 5 variants: original, cot, few_shot, role_play, concise |
+| `rag_config` | `RagConfig` | Recommended retrieval configuration |
+| `eval_pairs` | `list[EvalPair]` | 20 realistic query/answer pairs |
 
 ### Algorithm
 
-1. Load HARVEST chunks and ANALYZE prompt templates.
-2. **Prompt variants**: for each base prompt, generate 5 variants:
-   - Original (baseline)
-   - Chain-of-Thought (add reasoning step)
-   - Few-shot (inject 2–3 examples)
-   - Role-play (strengthen persona)
-   - Concise (strip filler, shorten by ~30%)
-3. **RAG config**: select chunking strategy based on domain; set `top_k`, `similarity_threshold`, hybrid search weights.
-4. **Eval dataset**: generate 30–50 realistic user queries + expected answer outlines; store as `EvalDataset`.
-5. **Dashboard profile**: for `user_type = "consumer"`, weight latency and satisfaction. For `user_type = "developer"`, weight cost and accuracy.
-6. All outputs are **proposals**. Mark `status = "pending_approval"` until user reviews.
-7. Persist to `generated_assets` table.
+1. Load `Inference` row (domain, tone, language, user_type, summary) by `inference_id`.
+2. Load `prompt_templates` from the related `analyses` row (JSONB).
+3. Fetch up to 5 sample chunks from `chunks` table for context.
+4. **Call 1 — Prompt Variants**: Claude Sonnet 4.6 generates 5 variants (original, Chain-of-Thought, few_shot, role_play, concise) from the longest detected base prompt.
+5. **Call 2 — RAG Config**: Claude recommends chunking strategy (recursive/semantic), chunk_size, chunk_overlap, top_k, hybrid_alpha based on domain + sample chunks.
+6. **Call 3 — Eval Pairs**: Claude generates 20 diverse query/answer pairs for this domain and service summary.
+7. Persist results: update `generations` row to status=`"done"`, bulk-insert into `prompt_variants`, `rag_configs`, `eval_pairs`.
+8. All outputs are proposals. No auto-deployment.
 
 ### Failure Modes
 
 | Condition | Behavior |
 |---|---|
 | LLM generates fewer than 3 prompt variants | Surface warning; allow user to trigger re-generation |
-| Eval dataset quality too low (LLM self-assessed) | Retry once with higher temperature |
+| Eval pairs quality too low (LLM self-assessed) | Retry once with higher temperature |
 
 ### Completion Criteria
 
-**Given** a completed `HarvestResult` with `chunk_count ≥ 100`,
+**Given** a completed HARVEST with ≥1 chunk in the `chunks` table,
 **when** GENERATE runs,
-**then** `prompt_variants` contains ≥ 3 items and `eval_dataset` contains ≥ 20 pairs, all in `"pending_approval"` state.
+**then** `prompt_variants` contains 5 items and `eval_pairs` contains ≥20 pairs, persisted in `generations` with status=`"done"`.
 
 ### ArcanaInsight Dogfood Example
 
-For ArcanaInsight tarot: 5 prompt variants for the tarot reading persona, RAG config with `top_k=5` pulling from `arcana-tarot-knowledge`, 30 eval pairs covering single-card and multi-card spread queries.
+For ArcanaInsight tarot: 5 prompt variants for the tarot reading persona (original + CoT "step-by-step card interpretation" + few-shot with card examples + role-play "ancient oracle" + concise "one-sentence guidance"), RAG config recommending `semantic` chunking with `top_k=5` from the tarot knowledge base, 20 eval pairs covering single-card draws, multi-card spreads, reversed card interpretations, and edge cases.
 
 ---
 
@@ -532,8 +527,36 @@ class HarvestResult(BaseModel):
     embedding_dim: int  # loaded from collections.embedding_dim, never hardcoded
 ```
 
-Full Pydantic models for GENERATE, DEPLOY, OBSERVE, EXPERIMENT, EVOLVE follow the same pattern in their respective module directories.
+```python
+# apps/api/src/loop/generate/models.py
+VARIANT_TYPES = ["original", "cot", "few_shot", "role_play", "concise"]
+
+class PromptVariant(BaseModel):
+    variant_type: str  # one of VARIANT_TYPES
+    content: str       # full prompt with {variable} placeholders
+    variables: list[str] = []
+
+class RagConfig(BaseModel):
+    chunking_strategy: str = "recursive"  # "recursive" | "semantic"
+    chunk_size: int = 512
+    chunk_overlap: int = 50
+    top_k: int = 5
+    hybrid_alpha: float = 0.7
+
+class EvalPair(BaseModel):
+    query: str
+    expected_answer: str
+    context_needed: bool = True
+
+class GenerateResult(BaseModel):
+    inference_id: UUID
+    prompt_variants: list[PromptVariant]
+    rag_config: RagConfig
+    eval_pairs: list[EvalPair]
+```
+
+Full Pydantic models for DEPLOY, OBSERVE, EXPERIMENT, EVOLVE follow the same pattern in their respective module directories.
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-19_
+_Maintainer: xzawed | Last updated: 2026-04-22_
