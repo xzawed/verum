@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config as cfg
-from .chunker import recursive_split
+from .chunker import recursive_split, semantic_split
 from .crawler import CrawlError, fetch_and_extract
 from .embedder import embed_texts
 from .repository import (
@@ -25,6 +25,7 @@ async def harvest_source(
     *,
     chunk_size: int = cfg.CHUNK_SIZE,
     overlap: int = cfg.CHUNK_OVERLAP,
+    chunking_strategy: str = "recursive",
 ) -> int:
     """Crawl one approved source, chunk, embed, and store.
 
@@ -42,7 +43,8 @@ async def harvest_source(
         await mark_source_error(db, source_id, "empty content after extraction")
         return 0
 
-    chunks = recursive_split(text, chunk_size=chunk_size, overlap=overlap)
+    split_fn = semantic_split if chunking_strategy == "semantic" else recursive_split
+    chunks = split_fn(text, chunk_size=chunk_size, overlap=overlap)
     if not chunks:
         await mark_source_error(db, source_id, "no chunks produced after split")
         return 0

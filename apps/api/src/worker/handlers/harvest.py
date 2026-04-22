@@ -26,13 +26,17 @@ async def handle_harvest(
 ) -> dict[str, Any]:
     inference_id = uuid.UUID(payload["inference_id"])
     source_pairs: list[list[str]] = payload["source_ids"]  # [[source_id, url], ...]
+    chunking_strategy: str = payload.get("chunking_strategy", "recursive")
 
     total_chunks = 0
     results: list[dict[str, Any]] = []
     for source_id_str, url in source_pairs:
         source_id = uuid.UUID(source_id_str)
         try:
-            count = await harvest_source(db, source_id, url, inference_id)
+            count = await harvest_source(
+                db, source_id, url, inference_id,
+                chunking_strategy=chunking_strategy,
+            )
             total_chunks += count
             results.append({"source_id": source_id_str, "chunks": count, "status": "done"})
         except Exception as exc:
