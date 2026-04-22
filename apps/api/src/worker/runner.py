@@ -22,6 +22,7 @@ from .handlers.deploy import handle_deploy
 from .handlers.generate import handle_generate
 from .handlers.harvest import handle_harvest
 from .handlers.infer import handle_infer
+from .handlers.judge import handle_judge
 from .handlers.retrieve import handle_retrieve
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ _HANDLERS = {
     "retrieve": handle_retrieve,
     "generate": handle_generate,
     "deploy": handle_deploy,
+    "judge": handle_judge,
 }
 
 
