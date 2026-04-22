@@ -27,6 +27,7 @@ async def handle_harvest(
     inference_id = uuid.UUID(payload["inference_id"])
     source_pairs: list[list[str]] = payload["source_ids"]  # [[source_id, url], ...]
     chunking_strategy: str = payload.get("chunking_strategy", "recursive")
+    use_playwright: bool = bool(payload.get("use_playwright", False))
 
     total_chunks = 0
     results: list[dict[str, Any]] = []
@@ -36,6 +37,7 @@ async def handle_harvest(
             count = await harvest_source(
                 db, source_id, url, inference_id,
                 chunking_strategy=chunking_strategy,
+                use_playwright=use_playwright,
             )
             total_chunks += count
             results.append({"source_id": source_id_str, "chunks": count, "status": "done"})
