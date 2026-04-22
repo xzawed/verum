@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from src.loop.generate.metric_profile import MetricProfile
+
 VARIANT_TYPES = ["original", "cot", "few_shot", "role_play", "concise"]
 
 
@@ -86,3 +88,4 @@ class GenerateResult(BaseModel):
     eval_pairs: list[EvalPair] = Field(
         description="Generated evaluation dataset"
     )
+    metric_profile: MetricProfile | None = None

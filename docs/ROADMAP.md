@@ -131,7 +131,7 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 | F-3.1 | Prompt variant generator: 5 patterns (original, CoT, few-shot, role-play, concise) | ✅ |
 | F-3.2 | RAG config auto-selection (chunking strategy + `top_k` + hybrid weights) | ✅ |
 | F-3.3 | Eval dataset generation: 30–50 query/answer pairs via LLM | ✅ |
-| F-3.4 | Dashboard metric profile auto-selection (consumer vs developer vs enterprise) | 🔲 |
+| F-3.4 | Dashboard metric profile auto-selection (consumer vs developer vs enterprise) | ✅ |
 | F-3.5 | `POST /v1/generate` + `GET /v1/generate/{id}` + `PATCH /v1/generate/{id}/approve` | 🔲 |
 | F-3.6 | DEPLOY engine: canary at 10% traffic, SDK-side routing | 🔲 |
 | F-3.7 | `POST /v1/deploy` + traffic split endpoints + rollback | 🔲 |

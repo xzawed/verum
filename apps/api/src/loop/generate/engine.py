@@ -11,6 +11,7 @@ from typing import Any
 import anthropic
 
 import src.config as cfg
+from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
 
 _SYSTEM = "You are an expert prompt engineer and AI quality specialist. Respond ONLY with valid JSON. No markdown, no explanation."
@@ -189,10 +190,12 @@ async def run_generate(
     prompt_variants = await _generate_variants(client, base_prompt, domain, tone, user_type, language, summary)
     rag_config = await _generate_rag_config(client, domain, user_type, chunks_preview)
     eval_pairs = await _generate_eval_pairs(client, domain, user_type, summary, chunks_preview)
+    metric_profile = select_metric_profile(user_type, domain)
 
     return GenerateResult(
         inference_id=uuid.UUID(inference_id),
         prompt_variants=prompt_variants,
         rag_config=rag_config,
         eval_pairs=eval_pairs,
+        metric_profile=metric_profile,
     )
