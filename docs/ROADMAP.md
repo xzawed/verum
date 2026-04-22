@@ -59,7 +59,7 @@ Do not implement any loop stage logic. Infrastructure only.
 | F-1.1 | GitHub OAuth integration (user grants repo access) | ✅ |
 | F-1.2 | Repo clone to isolated temp environment | ✅ |
 | F-1.3 | Python AST-based LLM call detection (`openai`, `anthropic`, `xai_grok`, `google.generativeai`) | ✅ |
-| F-1.4 | TypeScript/JavaScript `tree-sitter` based LLM call detection | 🚧 |
+| F-1.4 | TypeScript/JavaScript `tree-sitter` based LLM call detection | ✅ |
 | F-1.5 | Prompt string extraction (string literals, f-strings, template literals) | ✅ |
 | F-1.6 | Model + parameter extraction (`model`, `temperature`, `max_tokens`) | ✅ |
 | F-1.7 | Analysis result stored as structured JSON (`AnalysisResult` Pydantic model) | ✅ |
