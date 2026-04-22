@@ -3,7 +3,7 @@
 # Verum
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Phase-3%20진행중%20%E2%80%94%20GENERATE-orange)](docs/ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-4A%20완료%20%E2%80%94%20OBSERVE-brightgreen)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
@@ -42,9 +42,9 @@ GitHub Repo를 한 번 등록하면 루프가 자동으로 시작됩니다.
 | 🧠 INFER | ✅ 완료 | Claude Sonnet 4.6으로 도메인·톤·사용자 유형 추론 |
 | 🌾 HARVEST | ✅ 완료 | 도메인 맞춤 크롤링 → 청킹 → pgvector 임베딩 저장 |
 | 🔍 RETRIEVE | ✅ 완료 | 벡터 + 전문 검색 하이브리드로 수집 지식 검색 |
-| ✨ GENERATE | 🚧 진행중 | 프롬프트 변형·RAG 설정·평가셋 자동 생성 (HARVEST 완료 후 자동 실행) |
-| 🚀 DEPLOY | 🔲 예정 | SDK 기반 카나리 배포 + 트래픽 분할 |
-| 👁️ OBSERVE | 🔲 예정 | OpenTelemetry 트레이스 수집 + 비용/지연 메트릭 |
+| ✨ GENERATE | ✅ 완료 | 프롬프트 변형·RAG 설정·평가셋 자동 생성 (HARVEST 완료 후 자동 실행) |
+| 🚀 DEPLOY | ✅ 완료 | SDK 기반 카나리 배포 + 트래픽 분할 + 롤백 |
+| 👁️ OBSERVE | ✅ 완료 | 트레이스 + 스팬 수집, 비용/지연 메트릭, LLM-as-Judge 점수 |
 | 🧪 EXPERIMENT | 🔲 예정 | 베이지안 A/B 테스트로 프롬프트 변형 비교 |
 | 🔄 EVOLVE | 🔲 예정 | 승자 자동 승격, 패배자 아카이브 |
 

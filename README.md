@@ -3,7 +3,7 @@
 # Verum
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Phase-3%20In%20Progress%20%E2%80%94%20GENERATE-orange)](docs/ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-4A%20Complete%20%E2%80%94%20OBSERVE-brightgreen)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
@@ -42,9 +42,9 @@ Register a GitHub repo once. The loop runs automatically.
 | 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
 | 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
 | 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge |
-| ✨ GENERATE | 🚧 In Progress | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
-| 🚀 DEPLOY | 🔲 Planned | SDK-based canary deployment with traffic splitting |
-| 👁️ OBSERVE | 🔲 Planned | OpenTelemetry trace ingestion + cost/latency metrics |
+| ✨ GENERATE | ✅ Done | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
+| 🚀 DEPLOY | ✅ Done | SDK-based canary deployment with traffic splitting + rollback |
+| 👁️ OBSERVE | ✅ Done | Trace + span ingestion, cost/latency metrics, LLM-as-Judge scoring |
 | 🧪 EXPERIMENT | 🔲 Planned | Bayesian A/B testing across prompt variants |
 | 🔄 EVOLVE | 🔲 Planned | Auto-promote winners, archive losers |
 
