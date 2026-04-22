@@ -17,3 +17,13 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/xzawed/verum"
 Documentation = "https://docs.verum.dev"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

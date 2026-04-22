@@ -1,3 +1,5 @@
-__version__ = "0.0.0"
+"""Verum SDK — connect your AI service to The Verum Loop."""
+from verum.client import Client
 
-# Phase 3 (F-3.8): configure(), chat(), retrieve(), feedback() are implemented here.
+__version__ = "0.1.0"
+__all__ = ["Client"]
