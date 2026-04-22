@@ -3,7 +3,9 @@ import { auth } from "@/auth";
 import { enqueueGenerate, approveGeneration } from "@/lib/db/jobs";
 import { getInference, getLatestGeneration, getGenerationFull } from "@/lib/db/queries";
 
-function isMetricProfile(v: unknown): v is { primary_metrics: string[]; secondary_metrics: string[]; profile_name: string } {
+function isMetricProfile(
+  v: unknown,
+): v is { primary_metrics: string[]; secondary_metrics: string[]; profile_name: string } {
   return (
     v !== null &&
     typeof v === "object" &&
@@ -17,10 +19,8 @@ function isMetricProfile(v: unknown): v is { primary_metrics: string[]; secondar
 
 export default async function GeneratePage({
   params,
-  searchParams,
 }: {
   params: Promise<{ inference_id: string }>;
-  searchParams: Promise<{ trigger?: string; approve?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -28,26 +28,36 @@ export default async function GeneratePage({
   if (!uid) redirect("/login");
 
   const { inference_id } = await params;
-  const { trigger, approve } = await searchParams;
 
   const inference = await getInference(uid, inference_id);
   if (!inference) notFound();
 
-  if (trigger === "1") {
+  const latestGen = await getLatestGeneration(inference_id);
+  const full = latestGen ? await getGenerationFull(uid, latestGen.id) : null;
+  const rawProfile = full?.gen?.metric_profile;
+  const metricProfile = isMetricProfile(rawProfile) ? rawProfile : null;
+
+  async function triggerGenerate() {
+    "use server";
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
     await enqueueGenerate({ userId: uid, inferenceId: inference_id });
     redirect(`/generate/${inference_id}`);
   }
 
-  const latestGen = await getLatestGeneration(inference_id);
-
-  if (approve === "1" && latestGen) {
-    await approveGeneration(uid, latestGen.id);
-    redirect(`/deploy/${latestGen.id}`);
+  async function triggerApprove(formData: FormData) {
+    "use server";
+    const genId = formData.get("generation_id") as string;
+    if (!genId) return;
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
+    await approveGeneration(uid, genId);
+    redirect(`/deploy/${genId}`);
   }
-
-  const full = latestGen ? await getGenerationFull(uid, latestGen.id) : null;
-  const rawProfile = full?.gen?.metric_profile;
-  const metricProfile = isMetricProfile(rawProfile) ? rawProfile : null;
 
   return (
     <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
@@ -57,7 +67,7 @@ export default async function GeneratePage({
       </p>
 
       {(!latestGen || latestGen.status === "error") && (
-        <form action={`/generate/${inference_id}?trigger=1`} method="GET">
+        <form action={triggerGenerate}>
           <button
             type="submit"
             style={{ background: "#000", color: "#fff", border: "none", padding: "10px 20px", cursor: "pointer", fontSize: 14 }}
@@ -108,12 +118,14 @@ export default async function GeneratePage({
             <div style={{ marginBottom: 24 }}>
               <h2 style={{ fontSize: 15, marginBottom: 8 }}>RAG Config</h2>
               <table style={{ fontSize: 13, borderCollapse: "collapse" }}>
-                {Object.entries(full.rag).filter(([k]) => k !== "id" && k !== "generation_id" && k !== "created_at").map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ padding: "2px 12px 2px 0", color: "#666" }}>{k}</td>
-                    <td style={{ padding: "2px 0" }}>{String(v)}</td>
-                  </tr>
-                ))}
+                {Object.entries(full.rag)
+                  .filter(([k]) => k !== "id" && k !== "generation_id" && k !== "created_at")
+                  .map(([k, v]) => (
+                    <tr key={k}>
+                      <td style={{ padding: "2px 12px 2px 0", color: "#666" }}>{k}</td>
+                      <td style={{ padding: "2px 0" }}>{String(v)}</td>
+                    </tr>
+                  ))}
               </table>
             </div>
           )}
@@ -131,7 +143,8 @@ export default async function GeneratePage({
           )}
 
           {latestGen.status === "done" && (
-            <form action={`/generate/${inference_id}?approve=1`} method="GET">
+            <form action={triggerApprove}>
+              <input type="hidden" name="generation_id" value={latestGen.id} />
               <button
                 type="submit"
                 style={{ background: "#16a34a", color: "#fff", border: "none", padding: "10px 24px", cursor: "pointer", fontSize: 14 }}
