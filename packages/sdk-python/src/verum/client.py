@@ -117,6 +117,52 @@ class Client:
             )
             resp.raise_for_status()
 
+    async def record(
+        self,
+        *,
+        deployment_id: str,
+        variant: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        latency_ms: int,
+        error: str | None = None,
+    ) -> str:
+        """Record an LLM call to Verum. Returns trace_id.
+
+        Call immediately after the LLM SDK returns. Pass the returned
+        trace_id to feedback() if the user provides a rating.
+
+        Args:
+            deployment_id: From client.chat() response["deployment_id"].
+            variant: From client.chat() response["routed_to"].
+            model: Exact model string used (e.g. "grok-2-1212").
+            input_tokens: From LLM response usage.prompt_tokens.
+            output_tokens: From LLM response usage.completion_tokens.
+            latency_ms: Wall-clock time from request start to response end.
+            error: Error message if the LLM call failed; None on success.
+
+        Returns:
+            trace_id string to pass to feedback().
+        """
+        async with httpx.AsyncClient() as http:
+            resp = await http.post(
+                f"{self._api_url}/api/v1/traces",
+                json={
+                    "deployment_id": deployment_id,
+                    "variant": variant,
+                    "model": model,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "latency_ms": latency_ms,
+                    "error": error,
+                },
+                headers=self._headers(),
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            return resp.json()["trace_id"]
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _get_deployment_config(self, deployment_id: str) -> dict[str, Any]:

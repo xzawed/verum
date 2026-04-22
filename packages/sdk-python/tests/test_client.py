@@ -82,3 +82,25 @@ async def test_feedback_calls_api():
         client = Client(api_url="http://verum-test.local", api_key="test-key")
         await client.feedback(trace_id="trace-123", score=1)
         assert mock.calls.called
+
+
+@pytest.mark.asyncio
+async def test_record_returns_trace_id():
+    with respx.mock(base_url="http://verum-test.local") as mock:
+        mock.post("/api/v1/traces").mock(
+            return_value=httpx.Response(200, json={"trace_id": "abc-123"})
+        )
+        client = Client(api_url="http://verum-test.local", api_key="test-key")
+        trace_id = await client.record(
+            deployment_id="dep-uuid",
+            variant="cot",
+            model="grok-2-1212",
+            input_tokens=512,
+            output_tokens=284,
+            latency_ms=980,
+        )
+
+        assert trace_id == "abc-123"
+        assert mock.calls.called
+        call = mock.calls[0]
+        assert "/api/v1/traces" in str(call.request.url)
