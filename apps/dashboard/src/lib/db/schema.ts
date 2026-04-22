@@ -111,6 +111,7 @@ export const generations = pgTable("generations", {
     .references(() => inferences.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 32 }).notNull().default("pending"),
   error: varchar("error", { length: 1024 }),
+  metric_profile: jsonb("metric_profile"),
   generated_at: timestamp("generated_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -150,6 +151,19 @@ export const eval_pairs = pgTable("eval_pairs", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const deployments = pgTable("deployments", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  generation_id: uuid("generation_id")
+    .notNull()
+    .references(() => generations.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 32 }).notNull().default("canary"),
+  traffic_split: jsonb("traffic_split").notNull().default({ baseline: 0.9, variant: 0.1 }),
+  error_count: integer("error_count").notNull().default(0),
+  total_calls: integer("total_calls").notNull().default(0),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
 export type Analysis = typeof analyses.$inferSelect;
@@ -160,3 +174,4 @@ export type Generation = typeof generations.$inferSelect;
 export type PromptVariant = typeof prompt_variants.$inferSelect;
 export type RagConfig = typeof rag_configs.$inferSelect;
 export type EvalPair = typeof eval_pairs.$inferSelect;
+export type Deployment = typeof deployments.$inferSelect;

@@ -2,10 +2,12 @@
  * Write operations: enqueue jobs and mutate DB state.
  * All mutations verify owner_user_id before acting.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import {
   analyses,
+  deployments,
+  generations,
   harvest_sources,
   inferences,
   repos,
@@ -149,4 +151,110 @@ export async function enqueueRetrieve(opts: {
     })
     .returning({ id: verum_jobs.id });
   return rows[0]!.id;
+}
+
+// ── GENERATE ──────────────────────────────────────────────────
+
+export async function enqueueGenerate(opts: {
+  userId: string;
+  inferenceId: string;
+}): Promise<{ generationId: string; jobId: string }> {
+  const genRows = await db
+    .insert(generations)
+    .values({ inference_id: opts.inferenceId, status: "pending" })
+    .returning({ id: generations.id });
+  const generationId = genRows[0]!.id;
+
+  const jobRows = await db
+    .insert(verum_jobs)
+    .values({
+      kind: "generate",
+      payload: { inference_id: opts.inferenceId, generation_id: generationId },
+      owner_user_id: opts.userId,
+    })
+    .returning({ id: verum_jobs.id });
+
+  return { generationId, jobId: jobRows[0]!.id };
+}
+
+// ── DEPLOY ────────────────────────────────────────────────────
+
+export async function enqueueDeployment(opts: {
+  userId: string;
+  generationId: string;
+}): Promise<string> {
+  const rows = await db
+    .insert(verum_jobs)
+    .values({
+      kind: "deploy",
+      payload: { generation_id: opts.generationId },
+      owner_user_id: opts.userId,
+    })
+    .returning({ id: verum_jobs.id });
+  return rows[0]!.id;
+}
+
+export async function updateDeploymentTraffic(
+  userId: string,
+  deploymentId: string,
+  split: number,
+) {
+  await db
+    .update(deployments)
+    .set({ traffic_split: { baseline: 1 - split, variant: split }, updated_at: new Date() })
+    .where(
+      and(
+        eq(deployments.id, deploymentId),
+        sql`EXISTS (
+          SELECT 1 FROM generations g
+          JOIN inferences i ON i.id = g.inference_id
+          JOIN analyses a ON a.id = i.analysis_id
+          JOIN repos r ON r.id = a.repo_id
+          WHERE g.id = ${deployments.generation_id}
+            AND r.owner_user_id = ${userId}::uuid
+        )`,
+      ),
+    );
+}
+
+export async function rollbackDeployment(userId: string, deploymentId: string) {
+  await db
+    .update(deployments)
+    .set({
+      status: "rolled_back",
+      traffic_split: { baseline: 1.0, variant: 0.0 },
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(deployments.id, deploymentId),
+        sql`EXISTS (
+          SELECT 1 FROM generations g
+          JOIN inferences i ON i.id = g.inference_id
+          JOIN analyses a ON a.id = i.analysis_id
+          JOIN repos r ON r.id = a.repo_id
+          WHERE g.id = ${deployments.generation_id}
+            AND r.owner_user_id = ${userId}::uuid
+        )`,
+      ),
+    );
+}
+
+export async function approveGeneration(userId: string, generationId: string): Promise<boolean> {
+  const rows = await db
+    .select({ g: generations })
+    .from(generations)
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(generations.id, generationId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+
+  if (!rows[0]) return false;
+
+  await db
+    .update(generations)
+    .set({ status: "approved" })
+    .where(eq(generations.id, generationId));
+  return true;
 }

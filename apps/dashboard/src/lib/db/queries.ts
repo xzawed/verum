@@ -6,20 +6,30 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import {
   analyses,
+  deployments,
+  eval_pairs,
+  generations,
   harvest_sources,
   inferences,
+  prompt_variants,
+  rag_configs,
   repos,
   users,
   verum_jobs,
   worker_heartbeat,
   type Analysis,
+  type Deployment,
+  type EvalPair,
+  type Generation,
   type HarvestSource,
   type Inference,
+  type PromptVariant,
+  type RagConfig,
   type Repo,
   type VerumJob,
 } from "./schema";
 
-export type { Analysis, HarvestSource, Inference, Repo, VerumJob };
+export type { Analysis, Deployment, EvalPair, Generation, HarvestSource, Inference, PromptVariant, RagConfig, Repo, VerumJob };
 
 export async function getUserByGithubId(githubId: number) {
   const rows = await db.select().from(users).where(eq(users.github_id, githubId)).limit(1);
@@ -178,6 +188,78 @@ async function getLatestGenerationSummary(inferenceId: string): Promise<Generati
   );
   const row = rows.rows[0] as unknown as GenerationSummary | undefined;
   return row ?? null;
+}
+
+export async function getGeneration(userId: string, generationId: string): Promise<Generation | null> {
+  const rows = await db
+    .select({ g: generations })
+    .from(generations)
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(generations.id, generationId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0]?.g ?? null;
+}
+
+export async function getGenerationFull(userId: string, generationId: string) {
+  const gen = await getGeneration(userId, generationId);
+  if (!gen) return null;
+
+  const variants = await db
+    .select()
+    .from(prompt_variants)
+    .where(eq(prompt_variants.generation_id, generationId))
+    .orderBy(prompt_variants.created_at);
+
+  const ragRows = await db
+    .select()
+    .from(rag_configs)
+    .where(eq(rag_configs.generation_id, generationId))
+    .limit(1);
+
+  const pairs = await db
+    .select()
+    .from(eval_pairs)
+    .where(eq(eval_pairs.generation_id, generationId))
+    .limit(5);
+
+  return { gen, variants, rag: ragRows[0] ?? null, pairs };
+}
+
+export async function getDeployment(userId: string, deploymentId: string) {
+  const rows = await db
+    .select({ d: deployments })
+    .from(deployments)
+    .innerJoin(generations, eq(deployments.generation_id, generations.id))
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(deployments.id, deploymentId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0]?.d ?? null;
+}
+
+export async function getVariantPrompt(deploymentId: string): Promise<string | null> {
+  const rows = await db.execute(
+    sql`SELECT pv.content FROM deployments d
+        JOIN generations g ON g.id = d.generation_id
+        JOIN prompt_variants pv ON pv.generation_id = g.id
+        WHERE d.id = ${deploymentId}::uuid AND pv.variant_type = 'cot'
+        LIMIT 1`,
+  );
+  const row = rows.rows[0] as { content: string } | undefined;
+  return row?.content ?? null;
+}
+
+export async function getLatestGeneration(inferenceId: string): Promise<Generation | null> {
+  const rows = await db
+    .select()
+    .from(generations)
+    .where(eq(generations.inference_id, inferenceId))
+    .orderBy(desc(generations.created_at))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getRepoStatus(userId: string, repoId: string): Promise<RepoStatus | null> {
