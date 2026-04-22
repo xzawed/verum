@@ -12,7 +12,9 @@ import {
   inferences,
   repos,
   verum_jobs,
+  type Inference,
 } from "./schema";
+import { getInference } from "./queries";
 
 // ── Repo CRUD ─────────────────────────────────────────────────
 
@@ -257,4 +259,33 @@ export async function approveGeneration(userId: string, generationId: string): P
     .set({ status: "approved" })
     .where(eq(generations.id, generationId));
   return true;
+}
+
+// ── INFER confirm ──────────────────────────────────────────────
+
+export async function confirmInference(
+  userId: string,
+  inferenceId: string,
+  overrides: {
+    domain?: string | null;
+    tone?: string | null;
+    language?: string | null;
+    user_type?: string | null;
+  },
+): Promise<Inference | null> {
+  const existing = await getInference(userId, inferenceId);
+  if (!existing) return null;
+
+  const rows = await db
+    .update(inferences)
+    .set({
+      domain: overrides.domain !== undefined ? overrides.domain : existing.domain,
+      tone: overrides.tone !== undefined ? overrides.tone : existing.tone,
+      language: overrides.language !== undefined ? overrides.language : existing.language,
+      user_type: overrides.user_type !== undefined ? overrides.user_type : existing.user_type,
+    })
+    .where(eq(inferences.id, inferenceId))
+    .returning();
+
+  return rows[0] ?? null;
 }
