@@ -4,8 +4,10 @@ import {
   doublePrecision,
   integer,
   jsonb,
+  numeric,
   pgTable,
   real,
+  smallint,
   text,
   timestamp,
   unique,
@@ -164,6 +166,43 @@ export const deployments = pgTable("deployments", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const model_pricing = pgTable("model_pricing", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  model_name: text("model_name").notNull().unique(),
+  input_per_1m_usd: numeric("input_per_1m_usd", { precision: 10, scale: 6 }).notNull(),
+  output_per_1m_usd: numeric("output_per_1m_usd", { precision: 10, scale: 6 }).notNull(),
+  provider: text("provider").notNull(),
+  effective_from: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const traces = pgTable("traces", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  deployment_id: uuid("deployment_id").notNull(),
+  variant: text("variant").notNull().default("baseline"),
+  user_feedback: smallint("user_feedback"),
+  judge_score: doublePrecision("judge_score"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const spans = pgTable("spans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trace_id: uuid("trace_id").notNull(),
+  model: text("model").notNull(),
+  input_tokens: integer("input_tokens").notNull().default(0),
+  output_tokens: integer("output_tokens").notNull().default(0),
+  latency_ms: integer("latency_ms").notNull().default(0),
+  cost_usd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull().default("0"),
+  error: text("error"),
+  started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const judge_prompts = pgTable("judge_prompts", {
+  trace_id: uuid("trace_id").primaryKey(),
+  prompt_sent: text("prompt_sent").notNull(),
+  raw_response: text("raw_response").notNull(),
+  judged_at: timestamp("judged_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
 export type Analysis = typeof analyses.$inferSelect;
@@ -175,3 +214,7 @@ export type PromptVariant = typeof prompt_variants.$inferSelect;
 export type RagConfig = typeof rag_configs.$inferSelect;
 export type EvalPair = typeof eval_pairs.$inferSelect;
 export type Deployment = typeof deployments.$inferSelect;
+export type ModelPricing = typeof model_pricing.$inferSelect;
+export type Trace = typeof traces.$inferSelect;
+export type Span = typeof spans.$inferSelect;
+export type JudgePrompt = typeof judge_prompts.$inferSelect;
