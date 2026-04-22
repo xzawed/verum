@@ -41,6 +41,8 @@ async def save_generate_result(
         raise ValueError(f"Generation {generation_id} not found — cannot save result")
     row.status = "done"
     row.generated_at = datetime.now(tz=timezone.utc)
+    if result.metric_profile is not None:
+        row.metric_profile = result.metric_profile.model_dump()
 
     for variant in result.prompt_variants:
         await db.execute(

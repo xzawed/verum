@@ -24,11 +24,13 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install API + dev deps
-        run: pip install "apps/api[dev]"
+        run: pip install -e "./apps/api[dev]"
       - name: ruff
         run: ruff check apps/api/src packages/sdk-python/src
       - name: bandit
         run: bandit -r apps/api/src -ll
+      - name: pylint
+        run: pylint apps/api/src --fail-under=8.0
       - name: mypy
         run: mypy apps/api/src --ignore-missing-imports
 
@@ -68,7 +70,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install API + dev deps
-        run: pip install "apps/api[dev]"
+        run: pip install -e "./apps/api[dev]"
       - name: Run tests
         working-directory: apps/api
         run: pytest tests -v --cov=src.loop --cov-fail-under=45 --cov-config=pyproject.toml
@@ -100,7 +102,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install API + dev deps
-        run: pip install "apps/api[dev]"
+        run: pip install -e "./apps/api[dev]"
       - name: Run ANALYZE against ArcanaInsight
         working-directory: apps/api
         run: |
