@@ -314,7 +314,7 @@ verum/
 - [x] MIT 라이선스
 - [x] 영문 README + 한글 README
 - [x] Docker Compose + Dockerfile (Node PID1 + Python worker child + PostgreSQL + pgvector)
-- [ ] GitHub Actions CI (lint + test) — CI workflow 존재, lint/test 타겟 구현 필요
+- [x] GitHub Actions CI (lint + test) — CI workflow 존재, lint/test 타겟 구현 필요
 - [x] Railway 배포 파이프라인
 - [x] `/health` 헬스체크 엔드포인트
 

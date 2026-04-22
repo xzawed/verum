@@ -2,7 +2,7 @@
 type: architecture
 authority: tier-2
 canonical-for: [file-tree, schemas, api-contracts, sdk-surface, adrs, infra]
-last-updated: 2026-04-19
+last-updated: 2026-04-22
 status: active
 ---
 
@@ -142,7 +142,7 @@ verum/
 |---|---|---|
 | [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast`, `libcst`, `tree-sitter` |
 | [2] INFER | `apps/api/src/loop/infer/` | `anthropic` (Claude Sonnet 4.6+) |
-| [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura` (+ `playwright` Phase 3 예정) |
+| [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura`, `playwright` (opt-in, soft import) |
 | [4] GENERATE | `apps/api/src/loop/generate/` | `anthropic` (Claude Sonnet 4.6+), `pgvector` |
 | [5] DEPLOY | `apps/api/src/loop/deploy/` | `sdk-python`, `sdk-typescript` |
 | [6] OBSERVE | `apps/api/src/loop/observe/` | OpenTelemetry SDK |
@@ -340,76 +340,78 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 
 Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication: Auth.js v5 JWT (Phase 1+).
 
+> **Implementation status legend:** ✅ Implemented | 🔲 Phase 4+
+
 ### Health
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Returns `{"status": "ok"}` — pure liveness probe, no DB I/O |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| GET | `/health` | Returns `{"status": "ok"}` — pure liveness probe, no DB I/O | ✅ |
 
 ### [1] ANALYZE
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/analyze` | Start analysis job for a repo |
-| GET | `/v1/analyze/{analysis_id}` | Get analysis result |
-| GET | `/v1/repos/{repo_id}/analyses` | List analyses for a repo |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/analyze` | Start analysis job for a repo | ✅ |
+| GET | `/v1/analyze/{analysis_id}` | Get analysis result | ✅ |
+| GET | `/v1/repos/{repo_id}/analyses` | List analyses for a repo | ✅ |
 
 ### [2] INFER
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/infer` | Run inference on an analysis |
-| GET | `/v1/infer/{inference_id}` | Get inference result |
-| PATCH | `/v1/infer/{inference_id}/confirm` | User confirms or overrides inference |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/infer` | Run inference on an analysis | ✅ |
+| GET | `/v1/infer/{inference_id}` | Get inference result | ✅ |
+| PATCH | `/v1/infer/{inference_id}/confirm` | User confirms or overrides inference | ✅ |
 
 ### [3] HARVEST
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/harvest/propose` | LLM proposes sources; returns list for user approval |
-| POST | `/v1/harvest/start` | Start crawl with approved sources |
-| GET | `/v1/harvest/{harvest_id}` | Get harvest status + result |
-| POST | `/v1/retrieve` | Hybrid search over knowledge_chunks |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/harvest/propose` | LLM proposes sources; returns list for user approval | ✅ |
+| POST | `/v1/harvest/start` | Start crawl with approved sources | ✅ |
+| GET | `/v1/harvest/{harvest_id}` | Get harvest status + result | ✅ |
+| POST | `/v1/retrieve` | Hybrid search over knowledge_chunks | ✅ |
 
 ### [4] GENERATE
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/generate` | Generate assets from harvest |
-| GET | `/v1/generate/{asset_id}` | Get generated assets |
-| PATCH | `/v1/generate/{asset_id}/approve` | User approves generated assets |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/generate` | Generate assets from harvest | ✅ |
+| GET | `/v1/generate/{asset_id}` | Get generated assets | ✅ |
+| PATCH | `/v1/generate/{asset_id}/approve` | User approves generated assets | ✅ |
 
 ### [5] DEPLOY
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/deploy` | Deploy approved assets |
-| GET | `/v1/deployments/{deployment_id}` | Get deployment status |
-| PATCH | `/v1/deployments/{deployment_id}/traffic` | Adjust traffic split |
-| POST | `/v1/deployments/{deployment_id}/rollback` | Rollback to baseline |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/deploy` | Deploy approved assets | ✅ |
+| GET | `/v1/deployments/{deployment_id}` | Get deployment status | ✅ |
+| PATCH | `/v1/deployments/{deployment_id}/traffic` | Adjust traffic split | ✅ |
+| POST | `/v1/deployments/{deployment_id}/rollback` | Rollback to baseline | ✅ |
 
 ### [6] OBSERVE
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/traces` | Ingest trace (SDK → API) |
-| GET | `/v1/traces` | List traces (paginated, filterable) |
-| GET | `/v1/traces/{trace_id}` | Get trace + spans |
-| GET | `/v1/metrics` | Aggregated cost/latency/quality metrics |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/traces` | Ingest trace (SDK → API) | 🔲 |
+| GET | `/v1/traces` | List traces (paginated, filterable) | 🔲 |
+| GET | `/v1/traces/{trace_id}` | Get trace + spans | 🔲 |
+| GET | `/v1/metrics` | Aggregated cost/latency/quality metrics | 🔲 |
 
 ### [7] EXPERIMENT
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/experiments` | Create experiment across deployments |
-| GET | `/v1/experiments/{experiment_id}` | Get experiment result |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/experiments` | Create experiment across deployments | 🔲 |
+| GET | `/v1/experiments/{experiment_id}` | Get experiment result | 🔲 |
 
 ### [8] EVOLVE
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/evolve` | Trigger evolution from concluded experiment |
-| GET | `/v1/evolutions/{evolution_id}` | Get evolution result |
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/v1/evolve` | Trigger evolution from concluded experiment | 🔲 |
+| GET | `/v1/evolutions/{evolution_id}` | Get evolution result | 🔲 |
 
 ---
 
@@ -422,21 +424,26 @@ Both SDKs expose identical high-level APIs. Internals differ by language.
 ```python
 import verum
 
-verum.configure(api_key="...", project_id="...")
+# Reads VERUM_API_URL and VERUM_API_KEY from environment
+client = verum.Client()
 
-response = await verum.chat(
-    model="grok-2-1212",
+# Route LLM call through Verum (returns modified messages with variant prompt)
+routed = await client.chat(
     messages=[...],
     deployment_id="...",
+    provider="grok",
+    model="grok-2-1212",
 )
+# Pass routed["messages"] to the actual LLM SDK
 
-chunks = await verum.retrieve(
+# Hybrid RAG retrieval from harvested knowledge
+chunks = await client.retrieve(
     query="어떤 카드가 나왔나요?",
-    collection="arcana-tarot-knowledge",
+    collection_name="arcana-tarot-knowledge",
     top_k=5,
 )
 
-await verum.feedback(trace_id="...", score=1)
+await client.feedback(trace_id="...", score=1)
 ```
 
 ### TypeScript SDK (`@verum/sdk`)

@@ -2,7 +2,7 @@
 type: decisions
 authority: tier-2
 canonical-for: [adr-index, product-scope-decisions, superseded-decisions]
-last-updated: 2026-04-19
+last-updated: 2026-04-22
 status: active
 ---
 
@@ -78,4 +78,4 @@ The old spec's metadata convention (`kind`, `version`, `service`, `active`, `tag
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-19_
+_Maintainer: xzawed | Last updated: 2026-04-22_

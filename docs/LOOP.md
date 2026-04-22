@@ -2,7 +2,7 @@
 type: loop
 authority: tier-2
 canonical-for: [stage-algorithms, stage-io, loop-invariants, completion-criteria]
-last-updated: 2026-04-19
+last-updated: 2026-04-22
 status: active
 ---
 
@@ -60,6 +60,7 @@ These rules hold across every stage. A PR that violates an invariant must be rej
 
 **Module:** `apps/api/src/loop/analyze/`
 **Ships in:** [Phase 1](ROADMAP.md#phase-1-analyze-week-3-5)
+**Status:** ✅ Implemented
 
 ### Purpose
 
@@ -134,6 +135,7 @@ Expected output: `sdk = "grok"`, call site at the correct file/line, prompt extr
 
 **Module:** `apps/api/src/loop/infer/`
 **Ships in:** [Phase 2](ROADMAP.md#phase-2-infer--harvest-week-6-9)
+**Status:** ✅ Implemented
 
 ### Purpose
 
@@ -195,6 +197,7 @@ Expected `ServiceInference` for ArcanaInsight:
 
 **Module:** `apps/api/src/loop/harvest/`
 **Ships in:** [Phase 2](ROADMAP.md#phase-2-infer--harvest-week-6-9)
+**Status:** ✅ Implemented (recursive + semantic chunking; `playwright` opt-in)
 
 ### Purpose
 
@@ -226,9 +229,9 @@ Given a `ServiceInference`, automatically propose and (after user approval) exec
    - `code_review` → StackOverflow tagged questions, ESLint docs
    - `legal_qa` → 국가법령정보센터, 법원 판례 데이터베이스
 3. Present proposed sources to user via dashboard for approval. Do not crawl until approved.
-4. **Crawl**: for each approved source, use `httpx` for static HTML; fall back to `playwright` for JS-rendered pages.
+4. **Crawl**: for each approved source, use `httpx` for static HTML. If `use_playwright=True` is set in the job payload AND the `httpx` result is sparse (<200 chars), fall back to `playwright` (Chromium headless). `playwright` is a soft import — if not installed, crawl continues with the `httpx` result only.
 5. **Extract**: use `trafilatura` to extract clean text from HTML.
-6. **Chunk**: apply Recursive chunking (default, always implemented). Semantic chunking (Phase 2+). Proposition chunking (Phase 3+).
+6. **Chunk**: apply Recursive chunking (default) or Semantic chunking (sentence-boundary split, selectable via `chunking_strategy` job payload). Proposition chunking: Phase 3+.
 7. **Embed**: call embedding API; store dimension in `collections.embedding_dim`. Never hardcode dimension.
 8. **Store**: bulk-insert into `knowledge_chunks` table with `pgvector` column and `tsvector` column for hybrid search.
 9. Persist `HarvestResult` to `harvest_sources` table.
@@ -258,6 +261,7 @@ Phase 2 target: 1,000+ chunks from tarot knowledge sources. The `collection_name
 
 **Module:** `apps/api/src/loop/generate/`
 **Ships in:** [Phase 3](ROADMAP.md#phase-3-generate--deploy-week-10-13)
+**Status:** ✅ Implemented
 
 ### Purpose
 
@@ -313,6 +317,7 @@ For ArcanaInsight tarot: 5 prompt variants for the tarot reading persona (origin
 
 **Module:** `apps/api/src/loop/deploy/`
 **Ships in:** [Phase 3](ROADMAP.md#phase-3-generate--deploy-week-10-13)
+**Status:** ✅ Implemented
 
 ### Purpose
 
@@ -366,6 +371,7 @@ ArcanaInsight's tarot endpoint wraps its Grok call with `verum.chat()`. DEPLOY c
 
 **Module:** `apps/api/src/loop/observe/`
 **Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
+**Status:** 🔲 Not yet implemented
 
 ### Purpose
 
@@ -402,6 +408,7 @@ Persisted `traces` and `spans` rows; aggregated metrics available via `GET /v1/m
 
 **Module:** `apps/api/src/loop/experiment/`
 **Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
+**Status:** 🔲 Not yet implemented
 
 ### Purpose
 
@@ -444,6 +451,7 @@ Automatically compare multiple deployed variants (prompts, RAG configs, model ve
 
 **Module:** `apps/api/src/loop/evolve/`
 **Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
+**Status:** 🔲 Not yet implemented
 
 ### Purpose
 
@@ -485,7 +493,39 @@ If the Chain-of-Thought variant wins with confidence 0.97, EVOLVE promotes it, a
 
 ---
 
-## 11. Stage Interfaces (Pydantic Contracts)
+## 11. Job Queue and Worker Reliability
+
+All loop stages are executed by the Python worker child process via the `verum_jobs` PostgreSQL table. This section describes the reliability guarantees.
+
+### Job Queue (`verum_jobs`)
+
+| Column | Description |
+|---|---|
+| `id` | UUID PK |
+| `type` | `"analyze"` / `"infer"` / `"harvest"` / `"generate"` |
+| `payload` | JSONB — stage-specific input |
+| `status` | `"pending"` / `"running"` / `"done"` / `"error"` |
+| `error` | Error message if status=`"error"` |
+| `created_at` | UTC timestamp |
+
+Jobs are dequeued with `SELECT ... FOR UPDATE SKIP LOCKED` to guarantee at-most-once delivery under concurrent workers.
+
+### Worker Heartbeat (`worker_heartbeat`)
+
+The Python worker writes a heartbeat row every 30 seconds. The dashboard polls `worker_heartbeat` and surfaces a warning if the last heartbeat is older than 90 seconds. This detects silent worker crashes without requiring process-level monitoring.
+
+### Stage Chaining
+
+Stages are chained automatically by the worker handlers:
+- ANALYZE → INFER: triggered on `analyze` job completion
+- INFER → HARVEST: triggered on `infer` job completion (confidence ≥ 0.4)
+- HARVEST → GENERATE: triggered on `harvest` job completion
+
+Each stage enqueues the next via `INSERT INTO verum_jobs` inside the same transaction as its own result write. If the result write fails, the next job is not enqueued.
+
+---
+
+## 12. Stage Interfaces (Pydantic Contracts)
 
 Authoritative Pydantic model definitions live in each stage module. This section is a reference summary.
 
