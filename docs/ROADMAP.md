@@ -133,8 +133,8 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 | F-3.3 | Eval dataset generation: 30–50 query/answer pairs via LLM | ✅ |
 | F-3.4 | Dashboard metric profile auto-selection (consumer vs developer vs enterprise) | ✅ |
 | F-3.5 | `POST /v1/generate` + `GET /v1/generate/{id}` + `PATCH /v1/generate/{id}/approve` | ✅ |
-| F-3.6 | DEPLOY engine: canary at 10% traffic, SDK-side routing | 🔲 |
-| F-3.7 | `POST /v1/deploy` + traffic split endpoints + rollback | 🔲 |
+| F-3.6 | DEPLOY engine: canary at 10% traffic, SDK-side routing | ✅ |
+| F-3.7 | `POST /v1/deploy` + traffic split endpoints + rollback | ✅ |
 | F-3.8 | Python SDK `verum.chat()` + `verum.retrieve()` + `verum.feedback()` | 🔲 |
 | F-3.9 | TypeScript SDK `@verum/sdk` — full parity with Python SDK | 🔲 |
 | F-3.10 | **ArcanaInsight SDK integration** — tarot endpoint using `verum.chat()` and `verum.retrieve()` | 🔲 |

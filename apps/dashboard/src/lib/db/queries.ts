@@ -227,6 +227,41 @@ export async function getGenerationFull(userId: string, generationId: string) {
   return { gen, variants, rag: ragRows[0] ?? null, pairs };
 }
 
+export async function getDeployment(userId: string, deploymentId: string) {
+  const rows = await db
+    .select({ d: deployments })
+    .from(deployments)
+    .innerJoin(generations, eq(deployments.generation_id, generations.id))
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(deployments.id, deploymentId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+  return rows[0]?.d ?? null;
+}
+
+export async function getDeploymentByGenerationId(generationId: string) {
+  const rows = await db
+    .select()
+    .from(deployments)
+    .where(eq(deployments.generation_id, generationId))
+    .orderBy(desc(deployments.created_at))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getVariantPrompt(deploymentId: string): Promise<string | null> {
+  const rows = await db.execute(
+    sql`SELECT pv.content FROM deployments d
+        JOIN generations g ON g.id = d.generation_id
+        JOIN prompt_variants pv ON pv.generation_id = g.id
+        WHERE d.id = ${deploymentId}::uuid AND pv.variant_type = 'cot'
+        LIMIT 1`,
+  );
+  const row = rows.rows[0] as { content: string } | undefined;
+  return row?.content ?? null;
+}
+
 export async function getLatestGeneration(inferenceId: string): Promise<Generation | null> {
   const rows = await db
     .select()

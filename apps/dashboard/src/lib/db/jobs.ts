@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./client";
 import {
   analyses,
+  deployments,
   generations,
   harvest_sources,
   inferences,
@@ -174,6 +175,41 @@ export async function enqueueGenerate(opts: {
     .returning({ id: verum_jobs.id });
 
   return { generationId, jobId: jobRows[0]!.id };
+}
+
+// ── DEPLOY ────────────────────────────────────────────────────
+
+export async function enqueueDeployment(opts: {
+  userId: string;
+  generationId: string;
+}): Promise<string> {
+  const rows = await db
+    .insert(verum_jobs)
+    .values({
+      kind: "deploy",
+      payload: { generation_id: opts.generationId },
+      owner_user_id: opts.userId,
+    })
+    .returning({ id: verum_jobs.id });
+  return rows[0]!.id;
+}
+
+export async function updateDeploymentTraffic(deploymentId: string, split: number) {
+  await db
+    .update(deployments)
+    .set({ traffic_split: { baseline: 1 - split, variant: split }, updated_at: new Date() })
+    .where(eq(deployments.id, deploymentId));
+}
+
+export async function rollbackDeployment(deploymentId: string) {
+  await db
+    .update(deployments)
+    .set({
+      status: "rolled_back",
+      traffic_split: { baseline: 1.0, variant: 0.0 },
+      updated_at: new Date(),
+    })
+    .where(eq(deployments.id, deploymentId));
 }
 
 export async function approveGeneration(userId: string, generationId: string): Promise<boolean> {
