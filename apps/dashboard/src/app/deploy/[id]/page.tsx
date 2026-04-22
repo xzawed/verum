@@ -27,25 +27,41 @@ export default async function DeployPage({
 
   async function triggerRollback() {
     "use server";
-    await rollbackDeployment(id);
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
+    await rollbackDeployment(uid, id);
     redirect(`/deploy/${id}`);
   }
 
   async function setTraffic10() {
     "use server";
-    await updateDeploymentTraffic(id, 0.1);
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
+    await updateDeploymentTraffic(uid, id, 0.1);
     redirect(`/deploy/${id}`);
   }
 
   async function setTraffic50() {
     "use server";
-    await updateDeploymentTraffic(id, 0.5);
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
+    await updateDeploymentTraffic(uid, id, 0.5);
     redirect(`/deploy/${id}`);
   }
 
   async function setTraffic100() {
     "use server";
-    await updateDeploymentTraffic(id, 1.0);
+    const session = await auth();
+    if (!session?.user) return;
+    const uid = String((session.user as Record<string, unknown>).id ?? "");
+    if (!uid) return;
+    await updateDeploymentTraffic(uid, id, 1.0);
     redirect(`/deploy/${id}`);
   }
 

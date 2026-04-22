@@ -27,7 +27,8 @@ async def create_deployment(
         {"gid": str(generation_id), "split": json.dumps(split)},
     )).mappings().first()
     await db.commit()
-    assert row is not None
+    if row is None:
+        raise RuntimeError(f"create_deployment: INSERT returned no row for generation_id={generation_id}")
     return _row_to_deployment(dict(row))
 
 

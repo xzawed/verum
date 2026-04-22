@@ -240,16 +240,6 @@ export async function getDeployment(userId: string, deploymentId: string) {
   return rows[0]?.d ?? null;
 }
 
-export async function getDeploymentByGenerationId(generationId: string) {
-  const rows = await db
-    .select()
-    .from(deployments)
-    .where(eq(deployments.generation_id, generationId))
-    .orderBy(desc(deployments.created_at))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
 export async function getVariantPrompt(deploymentId: string): Promise<string | null> {
   const rows = await db.execute(
     sql`SELECT pv.content FROM deployments d

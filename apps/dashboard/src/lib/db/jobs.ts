@@ -2,7 +2,7 @@
  * Write operations: enqueue jobs and mutate DB state.
  * All mutations verify owner_user_id before acting.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import {
   analyses,
@@ -194,14 +194,30 @@ export async function enqueueDeployment(opts: {
   return rows[0]!.id;
 }
 
-export async function updateDeploymentTraffic(deploymentId: string, split: number) {
+export async function updateDeploymentTraffic(
+  userId: string,
+  deploymentId: string,
+  split: number,
+) {
   await db
     .update(deployments)
     .set({ traffic_split: { baseline: 1 - split, variant: split }, updated_at: new Date() })
-    .where(eq(deployments.id, deploymentId));
+    .where(
+      and(
+        eq(deployments.id, deploymentId),
+        sql`EXISTS (
+          SELECT 1 FROM generations g
+          JOIN inferences i ON i.id = g.inference_id
+          JOIN analyses a ON a.id = i.analysis_id
+          JOIN repos r ON r.id = a.repo_id
+          WHERE g.id = ${deployments.generation_id}
+            AND r.owner_user_id = ${userId}::uuid
+        )`,
+      ),
+    );
 }
 
-export async function rollbackDeployment(deploymentId: string) {
+export async function rollbackDeployment(userId: string, deploymentId: string) {
   await db
     .update(deployments)
     .set({
@@ -209,7 +225,19 @@ export async function rollbackDeployment(deploymentId: string) {
       traffic_split: { baseline: 1.0, variant: 0.0 },
       updated_at: new Date(),
     })
-    .where(eq(deployments.id, deploymentId));
+    .where(
+      and(
+        eq(deployments.id, deploymentId),
+        sql`EXISTS (
+          SELECT 1 FROM generations g
+          JOIN inferences i ON i.id = g.inference_id
+          JOIN analyses a ON a.id = i.analysis_id
+          JOIN repos r ON r.id = a.repo_id
+          WHERE g.id = ${deployments.generation_id}
+            AND r.owner_user_id = ${userId}::uuid
+        )`,
+      ),
+    );
 }
 
 export async function approveGeneration(userId: string, generationId: string): Promise<boolean> {

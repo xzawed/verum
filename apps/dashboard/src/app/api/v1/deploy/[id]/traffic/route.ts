@@ -27,6 +27,6 @@ export async function PATCH(
     return new Response("split must be a number between 0 and 1", { status: 400 });
   }
 
-  await updateDeploymentTraffic(id, split);
+  await updateDeploymentTraffic(uid, id, split);
   return Response.json({ ok: true });
 }

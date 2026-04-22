@@ -7,7 +7,8 @@ _BASELINE_ERROR_RATE = 0.01  # 1% assumed baseline
 def compute_traffic_split(variant_fraction: float) -> dict[str, float]:
     """Convert a variant fraction (0.0–1.0) to a traffic_split dict."""
     fraction = max(0.0, min(1.0, variant_fraction))
-    return {"baseline": round(1.0 - fraction, 10), "variant": fraction}
+    variant = round(fraction, 10)
+    return {"baseline": round(1.0 - variant, 10), "variant": variant}
 
 
 def should_auto_rollback(

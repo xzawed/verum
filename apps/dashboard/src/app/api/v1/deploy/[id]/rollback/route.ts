@@ -15,6 +15,6 @@ export async function POST(
   const deployment = await getDeployment(uid, id);
   if (!deployment) return new Response("not found", { status: 404 });
 
-  await rollbackDeployment(id);
+  await rollbackDeployment(uid, id);
   return Response.json({ status: "rolled_back" });
 }
