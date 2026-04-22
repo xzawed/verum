@@ -5,6 +5,7 @@ import uuid
 import pytest
 
 from src.loop.observe.models import TraceRecord, SpanRecord
+from src.db.models.traces import Trace
 
 
 def test_trace_record_defaults():
@@ -30,3 +31,7 @@ def test_span_record_cost_calculation():
         cost_usd=12.0,  # 2.0 input + 10.0 output
     )
     assert rec.cost_usd == 12.0
+
+
+def test_trace_model_import():
+    assert Trace.__tablename__ == "traces"
