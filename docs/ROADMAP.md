@@ -165,10 +165,10 @@ ArcanaInsight's tarot reading endpoint must:
 
 | ID | Deliverable | Status |
 |---|---|---|
-| F-4.1 | OpenTelemetry-compatible trace/span ingestion (`POST /v1/traces`) | 🔲 |
-| F-4.2 | Cost calculation: token count × pricing table (OpenAI, Anthropic, xAI) | 🔲 |
-| F-4.3 | Dashboard: trace list + span waterfall view + cost/latency metrics | 🔲 |
-| F-4.4 | User feedback collection: `verum.feedback(trace_id, score)` | 🔲 |
+| F-4.1 | OpenTelemetry-compatible trace/span ingestion (`POST /v1/traces`) | ✅ |
+| F-4.2 | Cost calculation: token count × pricing table (OpenAI, Anthropic, xAI) | ✅ |
+| F-4.3 | Dashboard: trace list + span waterfall view + cost/latency metrics | ✅ |
+| F-4.4 | User feedback collection: `verum.feedback(trace_id, score)` | ✅ |
 | F-4.5 | A/B test engine: traffic split + Bayesian stopping criterion | 🔲 |
 | F-4.6 | RAGAS integration: faithfulness, answer_relevancy, context_precision | 🔲 |
 | F-4.7 | LLM-as-Judge evaluation (async job per trace) | 🔲 |
