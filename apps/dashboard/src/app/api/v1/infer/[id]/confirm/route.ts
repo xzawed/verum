@@ -1,21 +1,22 @@
 import { auth } from "@/auth";
 import { confirmInference } from "@/lib/db/jobs";
-import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } },
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const uid = String((session.user as Record<string, unknown>).id ?? "");
-  if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
 
   let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
-    // empty body is fine — no overrides
+    // empty body is fine
   }
 
   const overrides: {
@@ -29,8 +30,8 @@ export async function PATCH(
   if (typeof body.language === "string" || body.language === null) overrides.language = body.language as string | null;
   if (typeof body.user_type === "string" || body.user_type === null) overrides.user_type = body.user_type as string | null;
 
-  const updated = await confirmInference(uid, params.id, overrides);
-  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const updated = await confirmInference(uid, id, overrides);
+  if (!updated) return Response.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(updated);
+  return Response.json(updated);
 }
