@@ -35,3 +35,22 @@ def test_span_record_cost_calculation():
 
 def test_trace_model_import():
     assert Trace.__tablename__ == "traces"
+
+
+from src.loop.observe.repository import calculate_cost
+
+
+def test_calculate_cost_known_model():
+    # 1M input + 1M output of grok-2-1212 = 2.00 + 10.00 = 12.00
+    pricing = {"input_per_1m_usd": 2.0, "output_per_1m_usd": 10.0}
+    cost = calculate_cost(
+        input_tokens=1_000_000,
+        output_tokens=1_000_000,
+        pricing=pricing,
+    )
+    assert abs(cost - 12.0) < 0.0001
+
+
+def test_calculate_cost_zero_for_no_pricing():
+    cost = calculate_cost(input_tokens=500, output_tokens=300, pricing=None)
+    assert cost == 0.0
