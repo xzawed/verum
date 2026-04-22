@@ -28,6 +28,7 @@ dependencies = [
     "anthropic>=0.49",
     "httpx>=0.27",
     "trafilatura>=1.12",
+    "playwright>=1.49",
 ]
 
 [project.optional-dependencies]

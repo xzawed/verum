@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import httpx
 import trafilatura
+
+logger = logging.getLogger(__name__)
 
 _HEADERS = {
     "User-Agent": "Verum-Bot/1.0 (https://github.com/xzawed/verum; bot@verum.dev)",
@@ -13,6 +16,7 @@ _HEADERS = {
 }
 _TIMEOUT = 30.0
 _MAX_CONTENT_BYTES = 2 * 1024 * 1024  # 2 MB cap
+_SPARSE_THRESHOLD = 200  # chars; below this, try playwright if requested
 
 
 class CrawlError(Exception):
@@ -21,8 +25,14 @@ class CrawlError(Exception):
         self.kind = kind
 
 
-async def fetch_and_extract(url: str) -> str:
+async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
     """Fetch URL and extract main text content via trafilatura.
+
+    Args:
+        url: Target URL.
+        use_playwright: When True, falls back to headless Chromium if httpx
+            returns sparse content (< _SPARSE_THRESHOLD chars). If playwright
+            is not installed, the httpx result is returned with a warning logged.
 
     Returns:
         Extracted plain text (may be empty string if extraction fails).
@@ -30,6 +40,27 @@ async def fetch_and_extract(url: str) -> str:
     Raises:
         CrawlError: on network or HTTP errors.
     """
+    text = await _fetch_httpx(url)
+    if not use_playwright or len(text) >= _SPARSE_THRESHOLD:
+        return text
+
+    try:
+        pw_text = await _fetch_playwright(url)
+        return pw_text if pw_text else text
+    except ImportError:
+        logger.warning(
+            "playwright not installed — returning httpx result for %s. "
+            "Run `playwright install chromium` to enable JS-rendered crawling.",
+            url,
+        )
+        return text
+    except Exception as exc:
+        logger.warning("playwright fetch failed for %s: %s — using httpx result", url, exc)
+        return text
+
+
+async def _fetch_httpx(url: str) -> str:
+    """Fetch with httpx and extract text via trafilatura."""
     try:
         async with httpx.AsyncClient(
             headers=_HEADERS,
@@ -48,7 +79,28 @@ async def fetch_and_extract(url: str) -> str:
     except httpx.RequestError as e:
         raise CrawlError("network", str(e)) from e
 
-    # Run trafilatura in executor to avoid blocking the event loop
+    loop = asyncio.get_event_loop()
+    text = await loop.run_in_executor(None, lambda: _extract(html, url))
+    return text or ""
+
+
+async def _fetch_playwright(url: str) -> str:
+    """Fetch JS-rendered page via headless Chromium.
+
+    Raises:
+        ImportError: if playwright package is not installed.
+    """
+    from playwright.async_api import async_playwright  # soft import
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            page = await browser.new_page()
+            await page.goto(url, wait_until="networkidle", timeout=30_000)
+            html = await page.content()
+        finally:
+            await browser.close()
+
     loop = asyncio.get_event_loop()
     text = await loop.run_in_executor(None, lambda: _extract(html, url))
     return text or ""
