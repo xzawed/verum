@@ -175,6 +175,18 @@ export interface RepoStatus {
   harvestSourcesDone: number;
   harvestSourcesTotal: number;
   latestGeneration: GenerationSummary | null;
+  latestDeploymentId: string | null;
+}
+
+async function getLatestDeploymentIdForGeneration(generationId: string): Promise<string | null> {
+  const rows = await db
+    .select({ id: deployments.id })
+    .from(deployments)
+    .where(eq(deployments.generation_id, generationId))
+    .orderBy(desc(deployments.created_at))
+    .limit(1);
+  const row = rows[0];
+  return row ? String(row.id) : null;
 }
 
 async function getLatestGenerationSummary(inferenceId: string): Promise<GenerationSummary | null> {
@@ -284,6 +296,11 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     latestGeneration = await getLatestGenerationSummary(String(latestInference.id));
   }
 
+  let latestDeploymentId: string | null = null;
+  if (latestGeneration?.status === "done") {
+    latestDeploymentId = await getLatestDeploymentIdForGeneration(latestGeneration.id);
+  }
+
   return {
     repo,
     latestAnalysis,
@@ -292,6 +309,7 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     harvestSourcesDone,
     harvestSourcesTotal,
     latestGeneration,
+    latestDeploymentId,
   };
 }
 

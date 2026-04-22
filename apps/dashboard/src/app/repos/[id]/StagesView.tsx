@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { RepoStatus } from "@/lib/db/queries";
 import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
+import ObserveSection from "./ObserveSection";
 
 interface Props {
   initial: RepoStatus;
@@ -37,7 +38,7 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
     };
   }, [repoId]);
 
-  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration } = status;
+  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration, latestDeploymentId } = status;
   const isRunning = (s: string | null | undefined) => s === "pending" || s === "running";
 
   return (
@@ -184,6 +185,11 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
           <p style={{ color: "#888", fontSize: 13 }}>Complete HARVEST first.</p>
         )}
       </Section>
+
+      {/* OBSERVE: visible when a deployment exists */}
+      {latestDeploymentId && (
+        <ObserveSection deploymentId={latestDeploymentId} />
+      )}
     </>
   );
 }
