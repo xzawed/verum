@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getDailyMetrics } from "@/lib/db/queries";
+import { getDailyMetrics, getDeployment } from "@/lib/db/queries";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -10,6 +10,10 @@ export async function GET(req: Request) {
   const days = Number(searchParams.get("days") ?? "7");
 
   if (!deploymentId) return new Response("deployment_id required", { status: 400 });
+
+  const userId = session.user.id as string;
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return new Response("not found", { status: 404 });
 
   const daily = await getDailyMetrics(deploymentId, days);
   return Response.json({ daily }, { headers: { "Cache-Control": "no-store" } });

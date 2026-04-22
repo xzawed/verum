@@ -200,11 +200,11 @@ async def get_daily_metrics(
                 " FROM traces t"
                 " JOIN spans s ON s.trace_id = t.id"
                 " WHERE t.deployment_id = :dep"
-                f"   AND t.created_at >= NOW() - INTERVAL '{days} days'"
+                "   AND t.created_at >= NOW() - (INTERVAL '1 day' * :days)"
                 " GROUP BY DATE(t.created_at AT TIME ZONE 'UTC')"
                 " ORDER BY date ASC"
             ),
-            {"dep": str(deployment_id)},
+            {"dep": str(deployment_id), "days": days},
         )
     ).mappings().all()
 

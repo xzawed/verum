@@ -345,7 +345,7 @@ export async function getTraceList(
   };
 }
 
-export async function getTraceDetail(traceId: string) {
+export async function getTraceDetail(userId: string, traceId: string) {
   const traceRows = await db.execute(
     sql`
       SELECT
@@ -355,7 +355,13 @@ export async function getTraceDetail(traceId: string) {
       FROM traces t
       JOIN spans s ON s.trace_id = t.id
       LEFT JOIN judge_prompts jp ON jp.trace_id = t.id
+      JOIN deployments d ON d.id = t.deployment_id
+      JOIN generations g ON g.id = d.generation_id
+      JOIN inferences i ON i.id = g.inference_id
+      JOIN analyses a ON a.id = i.analysis_id
+      JOIN repos r ON r.id = a.repo_id
       WHERE t.id = ${traceId}::uuid
+        AND r.owner_user_id = ${userId}::uuid
     `,
   );
   return traceRows.rows[0] ?? null;

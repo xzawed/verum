@@ -302,32 +302,34 @@ export async function insertTrace(opts: {
   error: string | null;
   costUsd: string;
 }): Promise<string> {
-  const traceRows = await db.execute(
-    sql`
-      INSERT INTO traces (deployment_id, variant, created_at)
-      VALUES (${opts.deploymentId}::uuid, ${opts.variant}, NOW())
-      RETURNING id
-    `,
-  );
-  const traceId = (traceRows.rows[0] as Record<string, unknown>).id as string;
+  const ownerUserId = await _getDeploymentOwner(opts.deploymentId);
 
-  await db.execute(
-    sql`
-      INSERT INTO spans (trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd, error, started_at)
-      VALUES (${traceId}::uuid, ${opts.model}, ${opts.inputTokens}, ${opts.outputTokens},
-              ${opts.latencyMs}, ${opts.costUsd}::numeric, ${opts.error}, NOW())
-    `,
-  );
+  return db.transaction(async (tx) => {
+    const traceRows = await tx.execute(
+      sql`
+        INSERT INTO traces (deployment_id, variant, created_at)
+        VALUES (${opts.deploymentId}::uuid, ${opts.variant}, NOW())
+        RETURNING id
+      `,
+    );
+    const traceId = (traceRows.rows[0] as Record<string, unknown>).id as string;
 
-  // Enqueue judge job
-  const ownerRow = await _getDeploymentOwner(opts.deploymentId);
-  await db.insert(verum_jobs).values({
-    kind: "judge",
-    payload: { trace_id: traceId, deployment_id: opts.deploymentId, variant: opts.variant },
-    owner_user_id: ownerRow,
+    await tx.execute(
+      sql`
+        INSERT INTO spans (trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd, error, started_at)
+        VALUES (${traceId}::uuid, ${opts.model}, ${opts.inputTokens}, ${opts.outputTokens},
+                ${opts.latencyMs}, ${opts.costUsd}::numeric, ${opts.error}, NOW())
+      `,
+    );
+
+    await tx.insert(verum_jobs).values({
+      kind: "judge",
+      payload: { trace_id: traceId, deployment_id: opts.deploymentId, variant: opts.variant },
+      owner_user_id: ownerUserId,
+    });
+
+    return traceId;
   });
-
-  return traceId;
 }
 
 async function _getDeploymentOwner(deploymentId: string): Promise<string> {

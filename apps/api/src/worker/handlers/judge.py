@@ -130,14 +130,14 @@ async def handle_judge(
 
     prompt = _build_judge_prompt(domain=domain, tone=tone, eval_pairs=eval_pairs)
 
-    client = anthropic.Anthropic()
+    client = anthropic.AsyncAnthropic()
     raw_response: str | None = None
     score: float | None = None
     reason: str | None = None
 
     for attempt in range(2):
         try:
-            msg = client.messages.create(
+            msg = await client.messages.create(
                 model=_JUDGE_MODEL,
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],

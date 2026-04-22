@@ -9,7 +9,8 @@ export async function GET(
   if (!session?.user) return new Response("unauthorized", { status: 401 });
 
   const { id } = await params;
-  const trace = await getTraceDetail(id);
+  const userId = session.user.id as string;
+  const trace = await getTraceDetail(userId, id);
   if (!trace) return new Response("not found", { status: 404 });
 
   return Response.json(trace, { headers: { "Cache-Control": "no-store" } });

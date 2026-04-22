@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
-import { getTraceList } from "@/lib/db/queries";
+import { getDeployment, getTraceList } from "@/lib/db/queries";
 
 // POST — SDK-facing: API key auth via X-Verum-API-Key header
 export async function POST(req: Request) {
@@ -63,6 +63,10 @@ export async function GET(req: Request) {
   const limit = Number(searchParams.get("limit") ?? "20");
 
   if (!deploymentId) return new Response("deployment_id required", { status: 400 });
+
+  const userId = session.user.id as string;
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return new Response("not found", { status: 404 });
 
   const result = await getTraceList(deploymentId, page, limit);
   return Response.json(result, { headers: { "Cache-Control": "no-store" } });
