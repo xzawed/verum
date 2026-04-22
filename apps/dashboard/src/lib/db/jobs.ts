@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./client";
 import {
   analyses,
+  generations,
   harvest_sources,
   inferences,
   repos,
@@ -149,4 +150,47 @@ export async function enqueueRetrieve(opts: {
     })
     .returning({ id: verum_jobs.id });
   return rows[0]!.id;
+}
+
+// ── GENERATE ──────────────────────────────────────────────────
+
+export async function enqueueGenerate(opts: {
+  userId: string;
+  inferenceId: string;
+}): Promise<{ generationId: string; jobId: string }> {
+  const genRows = await db
+    .insert(generations)
+    .values({ inference_id: opts.inferenceId, status: "pending" })
+    .returning({ id: generations.id });
+  const generationId = genRows[0]!.id;
+
+  const jobRows = await db
+    .insert(verum_jobs)
+    .values({
+      kind: "generate",
+      payload: { inference_id: opts.inferenceId, generation_id: generationId },
+      owner_user_id: opts.userId,
+    })
+    .returning({ id: verum_jobs.id });
+
+  return { generationId, jobId: jobRows[0]!.id };
+}
+
+export async function approveGeneration(userId: string, generationId: string): Promise<boolean> {
+  const rows = await db
+    .select({ g: generations })
+    .from(generations)
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(analyses, eq(inferences.analysis_id, analyses.id))
+    .innerJoin(repos, eq(analyses.repo_id, repos.id))
+    .where(and(eq(generations.id, generationId), eq(repos.owner_user_id, userId)))
+    .limit(1);
+
+  if (!rows[0]) return false;
+
+  await db
+    .update(generations)
+    .set({ status: "approved" })
+    .where(eq(generations.id, generationId));
+  return true;
 }
