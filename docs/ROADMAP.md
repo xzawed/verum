@@ -63,7 +63,7 @@ Do not implement any loop stage logic. Infrastructure only.
 | F-1.5 | Prompt string extraction (string literals, f-strings, template literals) | ✅ |
 | F-1.6 | Model + parameter extraction (`model`, `temperature`, `max_tokens`) | ✅ |
 | F-1.7 | Analysis result stored as structured JSON (`AnalysisResult` Pydantic model) | ✅ |
-| F-1.8 | `POST /v1/analyze` + `GET /v1/analyze/{id}` endpoints | 🚧 note: job-queue based, not REST |
+| F-1.8 | `POST /v1/analyze` + `GET /v1/analyze/{id}` endpoints | ✅ |
 | F-1.9 | Dashboard: repo connection UI + analysis result viewer | ✅ |
 
 ### ArcanaInsight Validation
