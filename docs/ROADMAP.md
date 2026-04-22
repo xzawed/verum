@@ -32,7 +32,7 @@ status: active
 | F-0.4 | English README (`README.md`) with brand-safety statement | ✅ |
 | F-0.5 | Korean README (`README.ko.md`) | ✅ |
 | F-0.6 | Docker Compose: `api` + `db` (PostgreSQL 16 + pgvector) + `dashboard` services | ✅ |
-| F-0.7 | GitHub Actions CI: `ruff`, `pylint`, `bandit`, `mypy`, `tsc --noEmit`, `pytest` | 🚧 |
+| F-0.7 | GitHub Actions CI: `ruff`, `pylint`, `bandit`, `mypy`, `tsc --noEmit`, `pytest` | ✅ |
 | F-0.8 | Railway deployment pipeline configured | ✅ |
 | F-0.9 | `GET /health` endpoint returning `{"status": "ok", "version": "...", "db": "connected"}` | ✅ |
 
@@ -90,12 +90,12 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 |---|---|---|
 | F-2.1 | INFER engine: prompts + README → `ServiceInference` JSON via Claude Sonnet 4.6+ | ✅ |
 | F-2.2 | Domain classification taxonomy (initial 20 categories) | ✅ |
-| F-2.3 | `POST /v1/infer` + `GET /v1/infer/{id}` + `PATCH /v1/infer/{id}/confirm` endpoints | 🚧 note: job-queue based |
+| F-2.3 | `POST /v1/infer` + `GET /v1/infer/{id}` + `PATCH /v1/infer/{id}/confirm` endpoints | ✅ |
 | F-2.4 | HARVEST engine: domain-aware crawling strategy with LLM-proposed sources | ✅ |
 | F-2.5 | Source proposal + user approval flow (dashboard UI) | ✅ auto-approved; manual toggle deferred |
-| F-2.6 | Crawling: `httpx` (static) + `playwright` (JS-rendered) | 🚧 httpx done; playwright Phase 3 |
+| F-2.6 | Crawling: `httpx` (static) + `playwright` (JS-rendered) | ✅ |
 | F-2.7 | Text extraction with `trafilatura` | ✅ |
-| F-2.8 | Recursive chunking (mandatory) + Semantic chunking (Phase 2) | 🚧 recursive done; semantic Phase 3 |
+| F-2.8 | Recursive chunking (mandatory) + Semantic chunking (Phase 2) | ✅ |
 | F-2.9 | Embedding pipeline: OpenAI `text-embedding-3-small` (default) | ✅ |
 | F-2.10 | pgvector storage + `tsvector` column for hybrid search | ✅ |
 | F-2.11 | `POST /v1/harvest/propose` + `POST /v1/harvest/start` + `POST /v1/retrieve` | 🚧 note: job-queue based |
