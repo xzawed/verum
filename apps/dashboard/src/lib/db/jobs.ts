@@ -289,3 +289,88 @@ export async function confirmInference(
 
   return rows[0] ?? null;
 }
+
+// ── OBSERVE ───────────────────────────────────────────────────
+
+export async function insertTrace(opts: {
+  deploymentId: string;
+  variant: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  error: string | null;
+  costUsd: string;
+}): Promise<string> {
+  const traceRows = await db.execute(
+    sql`
+      INSERT INTO traces (deployment_id, variant, created_at)
+      VALUES (${opts.deploymentId}::uuid, ${opts.variant}, NOW())
+      RETURNING id
+    `,
+  );
+  const traceId = (traceRows.rows[0] as Record<string, unknown>).id as string;
+
+  await db.execute(
+    sql`
+      INSERT INTO spans (trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd, error, started_at)
+      VALUES (${traceId}::uuid, ${opts.model}, ${opts.inputTokens}, ${opts.outputTokens},
+              ${opts.latencyMs}, ${opts.costUsd}::numeric, ${opts.error}, NOW())
+    `,
+  );
+
+  // Enqueue judge job
+  const ownerRow = await _getDeploymentOwner(opts.deploymentId);
+  await db.insert(verum_jobs).values({
+    kind: "judge",
+    payload: { trace_id: traceId, deployment_id: opts.deploymentId, variant: opts.variant },
+    owner_user_id: ownerRow,
+  });
+
+  return traceId;
+}
+
+async function _getDeploymentOwner(deploymentId: string): Promise<string> {
+  const rows = await db.execute(
+    sql`
+      SELECT r.owner_user_id
+      FROM deployments d
+      JOIN generations g ON g.id = d.generation_id
+      JOIN inferences i ON i.id = g.inference_id
+      JOIN analyses a ON a.id = i.analysis_id
+      JOIN repos r ON r.id = a.repo_id
+      WHERE d.id = ${deploymentId}::uuid
+    `,
+  );
+  return ((rows.rows[0] as Record<string, unknown>)?.owner_user_id as string) ?? "";
+}
+
+export async function updateFeedback(
+  deploymentId: string,
+  traceId: string,
+  score: number,
+): Promise<boolean> {
+  const result = await db.execute(
+    sql`
+      UPDATE traces SET user_feedback = ${score}
+      WHERE id = ${traceId}::uuid AND deployment_id = ${deploymentId}::uuid
+      RETURNING id
+    `,
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function getModelPricing(
+  modelName: string,
+): Promise<{ input_per_1m_usd: string; output_per_1m_usd: string } | null> {
+  const rows = await db.execute(
+    sql`
+      SELECT input_per_1m_usd::text, output_per_1m_usd::text
+      FROM model_pricing WHERE model_name = ${modelName}
+      ORDER BY effective_from DESC LIMIT 1
+    `,
+  );
+  return (rows.rows[0] as Record<string, unknown> | undefined) as
+    | { input_per_1m_usd: string; output_per_1m_usd: string }
+    | null;
+}

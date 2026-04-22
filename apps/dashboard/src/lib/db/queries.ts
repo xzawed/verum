@@ -294,3 +294,73 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     latestGeneration,
   };
 }
+
+// ── OBSERVE ───────────────────────────────────────────────────
+
+export async function getTraceList(
+  deploymentId: string,
+  page: number = 1,
+  limit: number = 20,
+) {
+  const offset = (page - 1) * limit;
+  const rows = await db.execute(
+    sql`
+      SELECT
+        t.id, t.variant, t.user_feedback, t.judge_score, t.created_at,
+        s.latency_ms, s.cost_usd, s.model, s.input_tokens, s.output_tokens, s.error
+      FROM traces t
+      JOIN spans s ON s.trace_id = t.id
+      WHERE t.deployment_id = ${deploymentId}::uuid
+      ORDER BY t.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `,
+  );
+
+  const countRow = await db.execute(
+    sql`SELECT COUNT(*)::int AS total FROM traces WHERE deployment_id = ${deploymentId}::uuid`,
+  );
+
+  return {
+    traces: rows.rows,
+    total: Number((countRow.rows[0] as Record<string, unknown>)?.total ?? 0),
+    page,
+  };
+}
+
+export async function getTraceDetail(traceId: string) {
+  const traceRows = await db.execute(
+    sql`
+      SELECT
+        t.id, t.variant, t.user_feedback, t.judge_score, t.created_at,
+        s.latency_ms, s.cost_usd, s.model, s.input_tokens, s.output_tokens, s.error,
+        jp.raw_response AS judge_raw_response, jp.judged_at
+      FROM traces t
+      JOIN spans s ON s.trace_id = t.id
+      LEFT JOIN judge_prompts jp ON jp.trace_id = t.id
+      WHERE t.id = ${traceId}::uuid
+    `,
+  );
+  return traceRows.rows[0] ?? null;
+}
+
+export async function getDailyMetrics(deploymentId: string, days: number = 7) {
+  const rows = await db.execute(
+    sql`
+      SELECT
+        DATE(t.created_at AT TIME ZONE 'UTC')::text AS date,
+        COALESCE(SUM(s.cost_usd), 0)::float AS total_cost_usd,
+        COUNT(t.id)::int AS call_count,
+        COALESCE(
+          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY s.latency_ms), 0
+        )::int AS p95_latency_ms,
+        AVG(t.judge_score)::float AS avg_judge_score
+      FROM traces t
+      JOIN spans s ON s.trace_id = t.id
+      WHERE t.deployment_id = ${deploymentId}::uuid
+        AND t.created_at >= NOW() - (${days} || ' days')::interval
+      GROUP BY DATE(t.created_at AT TIME ZONE 'UTC')
+      ORDER BY date ASC
+    `,
+  );
+  return rows.rows;
+}
