@@ -3,6 +3,18 @@ import { auth } from "@/auth";
 import { enqueueGenerate, approveGeneration } from "@/lib/db/jobs";
 import { getInference, getLatestGeneration, getGenerationFull } from "@/lib/db/queries";
 
+function isMetricProfile(v: unknown): v is { primary_metrics: string[]; secondary_metrics: string[]; profile_name: string } {
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    "primary_metrics" in v &&
+    "secondary_metrics" in v &&
+    "profile_name" in v &&
+    Array.isArray((v as Record<string, unknown>).primary_metrics) &&
+    Array.isArray((v as Record<string, unknown>).secondary_metrics)
+  );
+}
+
 export default async function GeneratePage({
   params,
   searchParams,
@@ -34,11 +46,8 @@ export default async function GeneratePage({
   }
 
   const full = latestGen ? await getGenerationFull(uid, latestGen.id) : null;
-  const metricProfile = full?.gen?.metric_profile as {
-    primary_metrics: string[];
-    secondary_metrics: string[];
-    profile_name: string;
-  } | null;
+  const rawProfile = full?.gen?.metric_profile;
+  const metricProfile = isMetricProfile(rawProfile) ? rawProfile : null;
 
   return (
     <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
@@ -47,7 +56,7 @@ export default async function GeneratePage({
         Domain: <strong>{inference.domain ?? "—"}</strong> · Tone: {inference.tone ?? "—"} · Language: {inference.language ?? "—"}
       </p>
 
-      {!latestGen && (
+      {(!latestGen || latestGen.status === "error") && (
         <form action={`/generate/${inference_id}?trigger=1`} method="GET">
           <button
             type="submit"
