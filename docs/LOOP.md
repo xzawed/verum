@@ -371,36 +371,59 @@ ArcanaInsight's tarot endpoint wraps its Grok call with `verum.chat()`. DEPLOY c
 
 **Module:** `apps/api/src/loop/observe/`
 **Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
-**Status:** 🔲 Not yet implemented
+**Status:** ✅ Implemented (Phase 4-A, 2026-04-23)
 
 ### Purpose
 
-Collect OpenTelemetry-compatible traces and spans from all `verum.chat()` and `verum.retrieve()` calls. Record cost, latency, user feedback, and LLM output quality signals.
+Collect OpenTelemetry-compatible traces and spans from all `verum.chat()` calls via `client.record()`. Record cost, latency, user feedback, and async LLM-as-Judge quality scores.
 
 ### Inputs
 
-Continuous stream from the Verum SDK via `POST /v1/traces`.
+Continuous stream from the Verum SDK via `POST /api/v1/traces` (X-Verum-API-Key auth).
 
 ### Outputs
 
-Persisted `traces` and `spans` rows; aggregated metrics available via `GET /v1/metrics`.
+Persisted `traces`, `spans`, `judge_prompts` rows; aggregated metrics via `GET /api/v1/metrics`.
 
 ### Key Metrics Collected
 
 | Metric | Source |
 |---|---|
-| Input/output token count | SDK instrumentation |
-| Latency (total, TTFT) | SDK instrumentation |
-| Cost (USD) | Pricing table × token count |
-| Model and deployment variant | SDK metadata |
-| User feedback (👍/👎) | Optional SDK callback |
-| LLM-as-Judge score | Async evaluation job |
+| Input/output token count | `client.record()` payload |
+| Latency (ms) | `client.record()` payload |
+| Cost (USD) | `model_pricing` table × token count |
+| Model and deployment variant | `client.record()` payload |
+| User feedback (👍/👎) | `client.feedback()` → `POST /api/v1/feedback` |
+| LLM-as-Judge score (0–1) | Async `judge` job → `handle_judge` |
+
+### Key Files
+
+| File | Purpose |
+|---|---|
+| `apps/api/src/loop/observe/models.py` | `TraceRecord`, `SpanRecord`, `DailyMetric` Pydantic models |
+| `apps/api/src/loop/observe/repository.py` | `insert_trace`, `update_judge_score`, `get_daily_metrics` |
+| `apps/api/src/db/models/traces.py` | SQLAlchemy `Trace` ORM model |
+| `apps/api/src/worker/handlers/judge.py` | LLM-as-Judge async handler (`AsyncAnthropic`, 2 retries) |
+| `apps/dashboard/src/app/api/v1/traces/route.ts` | POST ingest + GET list |
+| `apps/dashboard/src/app/api/v1/traces/[id]/route.ts` | GET detail |
+| `apps/dashboard/src/app/api/v1/metrics/route.ts` | GET daily aggregation |
+| `apps/dashboard/src/app/api/v1/feedback/route.ts` | POST user feedback |
+| `apps/dashboard/src/app/repos/[id]/ObserveSection.tsx` | Dashboard UI |
+| `apps/dashboard/src/components/SpanWaterfall.tsx` | Trace detail slide-over |
 
 ### Completion Criteria
 
-**Given** `verum.chat()` is called by a connected service,
+**Given** `client.record()` is called by a connected service,
 **when** OBSERVE is active,
-**then** a `Trace` with ≥1 `Span` is persisted within 1 second of the call completing, with correct cost and latency fields.
+**then** a `Trace` with ≥1 `Span` is persisted within 5 seconds, `judge_score` is populated within 60 seconds, and the dashboard shows the trace in the OBSERVE section.
+
+### Implementation Notes
+
+- **Cost calculation**: `model_pricing` 테이블에서 모델명으로 조회. 미등록 모델은 cost=0으로 저장 (절대 오류 발생 안 함)
+- **Judge idempotency**: `handle_judge`는 `judge_score`가 이미 있으면 스킵
+- **INTERVAL parameterization**: `get_daily_metrics`에서 f-string 대신 `(INTERVAL '1 day' * :days)` 사용
+- **Ownership enforcement**: 모든 브라우저 GET 엔드포인트는 `deployments → repos.owner_user_id` JOIN으로 소유권 검증
+- **insertTrace atomicity**: `db.transaction()`으로 trace + span + judge job 원자적 삽입
 
 ---
 

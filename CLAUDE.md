@@ -3,6 +3,17 @@
 This file is the single source of truth for Claude Code working on **Verum**.
 Read it completely before any significant action, and re-read it when starting a new session.
 
+## 📋 세션 시작 시 필독 순서
+
+새 대화를 시작하면 이 순서로 읽는다:
+
+1. **`CLAUDE.md`** (이 파일) — 프로젝트 정체성·규칙·스택 파악
+2. **`docs/STATUS.md`** — 현재 구현 상태, 파일 맵, API 인덱스 (가장 자주 참조)
+3. **`docs/ROADMAP.md`** — 다음에 구현할 Phase와 deliverable ID 확인
+4. **`docs/LOOP.md`** — 특정 단계의 알고리즘·I/O 계약 확인 시
+
+> **단, 코드를 변경하기 전에 반드시 실제 파일을 Read로 확인한다. STATUS.md는 스냅샷이며 코드가 SoT다.**
+
 ---
 
 ## 🎯 프로젝트 정체성
