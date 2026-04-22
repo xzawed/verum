@@ -26,6 +26,7 @@ async def harvest_source(
     chunk_size: int = cfg.CHUNK_SIZE,
     overlap: int = cfg.CHUNK_OVERLAP,
     chunking_strategy: str = "recursive",
+    use_playwright: bool = False,
 ) -> int:
     """Crawl one approved source, chunk, embed, and store.
 
@@ -34,7 +35,7 @@ async def harvest_source(
     await mark_source_crawling(db, source_id)
 
     try:
-        text = await fetch_and_extract(source_url)
+        text = await fetch_and_extract(source_url, use_playwright=use_playwright)
     except CrawlError as exc:
         await mark_source_error(db, source_id, f"{exc.kind}: {exc}")
         return 0
