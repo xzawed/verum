@@ -52,3 +52,4 @@ Verum_소개.md
 
 # Git worktrees
 .worktrees/
+coverage.xml

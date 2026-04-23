@@ -1,0 +1,44 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...90"
+
+  status:
+    project:
+      default:
+        target: 60%          # fail PR if overall coverage drops below 60%
+        threshold: 2%        # allow 2% drop without failing
+        base: auto
+    patch:
+      default:
+        target: 50%          # new code in a PR must be at least 50% covered
+        threshold: 5%
+
+parsers:
+  python:
+    use_packages: true
+
+ignore:
+  - "apps/api/alembic/**"
+  - "apps/api/src/worker/main.py"
+  - "apps/api/src/loop/analyze/cli.py"
+  - "apps/api/src/loop/infer/cli.py"
+  - "apps/api/src/loop/harvest/cli.py"
+  - "scripts/**"
+  - "apps/dashboard/**"    # TypeScript coverage pending
+
+comment:
+  layout: "reach,diff,flags,components"
+  behavior: default
+  require_changes: false
+
+flags:
+  python-backend:
+    paths:
+      - apps/api/src/
+    carryforward: true

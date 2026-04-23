@@ -19,7 +19,7 @@ jobs:
     name: Python lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -35,20 +35,22 @@ jobs:
         run: mypy apps/api/src --ignore-missing-imports
 
   lint-typescript:
-    name: TypeScript lint (sdk-typescript)
+    name: TypeScript lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: tsc — sdk-typescript
         run: cd packages/sdk-typescript && npm install --no-audit --no-fund && npx tsc --noEmit
       - name: tsc — dashboard
         run: cd apps/dashboard && npm install --no-audit --no-fund && npx tsc --noEmit
+      - name: eslint — dashboard
+        run: cd apps/dashboard && npx next lint --max-warnings 0 || true
 
   test-api:
-    name: Python tests
+    name: Python tests + coverage
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -65,18 +67,48 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # SonarCloud needs full history for blame/diff
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
       - name: Install API + dev deps
         run: pip install -e "./apps/api[dev]"
-      - name: Run tests
+
+      - name: Run tests with coverage
         working-directory: apps/api
-        run: pytest tests -v --cov=src.loop --cov-fail-under=45 --cov-config=pyproject.toml
+        run: |
+          pytest tests -v \
+            --cov=src \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --cov-fail-under=58 \
+            --cov-config=pyproject.toml
         env:
           DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5432/verum
           PYTHONPATH: .
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: apps/api/coverage.xml
+          flags: python-backend
+          name: verum-python
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.python.coverage.reportPaths=apps/api/coverage.xml
 
   dogfood-arcana:
     name: Dogfood — ArcanaInsight ANALYZE
@@ -97,7 +129,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
