@@ -19,6 +19,7 @@ import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchem
 from src.db.session import AsyncSessionLocal
 from .handlers.analyze import handle_analyze
 from .handlers.deploy import handle_deploy
+from .handlers.evolve import handle_evolve
 from .handlers.generate import handle_generate
 from .handlers.harvest import handle_harvest
 from .handlers.infer import handle_infer
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 STALE_AFTER_MINUTES = 10
 HEARTBEAT_INTERVAL = 30  # seconds
+EXPERIMENT_INTERVAL: int = 300  # 5 minutes
 
 _HANDLERS = {
     "analyze": handle_analyze,
@@ -39,6 +41,7 @@ _HANDLERS = {
     "generate": handle_generate,
     "deploy": handle_deploy,
     "judge": handle_judge,
+    "evolve": handle_evolve,
 }
 
 
@@ -120,6 +123,92 @@ async def _heartbeat_loop() -> None:
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
+async def _experiment_loop() -> None:
+    """Periodic loop: check all running experiments and enqueue EVOLVE jobs on convergence."""
+    from src.loop.experiment.engine import check_experiment
+    from src.loop.experiment.repository import (
+        aggregate_variant_wins,
+        get_all_running_experiments,
+        update_experiment_stats,
+    )
+
+    while True:
+        await asyncio.sleep(EXPERIMENT_INTERVAL)
+        try:
+            async with AsyncSessionLocal() as db:
+                experiments = await get_all_running_experiments(db)
+                for exp in experiments:
+                    try:
+                        deployment_id = exp["deployment_id"]
+                        b_wins, b_n, c_wins, c_n = await aggregate_variant_wins(
+                            db,
+                            deployment_id,
+                            exp["baseline_variant"],
+                            exp["challenger_variant"],
+                            exp["win_threshold"],
+                        )
+                        await update_experiment_stats(
+                            db, exp["id"], b_wins, b_n, c_wins, c_n
+                        )
+                        result = check_experiment(
+                            {
+                                **exp,
+                                "baseline_wins": b_wins,
+                                "baseline_n": b_n,
+                                "challenger_wins": c_wins,
+                                "challenger_n": c_n,
+                            },
+                            max_cost_in_window=1.0,
+                        )
+                        if result.converged and result.winner_variant:
+                            await db.execute(
+                                text(
+                                    "INSERT INTO verum_jobs (kind, payload, status, owner_user_id)"
+                                    " SELECT 'evolve',"
+                                    "   jsonb_build_object("
+                                    "     'experiment_id', :eid::text,"
+                                    "     'deployment_id', :did::text,"
+                                    "     'winner_variant', :wv,"
+                                    "     'confidence', :conf,"
+                                    "     'current_challenger', :cv"
+                                    "   ),"
+                                    "   'queued',"
+                                    "   (SELECT r.owner_user_id FROM repos r"
+                                    "    JOIN inferences inf ON inf.repo_id = r.id"
+                                    "    JOIN generations gen ON gen.inference_id = inf.id"
+                                    "    JOIN deployments dep ON dep.generation_id = gen.id"
+                                    "    WHERE dep.id = :did LIMIT 1)"
+                                    " WHERE NOT EXISTS ("
+                                    "   SELECT 1 FROM verum_jobs"
+                                    "   WHERE kind = 'evolve'"
+                                    "     AND (payload->>'experiment_id') = :eid::text"
+                                    "     AND status IN ('queued', 'running')"
+                                    " )"
+                                ),
+                                {
+                                    "eid": str(exp["id"]),
+                                    "did": str(deployment_id),
+                                    "wv": result.winner_variant,
+                                    "conf": result.confidence,
+                                    "cv": exp["challenger_variant"],
+                                },
+                            )
+                            await db.commit()
+                            logger.info(
+                                "EXPERIMENT: enqueued EVOLVE for experiment %s winner=%s",
+                                exp["id"],
+                                result.winner_variant,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "EXPERIMENT: error checking experiment %s: %s",
+                            exp.get("id"),
+                            exc,
+                        )
+        except Exception as exc:
+            logger.warning("EXPERIMENT loop error: %s", exc)
+
+
 async def run_loop() -> None:
     logger.info("Worker starting")
     async with AsyncSessionLocal() as db:
@@ -127,6 +216,8 @@ async def run_loop() -> None:
     logger.info("Stale job reset complete")
 
     asyncio.create_task(_heartbeat_loop())
+    asyncio.create_task(_experiment_loop())
+    logger.info("Experiment loop started (interval=%ds)", EXPERIMENT_INTERVAL)
 
     while True:
         try:
