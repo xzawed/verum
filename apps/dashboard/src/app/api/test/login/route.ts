@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { encode } from "@auth/core/jwt";
 
-// This endpoint is ONLY available in test environments.
-// The middleware matcher excludes /api/test/* from auth checks,
-// but the handler itself refuses all non-test environments.
+// This endpoint is ONLY available when VERUM_TEST_MODE=1 is set.
+// We use a separate env flag instead of NODE_ENV because `next dev` always
+// forces NODE_ENV=development regardless of the shell environment.
+// The middleware matcher already excludes /api/test/* from auth checks.
 export async function POST() {
-  if (process.env.NODE_ENV !== "test") {
+  if (process.env.VERUM_TEST_MODE !== "1") {
     return new Response("not found", { status: 404 });
   }
 
-  const secret = process.env.AUTH_SECRET;
+  // Auth.js v5 uses AUTH_SECRET; fall back to NEXTAUTH_SECRET for CI compat.
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
   if (!secret) {
     return new Response("AUTH_SECRET not set", { status: 500 });
   }

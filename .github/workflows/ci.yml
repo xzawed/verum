@@ -84,7 +84,7 @@ jobs:
         with:
           name: sdk-python-coverage
           path: packages/sdk-python/coverage.xml
-          if-no-files-found: warn
+          if-no-files-found: error
 
   test-sdk-typescript:
     name: SDK TypeScript tests + coverage
@@ -112,7 +112,7 @@ jobs:
         with:
           name: sdk-typescript-coverage
           path: packages/sdk-typescript/coverage/lcov.info
-          if-no-files-found: warn
+          if-no-files-found: error
 
   test-dashboard:
     name: Dashboard unit tests + coverage
@@ -140,7 +140,7 @@ jobs:
         with:
           name: dashboard-coverage
           path: apps/dashboard/coverage/lcov.info
-          if-no-files-found: warn
+          if-no-files-found: error
 
   # ── E2E Tests ─────────────────────────────────────────────────────────────────
 
@@ -165,9 +165,13 @@ jobs:
           # so a non-reachable URL is fine for tests that don't make DB queries.
           DATABASE_URL: "postgresql://verum:verum@localhost:5432/verum"
           NEXTAUTH_SECRET: "ci-test-secret-32-chars-minimum-xx"
+          AUTH_SECRET: "ci-test-secret-32-chars-minimum-xx"
           NEXTAUTH_URL: "http://localhost:3000"
           AUTH_GITHUB_ID: "ci-dummy-github-id"
           AUTH_GITHUB_SECRET: "ci-dummy-github-secret"
+          # Enables POST /api/test/login for authenticated E2E tests.
+          # next dev always sets NODE_ENV=development, so we use a separate flag.
+          VERUM_TEST_MODE: "1"
       - name: Upload Playwright results
         uses: actions/upload-artifact@v4
         if: always()
@@ -224,6 +228,7 @@ jobs:
           PYTHONPATH: .
 
       - name: Upload coverage to Codecov
+        if: always()
         uses: codecov/codecov-action@v4
         with:
           files: apps/api/coverage.xml
@@ -235,6 +240,7 @@ jobs:
 
       # Download coverage artifacts from parallel test jobs for SonarCloud
       - name: Download SDK Python coverage
+        if: always()
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -242,6 +248,7 @@ jobs:
           path: coverage-artifacts/sdk-python/
 
       - name: Download SDK TypeScript coverage
+        if: always()
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -249,14 +256,28 @@ jobs:
           path: coverage-artifacts/sdk-typescript/
 
       - name: Download Dashboard coverage
+        if: always()
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: dashboard-coverage
           path: coverage-artifacts/dashboard/
 
+      - name: Verify coverage files before SonarCloud
+        if: always()
+        run: |
+          echo "=== API (pytest) ==="
+          ls -lh apps/api/coverage.xml 2>/dev/null || echo "MISSING — pytest may have failed or --cov-fail-under aborted"
+          echo "=== SDK Python ==="
+          ls -lh coverage-artifacts/sdk-python/coverage.xml 2>/dev/null || echo "MISSING — check test-sdk-python artifact upload"
+          echo "=== SDK TypeScript ==="
+          ls -lh coverage-artifacts/sdk-typescript/lcov.info 2>/dev/null || echo "MISSING — check test-sdk-typescript artifact upload"
+          echo "=== Dashboard ==="
+          ls -lh coverage-artifacts/dashboard/lcov.info 2>/dev/null || echo "MISSING — check test-dashboard artifact upload"
+
       - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@master
+        if: always()
+        uses: SonarSource/sonarcloud-github-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
