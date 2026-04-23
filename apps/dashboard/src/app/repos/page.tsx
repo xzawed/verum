@@ -17,7 +17,14 @@ export default async function ReposPage({
   if (!userId) redirect("/login");
 
   const { error } = await searchParams;
-  const repos = await getRepos(userId);
+
+  let repos: Awaited<ReturnType<typeof getRepos>> = [];
+  let dbError: string | null = null;
+  try {
+    repos = await getRepos(userId);
+  } catch {
+    dbError = "Database unavailable — repository list cannot be loaded.";
+  }
 
   const statuses = await Promise.all(
     repos.map((r) => getRepoStatus(userId, r.id).catch(() => null)),
@@ -59,6 +66,9 @@ export default async function ReposPage({
 
       {error && (
         <p style={{ color: "red", marginBottom: 16, fontSize: 13 }}>Error: {error}</p>
+      )}
+      {dbError && (
+        <p style={{ color: "#b45309", marginBottom: 16, fontSize: 13, background: "#fef3c7", padding: "8px 12px", border: "1px solid #fbbf24" }}>{dbError}</p>
       )}
 
       {/* GitHub repo picker */}
