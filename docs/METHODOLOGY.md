@@ -269,32 +269,107 @@ If `model_name` is not found in `model_pricing`: `cost_usd` is stored as `0.0000
 
 ---
 
-## 7. EXPERIMENT — A/B Testing
+## 7. EXPERIMENT — Bayesian A/B Testing
 
-> **TODO (F-4.5):** This section is completed in the Phase 4-B implementation PR. Required elements to document when implemented:
->
-> - Bayesian model choice: Beta-Bernoulli conjugate pair vs Thompson Sampling — which and why
-> - Prior specification: `Beta(α₀, β₀)` default values and rationale
-> - Posterior update rule per observation
-> - Stopping criterion: `P(variant_A > variant_B) ≥ 0.95` — exact computation (numerical integration vs closed-form approximation)
-> - Minimum sample gate: n=100 per variant — hard gate or soft Bayesian prior?
-> - Traffic split algorithm: how `variant` is selected per request in `POST /api/v1/chat`
-> - Multi-variant extension (> 2 simultaneously)
-> - ADR to add: `DECISIONS.md` ADR-010 — Bayesian vs Frequentist choice
+> **Loop stage:** [7] EXPERIMENT
+> **Implemented in:** Phase 4-B (F-4.5)
+> **Source:** `apps/api/src/loop/experiment/engine.py`
+
+### Challenger Order
+
+Experiments run sequentially in fixed order:
+
+| Round | Baseline | Challenger |
+|---|---|---|
+| 1 | original | cot |
+| 2 | {winner} | few_shot |
+| 3 | {winner} | role_play |
+| 4 | {winner} | concise |
+
+`CHALLENGER_ORDER = ["cot", "few_shot", "role_play", "concise"]`
+
+### winner_score Formula
+
+```python
+# apps/api/src/loop/experiment/engine.py
+def compute_winner_score(
+    judge_score: float,
+    cost_usd: float,
+    max_cost_in_window: float,
+    cost_weight: float = 0.1,
+) -> float:
+    cost_normalized = cost_usd / max_cost_in_window if max_cost_in_window > 0 else 0.0
+    return judge_score - cost_weight * cost_normalized
+```
+
+Binary win: `1 if winner_score > 0.6 else 0` (win_threshold = 0.6).
+`max_cost_in_window` = max cost_usd across all deployment traces in the last 7 days.
+Traces with `judge_score IS NULL` are excluded.
+
+### Beta-Bernoulli Bayesian Model
+
+Posterior: `Beta(1 + wins, 1 + losses)` (uniform prior).
+
+```python
+# apps/api/src/loop/experiment/engine.py
+def bayesian_confidence(b_wins, b_n, c_wins, c_n, samples=10_000):
+    baseline   = scipy.stats.beta(1 + b_wins, 1 + (b_n - b_wins))
+    challenger = scipy.stats.beta(1 + c_wins, 1 + (c_n - c_wins))
+    return float(np.mean(challenger.rvs(samples) > baseline.rvs(samples)))
+```
+
+**Convergence conditions (both required):**
+- `baseline_n ≥ 100 AND challenger_n ≥ 100`
+- `P(challenger > baseline) ≥ 0.95` (challenger wins) OR `≤ 0.05` (baseline holds)
+
+**Reproducibility:** Prior = Beta(1,1), samples = 10,000, unseeded RNG (non-deterministic per run).
+
+### Periodic Evaluation
+
+`_experiment_loop()` in `apps/api/src/worker/runner.py` polls every 300 seconds. On convergence, enqueues an `evolve` job (idempotent — ignores duplicate if a job is already queued/running).
 
 ---
 
-## 8. EVOLVE — Winner Selection
+## 8. EVOLVE — Winner Promotion
 
-> **TODO (F-4.8):** This section is completed in the Phase 4-B implementation PR. Required elements to document when implemented:
->
-> - Weighted score formula: `winner_score = w1·judge + w2·ragas + w3·satisfaction − w4·cost_normalized`
-> - Default weight values per metric profile (consumer / developer / enterprise)
-> - User override mechanism for weights
-> - Winner promotion: which DB rows change state, what happens to `deployments` table
-> - Loser archive: data retention (rows kept, traffic zeroed, or logical delete?)
-> - Re-entry criteria: can an archived variant be reactivated for the next cycle?
-> - ADR to add: `DECISIONS.md` ADR-011 — weighted-sum vs Pareto frontier for multi-objective selection
+> **Loop stage:** [8] EVOLVE
+> **Implemented in:** Phase 4-B (F-4.8, F-4.9, F-4.10)
+> **Source:** `apps/api/src/loop/evolve/engine.py`, `apps/api/src/worker/handlers/evolve.py`
+
+### State Transitions
+
+```
+DEPLOY completes
+  → experiments INSERT (baseline="original", challenger="cot", status="running")
+  → deployments UPDATE (experiment_status="running")
+  → deployments UPDATE (traffic_split={"original": 0.9, "cot": 0.1})
+
+Every 5 min (_experiment_loop):
+  → aggregate traces → check bayesian_confidence
+  → If converged → INSERT verum_jobs(kind="evolve", ...)
+
+EVOLVE job (handle_evolve):
+  → experiments UPDATE (winner_variant, confidence, status="converged", converged_at)
+  → deployments UPDATE (current_baseline_variant = winner_variant)
+  → If next challenger exists:
+      → experiments INSERT (new round)
+      → deployments UPDATE (traffic_split={winner: 0.9, next: 0.1})
+  → Else:
+      → deployments UPDATE (traffic_split={winner: 1.0})
+      → deployments UPDATE (experiment_status="completed")
+```
+
+### Winner Determination
+
+| confidence | Outcome |
+|---|---|
+| ≥ 0.95 | Challenger promoted to new baseline |
+| ≤ 0.05 | Baseline holds |
+| otherwise | Continue observing |
+
+### ArcanaInsight Validation Gate (F-4.11)
+
+Phase 4-B is complete when at least one experiment round converges (n ≥ 100 per variant), the winner is automatically promoted (no manual intervention), and the judge_score delta is documented in `docs/WEEKLY.md`.
 
 ---
 

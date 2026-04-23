@@ -129,7 +129,7 @@ Service: {summary}
 Sample knowledge:
 {chunks_preview}
 
-Generate 20 diverse test Q&A pairs. Include edge cases and common queries.
+Generate 30 diverse test Q&A pairs. Include edge cases and common queries.
 Respond as JSON:
 {{
   "pairs": [

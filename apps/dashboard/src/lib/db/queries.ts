@@ -178,17 +178,20 @@ export interface RepoStatus {
   harvestSourcesTotal: number;
   latestGeneration: GenerationSummary | null;
   latestDeploymentId: string | null;
+  latestDeploymentExperimentStatus: string | null;
 }
 
-async function getLatestDeploymentIdForGeneration(generationId: string): Promise<string | null> {
+async function getLatestDeploymentIdForGeneration(
+  generationId: string,
+): Promise<{ id: string; experiment_status: string } | null> {
   const rows = await db
-    .select({ id: deployments.id })
+    .select({ id: deployments.id, experiment_status: deployments.experiment_status })
     .from(deployments)
     .where(eq(deployments.generation_id, generationId))
     .orderBy(desc(deployments.created_at))
     .limit(1);
   const row = rows[0];
-  return row ? String(row.id) : null;
+  return row ? { id: String(row.id), experiment_status: row.experiment_status } : null;
 }
 
 async function getLatestGenerationSummary(inferenceId: string): Promise<GenerationSummary | null> {
@@ -299,8 +302,11 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
   }
 
   let latestDeploymentId: string | null = null;
+  let latestDeploymentExperimentStatus: string | null = null;
   if (latestGeneration?.status === "done") {
-    latestDeploymentId = await getLatestDeploymentIdForGeneration(latestGeneration.id);
+    const dep = await getLatestDeploymentIdForGeneration(latestGeneration.id);
+    latestDeploymentId = dep?.id ?? null;
+    latestDeploymentExperimentStatus = dep?.experiment_status ?? null;
   }
 
   return {
@@ -312,6 +318,7 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     harvestSourcesTotal,
     latestGeneration,
     latestDeploymentId,
+    latestDeploymentExperimentStatus,
   };
 }
 

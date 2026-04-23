@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { RepoStatus } from "@/lib/db/queries";
 import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
 import ObserveSection from "./ObserveSection";
+import ExperimentSection from "./ExperimentSection";
 
 interface Props {
   initial: RepoStatus;
@@ -38,7 +39,7 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
     };
   }, [repoId]);
 
-  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration, latestDeploymentId } = status;
+  const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration, latestDeploymentId, latestDeploymentExperimentStatus } = status;
   const isRunning = (s: string | null | undefined) => s === "pending" || s === "running";
 
   return (
@@ -189,6 +190,11 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
       {/* OBSERVE: visible when a deployment exists */}
       {latestDeploymentId && (
         <ObserveSection deploymentId={latestDeploymentId} />
+      )}
+
+      {/* EXPERIMENT: visible when experiment is running or completed */}
+      {latestDeploymentId && latestDeploymentExperimentStatus && latestDeploymentExperimentStatus !== "idle" && (
+        <ExperimentSection deploymentId={latestDeploymentId} />
       )}
     </>
   );
