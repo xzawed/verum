@@ -12,6 +12,7 @@ Connect a GitHub repo and watch Verum analyze your AI service, generate optimize
 - Docker + Docker Compose
 - `ANTHROPIC_API_KEY` — used by INFER, GENERATE, and OBSERVE stages
 - `VOYAGE_API_KEY` — used for embeddings in the HARVEST stage
+- **GitHub OAuth App** — create one at [github.com/settings/developers](https://github.com/settings/developers). You'll need `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` for the `.env` file. Set the callback URL to `http://localhost:3000/api/auth/callback/github`.
 
 ---
 
@@ -20,7 +21,7 @@ Connect a GitHub repo and watch Verum analyze your AI service, generate optimize
 ```bash
 git clone https://github.com/xzawed/verum
 cd verum
-cp .env.example .env        # fill in ANTHROPIC_API_KEY and VOYAGE_API_KEY
+cp .env.example .env        # fill in ANTHROPIC_API_KEY, VOYAGE_API_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
 docker compose up
 ```
 
@@ -52,7 +53,7 @@ Once GENERATE finishes, the dashboard shows the generated assets. Review them, t
 
 > **Note:** DEPLOY creates a canary at 10% traffic. Your existing calls are not affected until you wrap them with the SDK (step 4).
 
-Copy the `DEPLOYMENT_ID` shown on the deploy confirmation screen.
+Copy the deployment UUID shown on the deploy confirmation screen. This is your `VERUM_API_KEY`.
 
 ---
 
@@ -66,7 +67,7 @@ Set two environment variables in your service:
 
 ```
 VERUM_API_URL=http://localhost:3000
-VERUM_API_KEY=<your-deployment-id>
+VERUM_API_KEY=<deployment-uuid>   # same value used as deployment_id in code
 ```
 
 Replace your LLM call with the Verum-routed version:
@@ -74,24 +75,29 @@ Replace your LLM call with the Verum-routed version:
 ```python
 import os
 import time
-import openai
+from openai import AsyncOpenAI
 import verum
 
+# VERUM_API_KEY is the deployment UUID — used both as the auth header
+# and as the deployment_id parameter below.
+DEPLOYMENT_ID = os.environ["VERUM_API_KEY"]
+
 client = verum.Client()  # reads VERUM_API_URL + VERUM_API_KEY from env
-openai_client = openai.OpenAI()
+openai_client = AsyncOpenAI()
 
 async def call_llm(user_input: str) -> str:
     # Route the request through Verum (picks a prompt variant)
     routed = await client.chat(
         messages=[{"role": "user", "content": user_input}],
-        deployment_id=os.environ["DEPLOYMENT_ID"],
+        deployment_id=DEPLOYMENT_ID,
         provider="openai",
         model="gpt-4o",
     )
+    # routed = {"messages": [...], "routed_to": "cot", "deployment_id": "uuid"}
 
     # Call your LLM as usual with the routed messages
     t0 = time.monotonic()
-    resp = openai_client.chat.completions.create(
+    resp = await openai_client.chat.completions.create(
         model="gpt-4o",
         messages=routed["messages"],
     )
@@ -113,13 +119,15 @@ async def call_llm(user_input: str) -> str:
     return resp.choices[0].message.content
 ```
 
+> **Note:** Verum does not store prompt/response text by default (privacy-preserving). LLM-as-Judge scores are computed from token counts, latency, and cost signals. Text storage is opt-in and planned for Phase 5.
+
 ---
 
 ## 5. OBSERVE → EXPERIMENT → EVOLVE (automatic)
 
 Once traces start arriving:
 
-- **OBSERVE** — LLM-as-Judge scores each response within 60 seconds.
+- **OBSERVE** — Verum scores each trace within 60 seconds using token ratios, latency, and cost signals.
 - **EXPERIMENT** — Every 5 minutes, Bayesian A/B testing compares the 5 variants. Convergence typically requires ~100 calls per variant.
 - **EVOLVE** — When a winner is statistically confirmed, it is promoted automatically. No manual action needed.
 
