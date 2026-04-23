@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.loop.deploy.repository import create_deployment
+from src.loop.evolve.repository import update_traffic_split
 from src.loop.experiment.repository import insert_experiment
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ async def handle_deploy(
     )
     await db.commit()
 
+    await update_traffic_split(db, deployment.deployment_id, {"original": 0.9, "cot": 0.1})
     await insert_experiment(db, deployment.deployment_id, "original", "cot")
     logger.info(
         "EXPERIMENT: round 1 started (original vs cot) for deployment %s",
