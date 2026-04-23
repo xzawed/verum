@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -226,6 +227,32 @@ export const experiments = pgTable("experiments", {
   converged_at: timestamp("converged_at", { withTimezone: true }),
 });
 
+export const chunks = pgTable("chunks", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  source_id: uuid("source_id")
+    .notNull()
+    .references(() => harvest_sources.id, { onDelete: "cascade" }),
+  inference_id: uuid("inference_id").notNull(),
+  content: text("content").notNull(),
+  chunk_index: integer("chunk_index").notNull().default(0),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const usage_quotas = pgTable("usage_quotas", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  period_start: date("period_start").notNull(),
+  plan: text("plan").notNull().default("free"),
+  traces_used: integer("traces_used").notNull().default(0),
+  chunks_stored: integer("chunks_stored").notNull().default(0),
+  repos_connected: integer("repos_connected").notNull().default(0),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Experiment = typeof experiments.$inferSelect;
 
 export type User = typeof users.$inferSelect;
@@ -243,3 +270,5 @@ export type ModelPricing = typeof model_pricing.$inferSelect;
 export type Trace = typeof traces.$inferSelect;
 export type Span = typeof spans.$inferSelect;
 export type JudgePrompt = typeof judge_prompts.$inferSelect;
+export type Chunk = typeof chunks.$inferSelect;
+export type UsageQuota = typeof usage_quotas.$inferSelect;

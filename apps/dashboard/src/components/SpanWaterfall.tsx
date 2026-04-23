@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t } from "@/lib/i18n";
 
 interface TraceDetail {
   id: string;
@@ -58,7 +59,7 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
       {/* Panel */}
       <div className="fixed right-0 top-0 h-full w-96 bg-gray-950 border-l border-gray-800 z-50 overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-800">
-          <h3 className="text-sm font-semibold text-white">Trace 상세</h3>
+          <h3 className="text-sm font-semibold text-white">{t("trace", "panelTitle")}</h3>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-white text-lg leading-none"
@@ -68,30 +69,30 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
         </div>
 
         {loading ? (
-          <div className="p-4 text-xs text-gray-500">불러오는 중...</div>
+          <div className="p-4 text-xs text-gray-500">{t("trace", "loading")}</div>
         ) : detail == null ? (
-          <div className="p-4 text-xs text-red-400">Trace를 찾을 수 없습니다.</div>
+          <div className="p-4 text-xs text-red-400">{t("trace", "notFound")}</div>
         ) : (
           <div className="p-4 space-y-4">
             {/* Metadata */}
-            <Section title="기본 정보">
-              <Row label="ID" value={<span className="font-mono text-blue-400 text-xs">{detail.id}</span>} />
-              <Row label="Variant" value={<span className="text-green-400">{detail.variant}</span>} />
+            <Section title={t("trace", "sectionMeta")}>
+              <Row label={t("trace", "labelId")} value={<span className="font-mono text-blue-400 text-xs">{detail.id}</span>} />
+              <Row label={t("trace", "labelVariant")} value={<span className="text-green-400">{detail.variant}</span>} />
               <Row
-                label="피드백"
+                label={t("trace", "labelFeedback")}
                 value={
                   detail.user_feedback === 1
-                    ? "👍 긍정"
+                    ? t("trace", "feedbackPositive")
                     : detail.user_feedback === -1
-                    ? "👎 부정"
-                    : "없음"
+                    ? t("trace", "feedbackNegative")
+                    : t("trace", "feedbackNone")
                 }
               />
-              <Row label="시각" value={new Date(detail.created_at).toLocaleString("ko-KR")} />
+              <Row label={t("trace", "labelTimestamp")} value={new Date(detail.created_at).toLocaleString()} />
             </Section>
 
             {/* Latency bar */}
-            <Section title="지연 시간">
+            <Section title={t("trace", "sectionLatency")}>
               <div className="bg-gray-900 rounded p-3">
                 <div className="flex justify-between text-xs text-gray-400 mb-1">
                   <span>{detail.model}</span>
@@ -105,16 +106,16 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
                 </div>
               </div>
               {detail.error && (
-                <p className="text-xs text-red-400 mt-2">오류: {detail.error}</p>
+                <p className="text-xs text-red-400 mt-2">{t("trace", "errorPrefix")}{detail.error}</p>
               )}
             </Section>
 
             {/* Cost breakdown */}
-            <Section title="비용 분석">
-              <Row label="입력 토큰" value={detail.input_tokens?.toLocaleString()} />
-              <Row label="출력 토큰" value={detail.output_tokens?.toLocaleString()} />
+            <Section title={t("trace", "sectionCost")}>
+              <Row label={t("trace", "labelInputTokens")} value={detail.input_tokens?.toLocaleString()} />
+              <Row label={t("trace", "labelOutputTokens")} value={detail.output_tokens?.toLocaleString()} />
               <Row
-                label="총 비용"
+                label={t("trace", "labelTotalCost")}
                 value={
                   <span className="text-green-400 font-mono">
                     ${Number(detail.cost_usd).toFixed(6)}
@@ -124,7 +125,7 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
             </Section>
 
             {/* Judge score */}
-            <Section title="Judge 평가">
+            <Section title={t("trace", "sectionJudge")}>
               {detail.judge_score != null ? (
                 <>
                   <div className="flex items-center gap-2 mb-2">
@@ -145,12 +146,12 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
                   )}
                   {detail.judged_at && (
                     <p className="text-xs text-gray-600 mt-1">
-                      채점: {new Date(detail.judged_at).toLocaleString("ko-KR")}
+                      {t("trace", "judgedAt")}{new Date(detail.judged_at).toLocaleString()}
                     </p>
                   )}
                 </>
               ) : (
-                <p className="text-xs text-gray-500 italic">채점 중... (최대 60초 소요)</p>
+                <p className="text-xs text-gray-500 italic">{t("trace", "judgePending")}</p>
               )}
             </Section>
           </div>

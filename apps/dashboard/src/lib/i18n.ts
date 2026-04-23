@@ -25,6 +25,28 @@ const strings = {
     evalPairsHeading: { en: "Eval Pairs (first 5)", ko: "Eval Pairs (처음 5개)" },
     approveButton: { en: "Approve → DEPLOY", ko: "승인 → DEPLOY" },
   },
+  trace: {
+    panelTitle: { en: "Trace Detail", ko: "Trace 상세" },
+    loading: { en: "Loading…", ko: "불러오는 중..." },
+    notFound: { en: "Trace not found.", ko: "Trace를 찾을 수 없습니다." },
+    sectionMeta: { en: "Metadata", ko: "기본 정보" },
+    sectionLatency: { en: "Latency", ko: "지연 시간" },
+    sectionCost: { en: "Cost", ko: "비용 분석" },
+    sectionJudge: { en: "Judge Score", ko: "Judge 평가" },
+    labelId: { en: "ID", ko: "ID" },
+    labelVariant: { en: "Variant", ko: "Variant" },
+    labelFeedback: { en: "Feedback", ko: "피드백" },
+    labelTimestamp: { en: "Time", ko: "시각" },
+    labelInputTokens: { en: "Input tokens", ko: "입력 토큰" },
+    labelOutputTokens: { en: "Output tokens", ko: "출력 토큰" },
+    labelTotalCost: { en: "Total cost", ko: "총 비용" },
+    feedbackPositive: { en: "👍 Positive", ko: "👍 긍정" },
+    feedbackNegative: { en: "👎 Negative", ko: "👎 부정" },
+    feedbackNone: { en: "None", ko: "없음" },
+    errorPrefix: { en: "Error: ", ko: "오류: " },
+    judgePending: { en: "Scoring… (up to 60s)", ko: "채점 중... (최대 60초 소요)" },
+    judgedAt: { en: "Scored: ", ko: "채점: " },
+  },
 } as const;
 
 const DEFAULT_LOCALE: Locale = "en";

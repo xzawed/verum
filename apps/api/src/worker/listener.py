@@ -8,6 +8,7 @@ import os
 logger = logging.getLogger(__name__)
 
 _wake_event: asyncio.Event | None = None
+_listener_task: asyncio.Task[None] | None = None
 
 
 def get_wake_event() -> asyncio.Event:
@@ -50,8 +51,9 @@ async def _listen_loop(dsn: str) -> None:
 
 async def start_listener() -> None:
     """Start the background LISTEN loop. No-op if DATABASE_URL is not set."""
+    global _listener_task
     dsn = os.environ.get("DATABASE_URL", "")
     if not dsn:
         logger.warning("LISTEN/NOTIFY: DATABASE_URL not set, skipping listener startup")
         return
-    asyncio.create_task(_listen_loop(dsn))
+    _listener_task = asyncio.create_task(_listen_loop(dsn))

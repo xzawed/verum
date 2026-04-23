@@ -445,3 +445,13 @@ _Audited by 6 independent analysis agents across 13 dimensions on 2026-04-24_
 | P3-T | Untyped job payloads + `rows[0]!` assertions | `src/worker/payloads.py` with 8 Pydantic models; 6 TS non-null assertions → explicit `if(!rows[0]) throw` |
 | P3-SDK | TypeScript SDK missing `record()` method | Added `record()` to `packages/sdk-typescript/src/client.ts` matching Python SDK interface |
 | P3-F2 | 10+ Korean strings hardcoded in TSX | `apps/dashboard/src/lib/i18n.ts` created (en/ko); all Korean literals in `deploy/page.tsx` + `generate/page.tsx` replaced with `t()` calls |
+
+### Post-Audit Fixes (2026-04-24)
+
+| ID | Finding | Resolution |
+|----|---------|-----------|
+| listener-GC | `listener.py:57` asyncio task not stored → GC may collect it | Added module-level `_listener_task` variable to hold `create_task()` result |
+| S4-config-route | `deploy/[id]/config/route.ts` used `process.env.VERUM_API_KEY` direct comparison | Replaced with `validateApiKey()` (SHA-256 hash lookup) + added deployment ownership check (403 if API key doesn't belong to the requested deployment ID) |
+| schema-chunks | Drizzle `schema.ts` missing `chunks` table | Added `chunks` table definition + `Chunk` type export |
+| schema-quota | Drizzle `schema.ts` missing `usage_quotas` table | Added `usage_quotas` table definition + `UsageQuota` type export |
+| i18n-SpanWaterfall | `SpanWaterfall.tsx` had 13 hardcoded Korean strings | Added `trace` group to `i18n.ts`; all strings replaced with `t("trace", ...)` calls |
