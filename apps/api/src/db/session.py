@@ -13,21 +13,17 @@ _DATABASE_URL = os.environ.get("DATABASE_URL", "")
 _KNOWN_INSECURE_DEFAULT = "postgresql+asyncpg://verum:verum@localhost:5432/verum"
 _railway = os.environ.get("RAILWAY_ENVIRONMENT")
 
+# Consolidate production guard: fail if on Railway with missing or insecure default DATABASE_URL
+if _railway and (not _DATABASE_URL or _DATABASE_URL == _KNOWN_INSECURE_DEFAULT):
+    raise RuntimeError(
+        "DATABASE_URL must be set to a real PostgreSQL URL in production. "
+        "Found missing or insecure default."
+    )
+
+# Fall back to insecure default in development (no RAILWAY_ENVIRONMENT)
 if not _DATABASE_URL:
-    if _railway:
-        raise RuntimeError(
-            "DATABASE_URL must be set to a real PostgreSQL URL in production. "
-            "Found missing or insecure default."
-        )
-    # In development (no RAILWAY_ENVIRONMENT), allow empty DATABASE_URL to fall back to local default
     _FINAL_URL = _KNOWN_INSECURE_DEFAULT
 else:
-    # Check if we're on Railway with an insecure default URL
-    if _railway and _DATABASE_URL == _KNOWN_INSECURE_DEFAULT:
-        raise RuntimeError(
-            "DATABASE_URL must be set to a real PostgreSQL URL in production. "
-            "Found missing or insecure default."
-        )
     # Railway provides postgres://, standard is postgresql://, asyncpg needs postgresql+asyncpg://
     if _DATABASE_URL.startswith("postgres://"):
         _FINAL_URL = _DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
