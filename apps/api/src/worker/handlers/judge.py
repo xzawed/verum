@@ -12,11 +12,11 @@ import logging
 import uuid
 from typing import Any
 
-import anthropic
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.traces import Trace
+from src.loop.llm_client import call_claude
 from src.loop.observe.repository import update_judge_score
 
 logger = logging.getLogger(__name__)
@@ -132,19 +132,13 @@ async def handle_judge(
 
     prompt = _build_judge_prompt(domain=domain, tone=tone, eval_pairs=eval_pairs)
 
-    client = anthropic.AsyncAnthropic()
     raw_response: str | None = None
     score: float | None = None
     reason: str | None = None
 
     for attempt in range(2):
         try:
-            msg = await client.messages.create(
-                model=_JUDGE_MODEL,
-                max_tokens=128,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw_response = msg.content[0].text
+            raw_response = await call_claude(_JUDGE_MODEL, 128, prompt, temperature=0.0)
             score, reason = _parse_judge_response(raw_response)
             if score is not None:
                 break
