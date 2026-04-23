@@ -34,7 +34,8 @@ export async function createRepo(
     .insert(repos)
     .values({ github_url: githubUrl, owner_user_id: userId, default_branch: branch })
     .returning();
-  return rows[0]!;
+  if (!rows[0]) throw new Error("createRepo: INSERT returned no row");
+  return rows[0];
 }
 
 export async function deleteRepo(userId: string, repoId: string) {
@@ -55,7 +56,8 @@ export async function enqueueAnalyze(opts: {
     .insert(analyses)
     .values({ repo_id: opts.repoId, status: "pending", started_at: new Date() })
     .returning();
-  const analysis = analysisRows[0]!;
+  const analysis = analysisRows[0];
+  if (!analysis) throw new Error("enqueueAnalyze: analysis INSERT returned no row");;
 
   await db.insert(verum_jobs).values({
     kind: "analyze",
@@ -86,7 +88,8 @@ export async function enqueueInfer(opts: {
       status: "pending",
     })
     .returning();
-  const inference = inferenceRows[0]!;
+  const inference = inferenceRows[0];
+  if (!inference) throw new Error("enqueueInfer: inference INSERT returned no row");;
 
   await db.insert(verum_jobs).values({
     kind: "infer",
@@ -152,7 +155,9 @@ export async function enqueueRetrieve(opts: {
       owner_user_id: opts.userId,
     })
     .returning({ id: verum_jobs.id });
-  return rows[0]!.id;
+  const row = rows[0];
+  if (!row) throw new Error("enqueueRetrieve: job INSERT returned no row");
+  return row.id;
 }
 
 // ── GENERATE ──────────────────────────────────────────────────
@@ -165,7 +170,9 @@ export async function enqueueGenerate(opts: {
     .insert(generations)
     .values({ inference_id: opts.inferenceId, status: "pending" })
     .returning({ id: generations.id });
-  const generationId = genRows[0]!.id;
+  const genRow = genRows[0];
+  if (!genRow) throw new Error("enqueueGenerate: generation INSERT returned no row");
+  const generationId = genRow.id;
 
   const jobRows = await db
     .insert(verum_jobs)
@@ -175,8 +182,10 @@ export async function enqueueGenerate(opts: {
       owner_user_id: opts.userId,
     })
     .returning({ id: verum_jobs.id });
+  const jobRow = jobRows[0];
+  if (!jobRow) throw new Error("enqueueGenerate: job INSERT returned no row");
 
-  return { generationId, jobId: jobRows[0]!.id };
+  return { generationId, jobId: jobRow.id };
 }
 
 // ── DEPLOY ────────────────────────────────────────────────────
@@ -193,7 +202,9 @@ export async function enqueueDeployment(opts: {
       owner_user_id: opts.userId,
     })
     .returning({ id: verum_jobs.id });
-  return rows[0]!.id;
+  const row = rows[0];
+  if (!row) throw new Error("enqueueDeployment: job INSERT returned no row");
+  return row.id;
 }
 
 export async function updateDeploymentTraffic(

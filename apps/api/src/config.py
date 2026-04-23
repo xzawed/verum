@@ -49,3 +49,19 @@ LLM_PATH_SUFFIX_PATTERNS: list[tuple[str, list[str]]] = [
 # ── GENERATE stage ────────────────────────────────────────────────────────────
 GENERATE_MODEL: str = os.environ.get("GENERATE_MODEL", INFER_MODEL)
 GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "2048"))
+
+# ── FREEMIUM plan limits ──────────────────────────────────────────────────────
+from pydantic import BaseModel  # noqa: E402
+
+
+class PlanLimits(BaseModel):
+    traces: int
+    chunks: int
+    repos: int
+
+
+FREE_PLAN: PlanLimits = PlanLimits(
+    traces=int(os.environ.get("VERUM_FREE_TRACES", "1000")),
+    chunks=int(os.environ.get("VERUM_FREE_CHUNKS", "10000")),
+    repos=int(os.environ.get("VERUM_FREE_REPOS", "3")),
+)

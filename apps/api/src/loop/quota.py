@@ -1,16 +1,22 @@
 """Usage quota enforcement for Verum freemium tier."""
 from __future__ import annotations
 
+import logging
 from datetime import date
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import FREE_PLAN
+
+logger = logging.getLogger(__name__)
+
+# Re-export as dict for callers that reference FREE_LIMITS directly
 FREE_LIMITS = {
-    "traces": 1_000,    # per month
-    "chunks": 10_000,   # total (not per-month — simpler)
-    "repos": 3,         # total connected repos
+    "traces": FREE_PLAN.traces,
+    "chunks": FREE_PLAN.chunks,
+    "repos": FREE_PLAN.repos,
 }
 
 
@@ -42,7 +48,11 @@ async def get_or_create_quota(
         {"user_id": str(user_id), "period": period},
     )
     await session.commit()
-    return dict(row.mappings().first())  # type: ignore[arg-type]
+    result = row.mappings().first()
+    if result is None:
+        logger.warning("get_or_create_quota: INSERT returned no row for user %s", user_id)
+        return {"traces_used": 0, "chunks_stored": 0, "repos_connected": 0, "plan": "free"}
+    return dict(result)
 
 
 async def check_quota(
@@ -52,10 +62,10 @@ async def check_quota(
     quota = await get_or_create_quota(session, user_id)
     if quota["plan"] != "free":
         return  # paid plans: no limit enforcement here
-    if traces > 0 and quota["traces_used"] + traces > FREE_LIMITS["traces"]:
-        raise QuotaExceededError("traces", quota["traces_used"], FREE_LIMITS["traces"])
-    if chunks > 0 and quota["chunks_stored"] + chunks > FREE_LIMITS["chunks"]:
-        raise QuotaExceededError("chunks", quota["chunks_stored"], FREE_LIMITS["chunks"])
+    if traces > 0 and quota["traces_used"] + traces > FREE_PLAN.traces:
+        raise QuotaExceededError("traces", quota["traces_used"], FREE_PLAN.traces)
+    if chunks > 0 and quota["chunks_stored"] + chunks > FREE_PLAN.chunks:
+        raise QuotaExceededError("chunks", quota["chunks_stored"], FREE_PLAN.chunks)
 
 
 async def increment_quota(

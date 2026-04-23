@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { rollbackDeployment, updateDeploymentTraffic } from "@/lib/db/jobs";
 import { getDeployment } from "@/lib/db/queries";
+import { t } from "@/lib/i18n";
 
 export default async function DeployPage({
   params,
@@ -78,12 +79,12 @@ export default async function DeployPage({
 
       {deployment.status === "rolled_back" && (
         <div style={{ background: "#fef2f2", border: "1px solid #ef4444", padding: "12px 16px", marginBottom: 16 }}>
-          <strong style={{ color: "#ef4444" }}>롤백됨</strong> — 기본 프롬프트로 복원되었습니다.
+          <strong style={{ color: "#ef4444" }}>{t("deploy", "rolledBackLabel")}</strong> — {t("deploy", "rolledBackDesc")}
         </div>
       )}
 
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 14, marginBottom: 8 }}>트래픽 조정</h2>
+        <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t("deploy", "trafficSplitHeading")}</h2>
         <div style={{ display: "flex", gap: 8 }}>
           <form action={setTraffic10}>
             <button
@@ -132,7 +133,7 @@ export default async function DeployPage({
           </form>
         </div>
         <p style={{ fontSize: 11, color: "#888", marginTop: 8 }}>
-          트래픽 변경 후 페이지를 새로고침하면 반영됩니다.
+          {t("deploy", "trafficRefreshHint")}
         </p>
       </div>
 
@@ -149,7 +150,7 @@ export default async function DeployPage({
               fontSize: 13,
             }}
           >
-            롤백
+            {t("deploy", "rollbackButton")}
           </button>
         </form>
       )}

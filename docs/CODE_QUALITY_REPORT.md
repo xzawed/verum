@@ -433,3 +433,15 @@ _Audited by 6 independent analysis agents across 13 dimensions on 2026-04-24_
 | DRY-5 | 4× per-stage `mark_error` helpers | Extracted shared `mark_error(db, model, row_id, msg)` to `src/db/error_helpers.py` |
 | TQ-1/TQ-2 | 0% test coverage on EVOLVE + DEPLOY | 20 new tests: `test_evolve_engine.py`, `test_evolve_handler.py`, `test_deploy_handler.py` |
 | D-1 | Dual embedding storage (JSONB + pgvector) | Dropped `chunks.embedding` JSONB column via migration `0016_drop_chunks_embedding_jsonb.py`; `embedding_vec` is sole store |
+
+### Phase 4 — P3 Quality Debt (2026-04-24, merged to main)
+
+| ID | Finding | Resolution |
+|----|---------|-----------|
+| P3-IDX | Missing indexes on inferences + traces | Migration `0017_add_missing_indexes.py`: `ix_inferences_repo_id`, `ix_inferences_analysis_id`, `ix_traces_deployment_created` |
+| P3-FK | No FK constraint on `chunks.inference_id` | Migration `0018_chunks_inference_fk.py`: FK + CASCADE delete; orphan rows cleaned up pre-migration |
+| P3-M3 | `quota.py` None-crash on upsert edge case | `mappings().first()` null guard with logger.warning + safe default return |
+| P3-S5 | Free tier limits scattered across codebase | `PlanLimits` + `FREE_PLAN` added to `src/config.py`; env-var overrideable (`VERUM_FREE_TRACES` etc.) |
+| P3-T | Untyped job payloads + `rows[0]!` assertions | `src/worker/payloads.py` with 8 Pydantic models; 6 TS non-null assertions → explicit `if(!rows[0]) throw` |
+| P3-SDK | TypeScript SDK missing `record()` method | Added `record()` to `packages/sdk-typescript/src/client.ts` matching Python SDK interface |
+| P3-F2 | 10+ Korean strings hardcoded in TSX | `apps/dashboard/src/lib/i18n.ts` created (en/ko); all Korean literals in `deploy/page.tsx` + `generate/page.tsx` replaced with `t()` calls |

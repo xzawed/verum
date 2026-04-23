@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { enqueueGenerate, approveGeneration } from "@/lib/db/jobs";
 import { getInference, getLatestGeneration, getGenerationFull } from "@/lib/db/queries";
+import { t } from "@/lib/i18n";
 
 function isMetricProfile(
   v: unknown,
@@ -72,7 +73,7 @@ export default async function GeneratePage({
             type="submit"
             style={{ background: "#000", color: "#fff", border: "none", padding: "10px 20px", cursor: "pointer", fontSize: 14 }}
           >
-            생성 시작
+            {t("generate", "startButton")}
           </button>
         </form>
       )}
@@ -83,14 +84,14 @@ export default async function GeneratePage({
             Status: <strong>{latestGen.status}</strong>
             {latestGen.status === "pending" && (
               <span style={{ marginLeft: 12, color: "#888" }}>
-                생성 중… <a href={`/generate/${inference_id}`}>새로고침</a>
+                {t("generate", "generating")} <a href={`/generate/${inference_id}`}>{t("generate", "refresh")}</a>
               </span>
             )}
           </div>
 
           {metricProfile && (
             <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, marginBottom: 6 }}>메트릭 프로파일 — {metricProfile.profile_name}</h2>
+              <h2 style={{ fontSize: 14, marginBottom: 6 }}>{t("generate", "metricProfileHeading")} — {metricProfile.profile_name}</h2>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {metricProfile.primary_metrics.map((m) => (
                   <span key={m} style={{ background: "#e0f2fe", padding: "2px 8px", fontSize: 12, borderRadius: 4 }}>{m}</span>
@@ -104,7 +105,7 @@ export default async function GeneratePage({
 
           {full && full.variants.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 8 }}>프롬프트 Variants ({full.variants.length})</h2>
+              <h2 style={{ fontSize: 15, marginBottom: 8 }}>{t("generate", "promptVariantsHeading")} ({full.variants.length})</h2>
               {full.variants.map((v) => (
                 <details key={v.id} style={{ marginBottom: 8, border: "1px solid #ddd", padding: "8px 12px" }}>
                   <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: "bold" }}>{v.variant_type}</summary>
@@ -132,7 +133,7 @@ export default async function GeneratePage({
 
           {full && full.pairs.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 8 }}>Eval Pairs (처음 5개)</h2>
+              <h2 style={{ fontSize: 15, marginBottom: 8 }}>{t("generate", "evalPairsHeading")}</h2>
               {full.pairs.map((p, i) => (
                 <div key={p.id} style={{ marginBottom: 8, padding: "8px 12px", background: "#f9f9f9", border: "1px solid #ddd", fontSize: 12 }}>
                   <strong>Q{i + 1}:</strong> {p.query}<br />
@@ -149,7 +150,7 @@ export default async function GeneratePage({
                 type="submit"
                 style={{ background: "#16a34a", color: "#fff", border: "none", padding: "10px 24px", cursor: "pointer", fontSize: 14 }}
               >
-                승인 → DEPLOY
+                {t("generate", "approveButton")}
               </button>
             </form>
           )}
