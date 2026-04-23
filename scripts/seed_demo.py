@@ -52,13 +52,6 @@ def hours_ago(n: float) -> datetime:
     return now_utc() - timedelta(hours=n)
 
 
-def rand_embedding(dim: int = 1024) -> list[float]:
-    """Generate a plausible random embedding vector (Gaussian, unit-ish)."""
-    raw = [random.gauss(0, 0.1) for _ in range(dim)]
-    norm = sum(x * x for x in raw) ** 0.5 or 1.0
-    return [round(x / norm, 6) for x in raw]
-
-
 def clip(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
@@ -320,7 +313,6 @@ async def seed_harvest(session, inference_id: str) -> None:
 
         for idx, content in enumerate(chunks_content):
             chunk_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"chunk-{src['id']}-{idx}"))
-            embedding = rand_embedding(1024)
             metadata = {
                 "source_title": src["title"],
                 "chunk_index": idx,
@@ -328,8 +320,8 @@ async def seed_harvest(session, inference_id: str) -> None:
                 "char_count": len(content),
             }
             await session.execute(text("""
-                INSERT INTO chunks (id, source_id, inference_id, content, chunk_index, embedding, metadata_, created_at)
-                VALUES (:id, :source_id, :inference_id, :content, :chunk_index, :embedding::jsonb, :metadata, :created_at)
+                INSERT INTO chunks (id, source_id, inference_id, content, chunk_index, metadata_, created_at)
+                VALUES (:id, :source_id, :inference_id, :content, :chunk_index, :metadata, :created_at)
                 ON CONFLICT (id) DO NOTHING
             """), {
                 "id": chunk_id,
@@ -337,7 +329,6 @@ async def seed_harvest(session, inference_id: str) -> None:
                 "inference_id": inference_id,
                 "content": content,
                 "chunk_index": idx,
-                "embedding": json.dumps(embedding),
                 "metadata": json.dumps(metadata),
                 "created_at": days_ago(12),
             })

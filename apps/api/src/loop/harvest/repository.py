@@ -63,7 +63,6 @@ async def save_chunks(
             inference_id=inference_id,
             content=text_content,
             chunk_index=idx,
-            embedding=embedding,
             metadata_={"source_id": str(source_id), "chunk_index": idx},
         ))
 
