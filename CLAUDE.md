@@ -11,6 +11,7 @@ Read it completely before any significant action, and re-read it when starting a
 2. **`docs/STATUS.md`** — 현재 구현 상태, 파일 맵, API 인덱스 (가장 자주 참조)
 3. **`docs/ROADMAP.md`** — 다음에 구현할 Phase와 deliverable ID 확인
 4. **`docs/LOOP.md`** — 특정 단계의 알고리즘·I/O 계약 확인 시
+5. **`.claude/agents/test-orchestrator.md`** — 신규 모듈 추가 후 또는 커버리지 감사 시
 
 > **단, 코드를 변경하기 전에 반드시 실제 파일을 Read로 확인한다. STATUS.md는 스냅샷이며 코드가 SoT다.**
 
@@ -714,6 +715,41 @@ ArcanaInsight가 먼저다.
 측정 없는 개선은 없다.
 
 이게 Verum이다.
+
+---
+
+## 🧪 테스트 Role
+
+Verum은 `.claude/agents/`에 테스트 전담 에이전트 시스템을 갖추고 있습니다.
+
+### 에이전트 구조
+
+| 에이전트 | 역할 |
+|---------|------|
+| `test-orchestrator` | 총괄. gap-analyzer → writer 병렬 → coverage-auditor 순서로 디스패치 |
+| `test-gap-analyzer` | 미테스트 모듈 랭킹. 리스크 가중치 × LOC로 P0/P1/P2 분류 |
+| `test-unit-writer` | 순수 함수·단일 모듈 단위 테스트 (AsyncMock, no DB) |
+| `test-integration-writer` | DB/worker/route 통합 테스트 (`requires_db` 마커) |
+| `test-e2e-writer` | Playwright E2E. `/test/login` bypass 활용 |
+| `test-coverage-auditor` | 커버리지 집계 → `docs/COVERAGE_REPORT.md` |
+
+### 호출 방법
+
+신규 모듈 추가 후 또는 커버리지 감사가 필요할 때:
+```
+@test-orchestrator 이번에 추가한 loop/experiment/repository.py와 worker/chain.py 테스트를 작성해줘
+```
+
+### PostToolUse Hook
+
+`src/` 파일 편집 시 `.claude/hooks/post_test_edit.py`가 자동으로 대응 테스트 파일을 찾아 실행합니다.
+테스트 파일이 없으면 `[test-orchestrator] No test found` 경고를 출력합니다. **비블로킹** — 작업은 계속됩니다.
+
+### 참조 문서
+
+- `.claude/skills/test-run.md` — 테스트 실행 표준 명령
+- `.claude/skills/test-patterns.md` — Python/TypeScript/Playwright 패턴
+- `.claude/skills/loop-stage-coverage.md` — Loop 8단계별 테스트 계약 체크리스트
 
 ---
 
