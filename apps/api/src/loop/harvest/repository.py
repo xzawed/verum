@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.chunks import Chunk
 from src.db.models.harvest_sources import HarvestSource
 
+# Embedding dimension is fixed at 1024 per Voyage AI model specifications.
+# This constant is part of the data model contract and is safe to embed in SQL templates.
+EMBEDDING_DIM = 1024
+
 
 async def get_approved_sources(
     db: AsyncSession,
@@ -95,16 +99,29 @@ async def vector_search(
     query_embedding: list[float],
     top_k: int = 5,
 ) -> list[dict[str, object]]:
-    dim = len(query_embedding)
+    """Search for chunks by vector similarity.
+
+    Uses parameterized SQL to prevent SQL injection. The embedding vector is
+    passed as a bound parameter instead of being interpolated into the SQL text.
+
+    Args:
+        db: Database session.
+        inference_id: Inference ID to filter chunks.
+        query_embedding: Query vector (1024 dimensions).
+        top_k: Number of results to return.
+
+    Returns:
+        List of chunks with similarity scores, sorted by relevance descending.
+    """
     vec_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     result = await db.execute(
         text(
-            f"SELECT id, content, 1 - (embedding_vec <=> '{vec_str}'::vector({dim})) AS score "
+            "SELECT id, content, 1 - (embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ")) AS score "
             "FROM chunks WHERE inference_id = :inf_id AND embedding_vec IS NOT NULL "
-            f"ORDER BY embedding_vec <=> '{vec_str}'::vector({dim}) "
+            "ORDER BY embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ") "
             "LIMIT :k"
         ),
-        {"inf_id": str(inference_id), "k": top_k},
+        {"vec": vec_str, "inf_id": str(inference_id), "k": top_k},
     )
     return [
         {"chunk_id": str(r[0]), "content": r[1], "score": float(r[2])}
