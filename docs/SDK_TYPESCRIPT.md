@@ -19,22 +19,22 @@ Set the following environment variables before running your application:
 | Variable | Description |
 |---|---|
 | `VERUM_API_URL` | Base URL of your Verum instance (e.g. `http://localhost:3000` or your production URL) |
-| `VERUM_API_KEY` | Deployment UUID — the same value you pass as `deploymentId` in code |
+| `VERUM_API_KEY` | Cryptographic API key — issued when a deployment is created and shown once in the dashboard |
 
 ```bash
 export VERUM_API_URL=http://localhost:3000
-export VERUM_API_KEY=<your-deployment-uuid>
+export VERUM_API_KEY=<your-api-key>
 ```
 
 ## Client Class
 
 ```typescript
-import { Client } from "@verum/sdk";
+import { VerumClient } from "@verum/sdk";
 
-const client = new Client({
+const client = new VerumClient({
   apiUrl: "http://localhost:3000", // optional if env var is set
-  apiKey: "<deployment-uuid>",     // optional if env var is set
-  cacheTtl: 60,
+  apiKey: "<your-api-key>",        // optional if env var is set
+  cacheTtlMs: 60_000,              // milliseconds; default 60 000 (1 minute)
 });
 ```
 
@@ -43,40 +43,37 @@ const client = new Client({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiUrl` | `string \| undefined` | `undefined` | Verum API base URL. Falls back to `VERUM_API_URL` env var. |
-| `apiKey` | `string \| undefined` | `undefined` | API key / deployment UUID. Falls back to `VERUM_API_KEY` env var. |
-| `cacheTtl` | `number` | `60` | Seconds to cache the deployment config locally before re-fetching. |
+| `apiKey` | `string \| undefined` | `undefined` | Cryptographic API key. Falls back to `VERUM_API_KEY` env var. |
+| `cacheTtlMs` | `number` | `60_000` | Milliseconds to cache the deployment config locally before re-fetching. |
 
 ## Method Reference
 
 ### `chat`
 
-Routes a message list through Verum's traffic split logic. If a deployment is active, the system prompt may be replaced with the selected variant.
+Routes a message list through Verum's traffic split logic. If a deployment is active, the system prompt may be replaced with the selected variant. The method returns a modified message array — pass it directly to your LLM SDK.
 
 ```typescript
-const result = await client.chat(
-  [{ role: "user", content: "Hello" }],
-  {
-    deploymentId: "<uuid>",
-    provider: "openai",
-    model: "gpt-4o",
-  }
-);
+const result = await client.chat({
+  messages: [{ role: "user", content: "Hello" }],
+  deploymentId: "<uuid>",
+  provider: "openai",
+  model: "gpt-4o",
+});
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `messages` | `Array<{ role: string; content: string }>` | Yes | OpenAI-style message array. |
-| `options.deploymentId` | `string \| undefined` | No | UUID of the active deployment. Omit to bypass routing. |
-| `options.provider` | `string` | No (default `"openai"`) | LLM provider identifier. |
-| `options.model` | `string` | Yes | Model name (e.g. `"gpt-4o"`). |
-| `options[key]` | `unknown` | No | Additional arguments forwarded to the provider. |
+| `deploymentId` | `string \| undefined` | No | UUID of the active deployment. Omit to bypass routing. |
+| `provider` | `string` | No (default `"openai"`) | LLM provider identifier. |
+| `model` | `string` | Yes | Model name (e.g. `"gpt-4o"`). |
 
 **Returns** `Promise<ChatResult>`:
 
 | Key | Type | Description |
 |---|---|---|
 | `messages` | `Array<{ role: string; content: string }>` | Possibly modified message array to pass to your LLM SDK. |
-| `routed_to` | `string` | Variant name that was selected (e.g. `"cot"`, `"baseline"`). |
+| `routed_to` | `"variant" \| "baseline"` | Which variant was selected. |
 | `deployment_id` | `string \| null` | Echo of the deployment UUID, or `null` if bypassed. |
 
 When `deploymentId` is omitted, messages pass through unchanged and `routed_to` is `"baseline"`.
@@ -88,20 +85,18 @@ When `deploymentId` is omitted, messages pass through unchanged and `routed_to` 
 Fetches the top-k relevant knowledge chunks from a named collection stored in pgvector.
 
 ```typescript
-const chunks = await client.retrieve(
-  "What does the Tower card mean?",
-  {
-    collectionName: "arcana-tarot-knowledge",
-    topK: 5,
-  }
-);
+const chunks = await client.retrieve({
+  query: "What does the Tower card mean?",
+  collectionName: "arcana-tarot-knowledge",
+  topK: 5,
+});
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `query` | `string` | Yes | Natural-language query to embed and search. |
-| `options.collectionName` | `string` | Yes | Name of the pgvector collection to search. |
-| `options.topK` | `number` | No (default `5`) | Number of chunks to return. |
+| `collectionName` | `string` | Yes | Name of the pgvector collection to search. |
+| `topK` | `number` | No (default `5`) | Number of chunks to return. |
 
 **Returns** `Promise<Chunk[]>` — each object contains at least a `content` string key with the chunk text, plus optional metadata fields.
 
@@ -114,7 +109,7 @@ Records a completed LLM call as a trace. Call this immediately after your LLM SD
 ```typescript
 const traceId = await client.record({
   deploymentId: "<uuid>",
-  variant: "cot",
+  variant: "variant",
   model: "gpt-4o",
   inputTokens: 120,
   outputTokens: 45,
@@ -142,7 +137,7 @@ const traceId = await client.record({
 Attaches a user satisfaction score to a previously recorded trace.
 
 ```typescript
-await client.feedback(traceId, 1);
+await client.feedback({ traceId, score: 1 });
 ```
 
 | Parameter | Type | Description |
@@ -157,25 +152,23 @@ await client.feedback(traceId, 1);
 ## Full Integration Example (Node.js)
 
 ```typescript
-import { Client } from "@verum/sdk";
+import { VerumClient } from "@verum/sdk";
 import OpenAI from "openai";
 
-const verum = new Client();
+const verum = new VerumClient();
 const openai = new OpenAI();
 
-const DEPLOYMENT_ID = process.env.VERUM_API_KEY!;
+const DEPLOYMENT_ID = process.env.VERUM_DEPLOYMENT_ID!;
 
 export async function handleUserMessage(userInput: string): Promise<string> {
   // 1. Route through Verum (selects prompt variant based on traffic split)
-  const routed = await verum.chat(
-    [{ role: "user", content: userInput }],
-    {
-      deploymentId: DEPLOYMENT_ID,
-      provider: "openai",
-      model: "gpt-4o",
-    }
-  );
-  // routed = { messages: [...], routed_to: "cot", deployment_id: "uuid" }
+  const routed = await verum.chat({
+    messages: [{ role: "user", content: userInput }],
+    deploymentId: DEPLOYMENT_ID,
+    provider: "openai",
+    model: "gpt-4o",
+  });
+  // routed = { messages: [...], routed_to: "variant", deployment_id: "uuid" }
 
   // 2. Call your LLM with the (possibly modified) messages
   const start = Date.now();
@@ -188,7 +181,7 @@ export async function handleUserMessage(userInput: string): Promise<string> {
 
   // 3. Record the trace
   const traceId = await verum.record({
-    deploymentId: routed.deployment_id!,
+    deploymentId: DEPLOYMENT_ID,
     variant: routed.routed_to,
     model: "gpt-4o",
     inputTokens: resp.usage?.prompt_tokens ?? 0,
@@ -197,7 +190,7 @@ export async function handleUserMessage(userInput: string): Promise<string> {
   });
 
   // 4. Collect user feedback (optional, call after user rates response)
-  await verum.feedback(traceId, 1);
+  await verum.feedback({ traceId, score: 1 });
 
   return reply;
 }
@@ -208,20 +201,23 @@ export async function handleUserMessage(userInput: string): Promise<string> {
 ```typescript
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { Client } from "@verum/sdk";
+import { VerumClient } from "@verum/sdk";
 import OpenAI from "openai";
 
-const verum = new Client();
+const verum = new VerumClient();
 const openai = new OpenAI();
+
+const DEPLOYMENT_ID = process.env.VERUM_DEPLOYMENT_ID!;
 
 export async function POST(req: NextRequest) {
   const { message } = await req.json();
-  const DEPLOYMENT_ID = process.env.VERUM_API_KEY!;
 
-  const routed = await verum.chat(
-    [{ role: "user", content: message }],
-    { deploymentId: DEPLOYMENT_ID, provider: "openai", model: "gpt-4o" }
-  );
+  const routed = await verum.chat({
+    messages: [{ role: "user", content: message }],
+    deploymentId: DEPLOYMENT_ID,
+    provider: "openai",
+    model: "gpt-4o",
+  });
 
   const start = Date.now();
   const resp = await openai.chat.completions.create({
@@ -232,7 +228,7 @@ export async function POST(req: NextRequest) {
   const reply = resp.choices[0].message.content ?? "";
 
   const traceId = await verum.record({
-    deploymentId: routed.deployment_id!,
+    deploymentId: DEPLOYMENT_ID,
     variant: routed.routed_to,
     model: "gpt-4o",
     inputTokens: resp.usage?.prompt_tokens ?? 0,
@@ -251,23 +247,22 @@ Use `retrieve` to inject relevant knowledge chunks into the system context befor
 ```typescript
 export async function handleWithRag(userInput: string): Promise<string> {
   // Retrieve relevant knowledge chunks
-  const chunks = await verum.retrieve(userInput, {
+  const chunks = await verum.retrieve({
+    query: userInput,
     collectionName: "arcana-tarot-knowledge",
     topK: 5,
   });
   const context = chunks.map((c) => c.content).join("\n");
 
-  const routed = await verum.chat(
-    [
+  const routed = await verum.chat({
+    messages: [
       { role: "system", content: `Context:\n${context}` },
       { role: "user", content: userInput },
     ],
-    {
-      deploymentId: process.env.VERUM_API_KEY!,
-      provider: "openai",
-      model: "gpt-4o",
-    }
-  );
+    deploymentId: DEPLOYMENT_ID,
+    provider: "openai",
+    model: "gpt-4o",
+  });
   // ... rest of flow same as the full example above
 }
 ```
@@ -291,7 +286,7 @@ try {
   throw err;
 } finally {
   await verum.record({
-    deploymentId: routed.deployment_id!,
+    deploymentId: DEPLOYMENT_ID,
     variant: routed.routed_to,
     model: "gpt-4o",
     inputTokens: 0,
@@ -302,4 +297,4 @@ try {
 }
 ```
 
-> **Note**: TypeScript uses camelCase parameter names (`deploymentId`, `inputTokens`, `collectionName`, `topK`) while the Python SDK uses snake_case equivalents (`deployment_id`, `input_tokens`, `collection_name`, `top_k`). The underlying REST API and behaviour are identical.
+> **Note**: TypeScript uses camelCase parameter names (`deploymentId`, `inputTokens`, `collectionName`, `topK`, `cacheTtlMs`) while the Python SDK uses snake_case equivalents (`deployment_id`, `input_tokens`, `collection_name`, `top_k`, `cache_ttl_ms`). The underlying REST API and behaviour are identical.

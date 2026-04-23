@@ -16,20 +16,22 @@ Requests originating from the Verum dashboard are authenticated via GitHub OAuth
 
 ```bash
 # Example — browser auth (cookie set automatically after GitHub OAuth)
-curl https://verum.dev/api/v1/repos \
-  -H "Cookie: next-auth.session-token=<jwt>"
+curl https://verum.dev/api/v1/analyze \
+  -H "Cookie: next-auth.session-token=<jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"repo_id": "<uuid>"}'
 ```
 
 **SDK / Programmatic (API Key)**
 
-SDK endpoints authenticate via the `X-Verum-API-Key` header. The value is the deployment UUID returned by `POST /api/v1/deploy`. Requests with a missing or invalid key receive `401`.
+SDK endpoints authenticate via the `X-Verum-API-Key` header. The API key is a cryptographic token (32 random bytes, URL-safe base64) generated when a deployment is created. It is shown once in the dashboard after deployment creation. Requests with a missing or invalid key receive `401`.
 
 ```bash
 # Example — SDK auth
-curl -X POST https://verum.dev/api/v1/chat \
-  -H "X-Verum-API-Key: <deployment-uuid>" \
+curl -X POST https://verum.dev/api/v1/traces \
+  -H "X-Verum-API-Key: <api-key>" \
   -H "Content-Type: application/json" \
-  -d '{"messages": [...], "provider": "openai", "model": "gpt-4o"}'
+  -d '{"variant": "baseline", "model": "gpt-4o", ...}'
 ```
 
 ---
@@ -38,64 +40,7 @@ curl -X POST https://verum.dev/api/v1/chat \
 
 All endpoints in this section require an Auth.js v5 JWT session. Ownership is enforced — a user can only access resources they created.
 
-### Repos
-
-#### `GET /api/v1/repos`
-
-List all repositories connected by the authenticated user.
-
-**Response `200`**
-
-```json
-{
-  "repos": [
-    {
-      "id": "repo_abc123",
-      "repo_url": "https://github.com/xzawed/ArcanaInsight",
-      "status": "ready",
-      "created_at": "2026-04-01T12:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-#### `POST /api/v1/repos`
-
-Connect a new repository.
-
-**Request body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `repo_url` | string | yes | Full GitHub repository URL |
-| `github_token` | string | yes | OAuth access token with `repo` scope |
-
-**Response `201`**
-
-```json
-{
-  "repo": {
-    "id": "repo_abc123",
-    "repo_url": "https://github.com/xzawed/ArcanaInsight",
-    "status": "pending",
-    "created_at": "2026-04-01T12:00:00Z"
-  }
-}
-```
-
----
-
-#### `DELETE /api/v1/repos/[id]`
-
-Disconnect and delete a repository and all associated data.
-
-**Response `200`**
-
-```json
-{ "ok": true }
-```
+> **Note:** Repository management (connecting/disconnecting repos) is handled through the Verum dashboard UI via GitHub OAuth, not via REST API endpoints.
 
 ---
 
@@ -103,7 +48,7 @@ Disconnect and delete a repository and all associated data.
 
 #### `POST /api/v1/analyze`
 
-Enqueue an ANALYZE job for a connected repository.
+Enqueue an ANALYZE job for a connected repository. The ANALYZE → INFER → HARVEST pipeline starts automatically on completion.
 
 **Request body**
 
@@ -121,18 +66,17 @@ Enqueue an ANALYZE job for a connected repository.
 
 #### `GET /api/v1/analyze/[id]`
 
-Poll the status of an analysis job.
+Poll the status of an analysis by its analysis ID.
 
 **Response `200`**
 
 ```json
 {
+  "id": "uuid",
   "status": "completed",
-  "result": {
-    "call_sites": [...],
-    "prompt_templates": [...],
-    "models_detected": ["gpt-4o", "claude-3-5-sonnet"]
-  }
+  "call_sites": [...],
+  "prompt_templates": [...],
+  "model_configs": [...]
 }
 ```
 
@@ -162,19 +106,19 @@ Enqueue an INFER job from a completed analysis.
 
 #### `GET /api/v1/infer/[id]`
 
-Poll the status of an inference job.
+Poll the status of an inference by its inference ID.
 
 **Response `200`**
 
 ```json
 {
+  "id": "uuid",
   "status": "completed",
-  "inference": {
-    "domain": "divination/tarot",
-    "tone": "mystical",
-    "language": "ko",
-    "user_type": "consumer"
-  }
+  "domain": "divination/tarot",
+  "tone": "mystical",
+  "language": "ko",
+  "user_type": "consumer",
+  "confidence": 0.92
 }
 ```
 
@@ -182,7 +126,7 @@ Poll the status of an inference job.
 
 #### `PATCH /api/v1/infer/[id]/confirm`
 
-Confirm or override the inferred domain/tone before proceeding to HARVEST.
+Confirm or override the inferred domain/tone, then trigger the HARVEST stage.
 
 **Request body**
 
@@ -206,11 +150,11 @@ Confirm or override the inferred domain/tone before proceeding to HARVEST.
 
 ---
 
-### Harvest — Loop Stage 3
+### Generate — Loop Stage 4
 
-#### `POST /api/v1/harvest/propose`
+#### `POST /api/v1/generate`
 
-Generate a list of recommended knowledge sources for a confirmed inference.
+Enqueue a GENERATE job to produce prompt variants, RAG config, and eval pairs from a confirmed inference.
 
 **Request body**
 
@@ -218,106 +162,29 @@ Generate a list of recommended knowledge sources for a confirmed inference.
 |-------|------|----------|-------------|
 | `inference_id` | string | yes | ID of a confirmed inference |
 
-**Response `200`**
-
-```json
-{
-  "sources": [
-    "https://en.wikipedia.org/wiki/Tarot",
-    "https://www.biddytarot.com/tarot-card-meanings/"
-  ]
-}
-```
-
----
-
-#### `POST /api/v1/harvest/start`
-
-Enqueue a HARVEST job with the user-approved source list.
-
-**Request body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `inference_id` | string | yes | ID of the confirmed inference |
-| `approved_sources` | string[] | yes | Sources selected from the proposal |
-
 **Response `202`**
 
 ```json
-{ "job_id": "job_xyz791" }
-```
-
----
-
-#### `POST /api/v1/retrieve`
-
-Semantic search over harvested knowledge chunks.
-
-**Request body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `query` | string | yes | Query string |
-| `collection_name` | string | yes | pgvector collection to search |
-| `top_k` | integer | no | Number of results to return (default: 5) |
-
-**Response `200`**
-
-```json
-{
-  "chunks": [
-    {
-      "id": "chunk_001",
-      "text": "The High Priestess represents intuition...",
-      "score": 0.94,
-      "source": "https://en.wikipedia.org/wiki/Tarot"
-    }
-  ]
-}
-```
-
----
-
-### Generate — Loop Stage 4
-
-#### `POST /api/v1/generate`
-
-Enqueue a GENERATE job to produce prompt variants, RAG config, and eval sets.
-
-**Request body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `inference_id` | string | yes | ID of the confirmed inference |
-
-**Response `202`**
-
-```json
-{
-  "job_id": "job_xyz792",
-  "generation_id": "gen_abc456"
-}
+{ "job_id": "job_xyz792" }
 ```
 
 ---
 
 #### `GET /api/v1/generate/[id]`
 
-Poll the status of a generation job.
+Poll the status of a generation by its generation ID.
 
 **Response `200`**
 
 ```json
 {
+  "id": "uuid",
   "status": "completed",
-  "generation": {
-    "id": "gen_abc456",
-    "prompt_variants": [...],
-    "rag_config": {...},
-    "eval_set": [...],
-    "approved": false
-  }
+  "metric_profile": {...},
+  "prompt_variants": [...],
+  "rag_config": {...},
+  "eval_pairs": [...],
+  "approved": false
 }
 ```
 
@@ -332,8 +199,8 @@ Approve the generated assets, making them available for deployment.
 ```json
 {
   "generation": {
-    "id": "gen_abc456",
-    "approved": true
+    "id": "uuid",
+    "status": "approved"
   }
 }
 ```
@@ -344,7 +211,7 @@ Approve the generated assets, making them available for deployment.
 
 #### `POST /api/v1/deploy`
 
-Create a deployment from an approved generation. Returns the deployment UUID used as the SDK API key.
+Enqueue a DEPLOY job from an approved generation. After the job completes, poll `GET /api/v1/deploy/[id]` to retrieve the deployment details and API key.
 
 **Request body**
 
@@ -352,10 +219,50 @@ Create a deployment from an approved generation. Returns the deployment UUID use
 |-------|------|----------|-------------|
 | `generation_id` | string | yes | ID of an approved generation |
 
-**Response `201`**
+**Response `202`**
 
 ```json
-{ "deployment_id": "dep_uuid_here" }
+{ "job_id": "job_xyz793" }
+```
+
+---
+
+#### `GET /api/v1/deploy/[id]`
+
+Retrieve a deployment by its ID. After a successful DEPLOY job, the `api_key` field contains the cryptographic token to use with the SDK.
+
+**Response `200`**
+
+```json
+{
+  "id": "uuid",
+  "status": "canary",
+  "traffic_split": { "baseline": 0.9, "variant": 0.1 },
+  "experiment_status": "idle",
+  "current_baseline_variant": "original",
+  "created_at": "2026-04-23T09:00:00Z"
+}
+```
+
+> **Note:** The `api_key` plain-text token is stored only in the dashboard at deployment creation time (never returned via API after that point). Copy it from the dashboard UI immediately after deployment.
+
+---
+
+#### `GET /api/v1/deploy/[id]/config`
+
+Fetch the current deployment config for SDK routing. Authenticated with `X-Verum-API-Key` — returns only the config for the deployment that matches the API key.
+
+**Auth:** `X-Verum-API-Key` (SDK key auth)
+
+**Response `200`**
+
+```json
+{
+  "deployment_id": "uuid",
+  "status": "canary",
+  "traffic_split": 0.1,
+  "variant_prompt": "Think step by step before answering. ..."
+}
 ```
 
 ---
@@ -368,35 +275,30 @@ Adjust the traffic split between prompt variants in a live deployment.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `traffic_split` | object | yes | Map of `variant_name → fraction (0.0–1.0)`. Values must sum to 1.0. |
+| `traffic_split` | object | yes | `{ "variant": fraction }` where fraction is 0.0–1.0 |
 
 **Request example**
 
 ```json
-{
-  "traffic_split": {
-    "baseline": 0.8,
-    "challenger_cot": 0.2
-  }
-}
+{ "traffic_split": { "variant": 0.2 } }
 ```
 
 **Response `200`**
 
 ```json
-{ "deployment": { "id": "dep_uuid_here", "traffic_split": {...} } }
+{ "deployment": { "id": "uuid", "traffic_split": {...} } }
 ```
 
 ---
 
 #### `POST /api/v1/deploy/[id]/rollback`
 
-Roll back a deployment to its previous traffic split configuration.
+Roll back a deployment to 0% variant traffic (full baseline).
 
 **Response `200`**
 
 ```json
-{ "deployment": { "id": "dep_uuid_here", "traffic_split": {...} } }
+{ "deployment": { "id": "uuid", "traffic_split": {...} } }
 ```
 
 ---
@@ -407,13 +309,15 @@ Roll back a deployment to its previous traffic split configuration.
 
 List traces for a deployment with pagination.
 
+**Auth:** Auth.js session (browser)
+
 **Query parameters**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `deployment_id` | string | yes | Filter by deployment |
 | `page` | integer | no | Page number (default: 1) |
-| `limit` | integer | no | Results per page (default: 50, max: 200) |
+| `limit` | integer | no | Results per page (default: 20, max: 200) |
 
 **Response `200`**
 
@@ -421,13 +325,13 @@ List traces for a deployment with pagination.
 {
   "traces": [
     {
-      "id": "trace_001",
-      "deployment_id": "dep_uuid_here",
+      "id": "uuid",
+      "deployment_id": "uuid",
       "variant": "baseline",
       "model": "gpt-4o",
       "input_tokens": 512,
       "output_tokens": 256,
-      "cost_usd": 0.0058,
+      "cost_usd": "0.005800",
       "latency_ms": 1340,
       "judge_score": 0.87,
       "created_at": "2026-04-23T09:00:00Z"
@@ -447,12 +351,17 @@ Retrieve a single trace with all spans and LLM-as-Judge evaluation.
 
 ```json
 {
-  "trace": { ... },
-  "spans": [ ... ],
-  "judge": {
-    "score": 0.87,
-    "rationale": "Response was accurate and on-topic."
-  }
+  "id": "uuid",
+  "variant": "baseline",
+  "judge_score": 0.87,
+  "judge_raw_response": "{\"reason\": \"Response was accurate.\"}",
+  "latency_ms": 1340,
+  "cost_usd": "0.005800",
+  "model": "gpt-4o",
+  "input_tokens": 512,
+  "output_tokens": 256,
+  "error": null,
+  "created_at": "2026-04-23T09:00:00Z"
 }
 ```
 
@@ -506,10 +415,10 @@ List experiments for a deployment.
 {
   "experiments": [
     {
-      "id": "exp_001",
-      "deployment_id": "dep_uuid_here",
-      "baseline_variant": "baseline",
-      "challenger_variant": "challenger_cot",
+      "id": "uuid",
+      "deployment_id": "uuid",
+      "baseline_variant": "original",
+      "challenger_variant": "cot",
       "status": "running",
       "winner_variant": null,
       "confidence": null,
@@ -520,8 +429,7 @@ List experiments for a deployment.
       "started_at": "2026-04-20T00:00:00Z",
       "converged_at": null
     }
-  ],
-  "current_experiment": "exp_001"
+  ]
 }
 ```
 
@@ -537,53 +445,56 @@ Retrieve a single experiment.
 
 ```json
 {
-  "experiment": {
-    "id": "exp_001",
-    "deployment_id": "dep_uuid_here",
-    "baseline_variant": "baseline",
-    "challenger_variant": "challenger_cot",
-    "status": "converged",
-    "winner_variant": "challenger_cot",
-    "confidence": 0.97,
-    "baseline_n": 1200,
-    "challenger_n": 300,
-    "baseline_wins": 480,
-    "challenger_wins": 198,
-    "started_at": "2026-04-20T00:00:00Z",
-    "converged_at": "2026-04-23T14:30:00Z"
-  }
+  "id": "uuid",
+  "deployment_id": "uuid",
+  "baseline_variant": "original",
+  "challenger_variant": "cot",
+  "status": "converged",
+  "winner_variant": "cot",
+  "confidence": 0.97,
+  "baseline_n": 1200,
+  "challenger_n": 300,
+  "baseline_wins": 480,
+  "challenger_wins": 198,
+  "started_at": "2026-04-20T00:00:00Z",
+  "converged_at": "2026-04-23T14:30:00Z"
 }
 ```
 
 ---
 
-## SDK Endpoints
+### Quota
 
-All endpoints in this section authenticate via the `X-Verum-API-Key` header. The value is the deployment UUID returned by `POST /api/v1/deploy`.
+#### `GET /api/v1/quota`
 
-### `POST /api/v1/chat`
-
-Route a chat request through the active deployment. Verum selects the prompt variant according to the current traffic split.
-
-**Request body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `messages` | object[] | yes | OpenAI-compatible messages array |
-| `provider` | string | yes | LLM provider (`openai`, `anthropic`, `grok`) |
-| `model` | string | yes | Model identifier (e.g., `gpt-4o`) |
+Retrieve the authenticated user's current usage quota for the billing period.
 
 **Response `200`**
 
 ```json
 {
-  "messages": [...],
-  "routed_to": "challenger_cot",
-  "deployment_id": "dep_uuid_here"
+  "plan": "free",
+  "period": "2026-04-01",
+  "limits": {
+    "traces": 1000,
+    "chunks": 10000,
+    "repos": 3
+  },
+  "used": {
+    "traces": 248,
+    "chunks": 3120,
+    "repos": 1
+  }
 }
 ```
 
+Override free-tier limits via environment variables: `VERUM_FREE_TRACES`, `VERUM_FREE_CHUNKS`, `VERUM_FREE_REPOS`.
+
 ---
+
+## SDK Endpoints
+
+All endpoints in this section authenticate via the `X-Verum-API-Key` header. The value is the cryptographic API key issued at deployment creation time.
 
 ### `POST /api/v1/traces`
 
@@ -594,7 +505,7 @@ Record a single LLM call trace from the SDK.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `deployment_id` | string | yes | Deployment that handled this call |
-| `variant` | string | yes | Prompt variant used |
+| `variant` | string | yes | Prompt variant used (`"baseline"` or `"variant"`) |
 | `model` | string | yes | Model identifier |
 | `input_tokens` | integer | yes | Token count for the prompt |
 | `output_tokens` | integer | yes | Token count for the completion |
@@ -604,7 +515,13 @@ Record a single LLM call trace from the SDK.
 **Response `201`**
 
 ```json
-{ "trace_id": "trace_001" }
+{ "trace_id": "uuid" }
+```
+
+**Response `429`** — quota exceeded (free tier limit reached):
+
+```json
+"quota exceeded"
 ```
 
 ---
@@ -625,6 +542,36 @@ Submit a user feedback signal (thumbs up/down) for a recorded trace.
 ```json
 { "ok": true }
 ```
+
+---
+
+### `POST /api/v1/retrieve-sdk`
+
+Semantic search over harvested knowledge chunks. Used internally by the `retrieve()` SDK method.
+
+**Request body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | yes | Natural-language query string |
+| `collection_name` | string | no | Ignored currently; searches all chunks for the deployment's inference |
+| `top_k` | integer | no | Number of results to return (default: 5, max: 20) |
+
+**Response `200`**
+
+```json
+{
+  "chunks": [
+    {
+      "content": "The High Priestess represents intuition and mystery...",
+      "score": 0.94,
+      "metadata": { "source": "https://en.wikipedia.org/wiki/Tarot" }
+    }
+  ]
+}
+```
+
+> **Note:** This endpoint embeds the query using `text-embedding-3-small` and performs pgvector cosine similarity search. Requires `OPENAI_API_KEY` to be set.
 
 ---
 
@@ -654,29 +601,10 @@ All error responses use `application/json` with a consistent shape.
 
 | HTTP Status | Meaning | Response body |
 |-------------|---------|---------------|
-| `401` | Missing or invalid credentials | `{"error": "Unauthorized"}` |
-| `403` | Authenticated but not the owner of the resource | `{"error": "Forbidden"}` |
-| `404` | Resource does not exist | `{"error": "Not found"}` |
-| `422` | Request body failed validation | `{"error": "...", "details": {...}}` |
-| `500` | Unexpected server error | `{"error": "Internal server error"}` |
-
-### Examples
-
-```json
-// 401 — no session cookie / invalid API key
-{"error": "Unauthorized"}
-
-// 403 — repo belongs to a different user
-{"error": "Forbidden"}
-
-// 404 — analysis ID does not exist
-{"error": "Not found"}
-
-// 422 — missing required field
-{
-  "error": "Validation failed",
-  "details": {
-    "repo_url": "Required"
-  }
-}
-```
+| `400` | Missing or invalid request body field | Plain text description |
+| `401` | Missing or invalid credentials | Plain text `"unauthorized"` |
+| `403` | Authenticated but not the owner of the resource | Plain text `"forbidden"` |
+| `404` | Resource does not exist | Plain text `"not found"` |
+| `409` | Conflict (e.g., generation not yet approved) | Plain text description |
+| `429` | Free-tier quota exceeded | Plain text `"quota exceeded"` |
+| `500` | Unexpected server error | Plain text or JSON |

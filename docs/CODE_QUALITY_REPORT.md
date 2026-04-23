@@ -455,3 +455,6 @@ _Audited by 6 independent analysis agents across 13 dimensions on 2026-04-24_
 | schema-chunks | Drizzle `schema.ts` missing `chunks` table | Added `chunks` table definition + `Chunk` type export |
 | schema-quota | Drizzle `schema.ts` missing `usage_quotas` table | Added `usage_quotas` table definition + `UsageQuota` type export |
 | i18n-SpanWaterfall | `SpanWaterfall.tsx` had 13 hardcoded Korean strings | Added `trace` group to `i18n.ts`; all strings replaced with `t("trace", ...)` calls |
+| SDK-TS-signatures | `SDK_TYPESCRIPT.md` all 4 method examples used wrong call signatures | Corrected: `chat({...})`, `retrieve({...})`, `feedback({traceId, score})` single-object; class name `VerumClient` not `Client`; `cacheTtlMs` (ms) not `cacheTtl` (s) |
+| API-md-phantom | `API.md` documented 4 non-existent endpoints (`GET/POST /api/v1/repos`, `DELETE /api/v1/repos/[id]`, `POST /api/v1/chat`) | Removed phantom endpoints; added correct deploy/quota/config/retrieve-sdk docs; auth section updated (cryptographic token, not UUID); fixed deploy response (`job_id` not `deployment_id`); fixed traces default limit (20 not 50) |
+| retrieve-sdk-missing | SDK `retrieve()` called `/api/v1/retrieve-sdk` which had no backend route | Created `apps/dashboard/src/app/api/v1/retrieve-sdk/route.ts` — API-key auth + OpenAI embedding + pgvector cosine search |
