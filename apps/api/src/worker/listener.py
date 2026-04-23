@@ -38,9 +38,9 @@ async def _listen_loop(dsn: str) -> None:
             await conn.add_listener("verum_jobs", _on_notify)
             logger.info("LISTEN/NOTIFY: listening on channel 'verum_jobs'")
 
-            # Keep alive; the loop's sleep is just to check for closure.
+            # Keep alive; short sleep to detect silent TCP disconnects quickly.
             while not conn.is_closed():
-                await asyncio.sleep(30)
+                await asyncio.sleep(5)
 
             await conn.close()
         except Exception as exc:
