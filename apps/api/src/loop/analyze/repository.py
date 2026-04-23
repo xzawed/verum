@@ -79,11 +79,8 @@ async def mark_analysis_error(
     analysis_id: uuid.UUID,
     error: str,
 ) -> None:
-    stmt = select(Analysis).where(Analysis.id == analysis_id)
-    row = (await db.execute(stmt)).scalar_one()
-    row.status = "error"
-    row.error = error[:1024]
-    await db.commit()
+    from src.db.error_helpers import mark_error
+    await mark_error(db, Analysis, analysis_id, error)
 
 
 async def get_analysis(
