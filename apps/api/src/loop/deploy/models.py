@@ -23,6 +23,16 @@ class Deployment(BaseModel):
     updated_at: datetime
 
 
+class DeploymentWithKey(Deployment):
+    """Extends Deployment with the raw API key returned once at creation time.
+
+    The raw api_key is never stored in the DB (only its sha256 hash is).
+    Surface this to the caller so they can copy it to their SDK config.
+    """
+
+    api_key: str
+
+
 class DeploymentConfigResponse(BaseModel):
     """Lightweight response for SDK polling."""
     deployment_id: str
