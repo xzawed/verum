@@ -80,7 +80,7 @@ async def save_chunks(
         await db.execute(
             text(
                 "UPDATE chunks SET embedding_vec = v.vec"
-                " FROM (VALUES " + ", ".join(value_placeholders) + ") AS v(id, vec)"
+                " FROM (VALUES " + ", ".join(value_placeholders) + ") AS v(id, vec)"  # nosec B608
                 " WHERE chunks.id = v.id"
             ),
             row_params,
@@ -122,9 +122,9 @@ async def vector_search(
     vec_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     result = await db.execute(
         text(
-            "SELECT id, content, 1 - (embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ")) AS score "
+            "SELECT id, content, 1 - (embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ")) AS score "  # nosec B608
             "FROM chunks WHERE inference_id = :inf_id AND embedding_vec IS NOT NULL "
-            "ORDER BY embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ") "
+            "ORDER BY embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ") "  # nosec B608
             "LIMIT :k"
         ),
         {"vec": vec_str, "inf_id": str(inference_id), "k": top_k},
