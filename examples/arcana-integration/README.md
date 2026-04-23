@@ -14,7 +14,7 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 # After
 import verum
-client = verum.Client(base_url=..., api_key=...)
+client = verum.Client(api_url=..., api_key=...)
 ```
 
 이후 모든 LLM 호출이 Verum을 통해 라우팅되며, A/B 테스트·트레이싱·자동 진화가 자동으로 활성화됩니다.
@@ -47,7 +47,7 @@ cp .env.example .env
 ```
 
 ```dotenv
-VERUM_BASE_URL=https://verum-production.up.railway.app
+VERUM_API_URL=https://verum-production.up.railway.app
 VERUM_API_KEY=vk_your_api_key_here
 VERUM_DEPLOYMENT_ID=dep_your_deployment_id_here
 
@@ -92,14 +92,15 @@ def read_tarot(question: str, cards: list[str]) -> str:
 import verum
 
 client = verum.Client(
-    base_url=os.environ["VERUM_BASE_URL"],
+    api_url=os.environ["VERUM_API_URL"],
     api_key=os.environ["VERUM_API_KEY"],
 )
 
 DEPLOYMENT_ID = os.environ["VERUM_DEPLOYMENT_ID"]
 
-def read_tarot(question: str, cards: list[str]) -> str:
-    result = client.chat(
+# verum.Client.chat() is async — use async def or asyncio.run()
+async def read_tarot(question: str, cards: list[str]) -> str:
+    result = await client.chat(
         messages=[
             {"role": "system", "content": _FALLBACK_SYSTEM},
             {"role": "user", "content": f"질문: {question}\n뽑힌 카드: {', '.join(cards)}"},
@@ -111,6 +112,8 @@ def read_tarot(question: str, cards: list[str]) -> str:
     )
     return result["messages"][-1]["content"]
 ```
+
+> **sync 환경(Flask, Django)에서 사용 시**: `asyncio.run(read_tarot(...))` 으로 래핑하거나, `asgiref`의 `async_to_sync`를 사용하세요.
 
 달라지는 것:
 - Verum이 생성한 프롬프트 변형(CoT, Few-shot 등)이 자동으로 적용됨
@@ -134,7 +137,7 @@ def read_tarot(question: str, cards: list[str]) -> str:
 
 ```python
 # 사용자가 좋아요/싫어요를 누를 때
-client.feedback(
+await client.feedback(
     trace_id=result["trace_id"],
     score=1,   # 1 = 긍정, -1 = 부정
 )

@@ -6,12 +6,13 @@ Changes from before.py:
 - A/B testing and prompt evolution happen automatically
 - All calls are traced: latency, cost, model, and user feedback
 """
+import asyncio
 import os
 
 import verum
 
 client = verum.Client(
-    base_url=os.environ["VERUM_BASE_URL"],
+    api_url=os.environ["VERUM_API_URL"],
     api_key=os.environ["VERUM_API_KEY"],
 )
 
@@ -24,7 +25,7 @@ _FALLBACK_SYSTEM = """당신은 신비로운 타로 카드 리더입니다.
 답변은 신비롭고 통찰력 있게, 그러나 따뜻하고 공감적으로 작성하세요."""
 
 
-def read_tarot(question: str, cards: list[str]) -> str:
+async def read_tarot(question: str, cards: list[str]) -> str:
     """Generate a tarot reading — now A/B tested and auto-evolved by Verum.
 
     Verum transparently routes this call to either the baseline prompt or an
@@ -45,7 +46,7 @@ def read_tarot(question: str, cards: list[str]) -> str:
         {"role": "user", "content": user_message},
     ]
 
-    result = client.chat(
+    result = await client.chat(
         messages,
         deployment_id=DEPLOYMENT_ID,
         provider="openai",
@@ -60,8 +61,8 @@ def read_tarot(question: str, cards: list[str]) -> str:
 
 
 if __name__ == "__main__":
-    reading = read_tarot(
+    reading = asyncio.run(read_tarot(
         question="올해 제 커리어는 어떻게 될까요?",
         cards=["The Star", "The Hermit", "Wheel of Fortune"],
-    )
+    ))
     print(reading)
