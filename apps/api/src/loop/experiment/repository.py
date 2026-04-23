@@ -1,0 +1,180 @@
+"""Database I/O for the EXPERIMENT stage."""
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+async def get_running_experiment(
+    db: AsyncSession,
+    deployment_id: uuid.UUID,
+) -> dict[str, Any] | None:
+    """Return the currently running experiment row for a deployment, or None."""
+    row = (
+        await db.execute(
+            text(
+                "SELECT * FROM experiments"
+                " WHERE deployment_id = :did AND status = 'running'"
+                " ORDER BY started_at DESC LIMIT 1"
+            ),
+            {"did": str(deployment_id)},
+        )
+    ).mappings().first()
+    return dict(row) if row else None
+
+
+async def get_all_running_experiments(db: AsyncSession) -> list[dict[str, Any]]:
+    """Return all running experiment rows across all deployments."""
+    rows = (
+        await db.execute(
+            text(
+                "SELECT e.* FROM experiments e"
+                " JOIN deployments d ON d.id = e.deployment_id"
+                " WHERE e.status = 'running' AND d.experiment_status = 'running'"
+            )
+        )
+    ).mappings().all()
+    return [dict(r) for r in rows]
+
+
+async def update_experiment_stats(
+    db: AsyncSession,
+    experiment_id: uuid.UUID,
+    baseline_wins: int,
+    baseline_n: int,
+    challenger_wins: int,
+    challenger_n: int,
+) -> None:
+    """Overwrite win counters with freshly aggregated values."""
+    await db.execute(
+        text(
+            "UPDATE experiments"
+            " SET baseline_wins = :bw, baseline_n = :bn,"
+            "     challenger_wins = :cw, challenger_n = :cn"
+            " WHERE id = :eid"
+        ),
+        {
+            "bw": baseline_wins,
+            "bn": baseline_n,
+            "cw": challenger_wins,
+            "cn": challenger_n,
+            "eid": str(experiment_id),
+        },
+    )
+    await db.commit()
+
+
+async def aggregate_variant_wins(
+    db: AsyncSession,
+    deployment_id: uuid.UUID,
+    baseline_variant: str,
+    challenger_variant: str,
+    win_threshold: float,
+) -> tuple[int, int, int, int]:
+    """Count binary wins (winner_score > win_threshold) per variant.
+
+    winner_score = judge_score - 0.1 * (cost_usd / max_cost_in_window).
+    Traces with NULL judge_score are excluded.
+
+    Returns (baseline_wins, baseline_n, challenger_wins, challenger_n).
+    """
+    max_cost_row = (
+        await db.execute(
+            text(
+                "SELECT COALESCE(MAX(s.cost_usd), 0) AS max_cost"
+                " FROM traces t JOIN spans s ON s.trace_id = t.id"
+                " WHERE t.deployment_id = :did AND t.created_at >= now() - interval '7 days'"
+            ),
+            {"did": str(deployment_id)},
+        )
+    ).mappings().first()
+    max_cost = float(max_cost_row["max_cost"]) if max_cost_row else 0.0
+
+    rows = (
+        await db.execute(
+            text(
+                "SELECT t.variant,"
+                "  COUNT(*) FILTER (WHERE t.judge_score IS NOT NULL) AS n,"
+                "  COUNT(*) FILTER ("
+                "    WHERE t.judge_score IS NOT NULL"
+                "    AND ("
+                "      t.judge_score - 0.1 * CASE WHEN :max_cost > 0"
+                "        THEN COALESCE(s.cost_usd, 0)::float / :max_cost ELSE 0 END"
+                "    ) > :threshold"
+                "  ) AS wins"
+                " FROM traces t"
+                " LEFT JOIN spans s ON s.trace_id = t.id"
+                " WHERE t.deployment_id = :did"
+                "   AND t.variant IN (:bv, :cv)"
+                " GROUP BY t.variant"
+            ),
+            {
+                "did": str(deployment_id),
+                "bv": baseline_variant,
+                "cv": challenger_variant,
+                "max_cost": max_cost,
+                "threshold": win_threshold,
+            },
+        )
+    ).mappings().all()
+
+    stats: dict[str, dict[str, int]] = {
+        baseline_variant: {"wins": 0, "n": 0},
+        challenger_variant: {"wins": 0, "n": 0},
+    }
+    for row in rows:
+        if row["variant"] in stats:
+            stats[row["variant"]] = {"wins": int(row["wins"]), "n": int(row["n"])}
+
+    return (
+        stats[baseline_variant]["wins"],
+        stats[baseline_variant]["n"],
+        stats[challenger_variant]["wins"],
+        stats[challenger_variant]["n"],
+    )
+
+
+async def insert_experiment(
+    db: AsyncSession,
+    deployment_id: uuid.UUID,
+    baseline_variant: str,
+    challenger_variant: str,
+) -> dict[str, Any]:
+    """Insert a new running experiment and return the row."""
+    row = (
+        await db.execute(
+            text(
+                "INSERT INTO experiments (deployment_id, baseline_variant, challenger_variant, status)"
+                " VALUES (:did, :bv, :cv, 'running')"
+                " RETURNING *"
+            ),
+            {"did": str(deployment_id), "bv": baseline_variant, "cv": challenger_variant},
+        )
+    ).mappings().first()
+    await db.commit()
+    if row is None:
+        raise RuntimeError(
+            f"insert_experiment: INSERT returned no row for deployment_id={deployment_id}"
+        )
+    return dict(row)
+
+
+async def mark_experiment_converged(
+    db: AsyncSession,
+    experiment_id: uuid.UUID,
+    winner_variant: str,
+    confidence: float,
+) -> None:
+    await db.execute(
+        text(
+            "UPDATE experiments"
+            " SET status = 'converged', winner_variant = :wv, confidence = :conf,"
+            "     converged_at = now()"
+            " WHERE id = :eid"
+        ),
+        {"wv": winner_variant, "conf": confidence, "eid": str(experiment_id)},
+    )
+    await db.commit()
