@@ -2,13 +2,12 @@
 """GENERATE engine — 3 Claude Sonnet calls: variants → RAG config → eval pairs."""
 from __future__ import annotations
 
-import json
-import re
 import uuid
 from typing import Any
 
 import src.config as cfg
 from src.loop.llm_client import call_claude
+from src.loop.utils import parse_json_response
 from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
 
@@ -16,11 +15,7 @@ _SYSTEM = "You are an expert prompt engineer and AI quality specialist. Respond 
 
 
 def _parse_json(text: str) -> Any:
-    """Strip optional markdown fences and parse JSON."""
-    text = text.strip()
-    text = re.sub(r"^```(?:json)?\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
-    return json.loads(text.strip())
+    return parse_json_response(text)
 
 
 def _best_prompt(templates: list[dict[str, Any]]) -> str:

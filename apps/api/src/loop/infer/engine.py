@@ -1,12 +1,11 @@
 """INFER engine — calls Claude Sonnet to classify a service's domain and purpose."""
 from __future__ import annotations
 
-import json
-import re
 import uuid
 
 import src.config as cfg
 from src.loop.llm_client import call_claude
+from src.loop.utils import parse_json_response
 from src.loop.analyze.models import AnalysisResult
 from .models import DOMAIN_TAXONOMY, LANGUAGE_OPTIONS, TONE_OPTIONS, USER_TYPE_OPTIONS
 from .models import ServiceInference, SuggestedSource
@@ -110,10 +109,7 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
         temperature=0.2,
     )
 
-    raw_text = re.sub(r"^```(?:json)?\s*\n?", "", raw_text.strip(), flags=re.MULTILINE)
-    raw_text = re.sub(r"\n?```\s*$", "", raw_text, flags=re.MULTILINE).strip()
-
-    parsed: dict[str, object] = json.loads(raw_text)
+    parsed: dict[str, object] = parse_json_response(raw_text)
 
     # Validate and clamp domain to taxonomy
     domain = parsed.get("domain", "other")
