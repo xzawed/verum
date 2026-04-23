@@ -27,7 +27,7 @@ dependencies = [
     # INFER + HARVEST — AI + crawling
     "anthropic>=0.49",
     "httpx>=0.27",
-    "trafilatura>=1.12",
+    "trafilatura>=2.0.0",
     "playwright>=1.49",
     # EXPERIMENT — Bayesian A/B scoring
     "scipy>=1.13",
