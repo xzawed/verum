@@ -45,6 +45,31 @@ Template: copy the section below, fill in the date and metrics.
 
 <!-- Past weeks below — newest first -->
 
+## 2026-04-23 — Phase 4-B Completion (EXPERIMENT + EVOLVE shipped)
+
+### F-4.11 ArcanaInsight Auto-Evolution Tracking
+
+Phase 4-B 코드가 main에 머지됐다. F-4.11 완료 게이트를 위해 아래 항목을 xzawed가 채워야 한다.
+
+**완료 조건:**
+- [ ] Railway 마이그레이션 `0010_phase4b_experiment_evolve` 프로덕션 적용 확인
+- [ ] ArcanaInsight baseline(`original`) 콜 ≥ 100 누적 (judge_score 있는 것)
+- [ ] ArcanaInsight challenger(`cot`) 콜 ≥ 100 누적
+- [ ] confidence ≥ 0.95 수렴 → EVOLVE 잡 자동 실행 확인
+- [ ] before/after judge_score delta 기록 (아래 표)
+
+**Before/After 메트릭 (수렴 후 xzawed 기입):**
+
+| 지표 | original (before) | {winner} (after) | delta |
+|------|------------------|-----------------|-------|
+| avg judge_score | — | — | — |
+| avg cost_usd | $— | $— | — |
+| avg winner_score | — | — | — |
+| convergence confidence | — | — | — |
+| round (1~4) | — | — | — |
+
+---
+
 ## 2026-04-22 — Phase 1 Completion
 
 ### ArcanaInsight ANALYZE Validation (F-1.4)

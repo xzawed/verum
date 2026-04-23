@@ -430,89 +430,129 @@ Persisted `traces`, `spans`, `judge_prompts` rows; aggregated metrics via `GET /
 ## 9. Stage [7] EXPERIMENT
 
 **Module:** `apps/api/src/loop/experiment/`
-**Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
-**Status:** 🔲 Not yet implemented
+**Ships in:** [Phase 4-B](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
+**Status:** ✅ Implemented (Phase 4-B, 2026-04-23)
 
 ### Purpose
 
-Automatically compare multiple deployed variants (prompts, RAG configs, model versions) using statistical significance testing. Report winner candidates to EVOLVE.
+Automatically compare the 5 generated prompt variants via sequential pairwise Bayesian A/B experiments. Each round pits the current baseline against the next challenger. Report winner to EVOLVE on convergence.
 
-### Inputs
+### Structure
 
-| Field | Type | Description |
-|---|---|---|
-| `deployment_ids` | `list[UUID]` | Active deployments to compare |
-| `evaluation_metric` | `str` | Primary metric: `"satisfaction"` / `"ragas_faithfulness"` / `"cost_per_call"` |
-| `stopping_rule` | `str` | `"bayesian"` (default) / `"fixed_horizon"` |
+Sequential pairwise: 4 rounds in fixed order.
+
+```
+Round 1: original vs cot
+Round 2: {round-1 winner} vs few_shot
+Round 3: {round-2 winner} vs role_play
+Round 4: {round-3 winner} vs concise
+```
+
+### Scoring
+
+```python
+winner_score = judge_score - 0.1 * (cost_usd / max_cost_in_window)
+win = 1 if winner_score > 0.6 else 0   # binary
+```
+
+`max_cost_in_window` = MAX per-trace total cost across all deployment traces in last 7 days.
+
+### Bayesian Model
+
+Beta-Bernoulli with uniform prior. Posterior = `Beta(1 + wins, 1 + losses)`.
+Confidence = `P(challenger_score > baseline_score)` estimated via 10,000 Monte Carlo samples.
+
+Convergence conditions (both required):
+- `baseline_n ≥ 100 AND challenger_n ≥ 100`
+- `confidence ≥ 0.95` (challenger wins) OR `confidence ≤ 0.05` (baseline holds)
 
 ### Outputs — `ExperimentResult`
 
 | Field | Type | Description |
 |---|---|---|
-| `experiment_id` | `UUID` | Stable identifier |
-| `winner_deployment_id` | `UUID \| None` | None if no significant winner yet |
-| `confidence` | `float` | Bayesian posterior probability |
-| `sample_counts` | `dict[str, int]` | Calls per variant |
-| `metric_summary` | `dict[str, float]` | Mean metric per variant |
+| `experiment_id` | `UUID` | DB row identifier |
+| `deployment_id` | `UUID` | Owning deployment |
+| `baseline` | `VariantStats` | wins, n, win_rate |
+| `challenger` | `VariantStats` | wins, n, win_rate |
+| `confidence` | `float` | P(challenger > baseline) |
+| `converged` | `bool` | True when both conditions met |
+| `winner_variant` | `str \| None` | Set on convergence |
 
-### Algorithm
+### Trigger
 
-1. Poll OBSERVE metrics for all `deployment_ids` every 15 minutes.
-2. Apply Bayesian A/B stopping criterion (default): compute posterior probability that variant A outperforms variant B.
-3. If `confidence ≥ 0.95`, mark `winner_deployment_id` and surface to EVOLVE.
-4. If `confidence < 0.95` after 1,000 calls per variant, surface inconclusive result; ask user how to proceed.
+`_experiment_loop()` runs every 300 seconds as an asyncio background task in `runner.py`. On convergence it enqueues an `evolve` job with idempotency guard (`WHERE NOT EXISTS`).
+
+### Key Files
+
+| File | Purpose |
+|---|---|
+| `apps/api/src/loop/experiment/engine.py` | `compute_winner_score`, `bayesian_confidence`, `check_experiment` |
+| `apps/api/src/loop/experiment/models.py` | `VariantStats`, `ExperimentResult` Pydantic models |
+| `apps/api/src/loop/experiment/repository.py` | `aggregate_variant_wins` (subquery per-trace cost), `insert_experiment` |
+| `apps/api/src/worker/runner.py` | `_experiment_loop()` — 5-minute background task |
+| `apps/dashboard/src/app/repos/[id]/ExperimentSection.tsx` | Dashboard UI (5s poll, Bayesian bar) |
 
 ### Completion Criteria
 
-**Given** ≥2 active deployments with ≥100 calls each,
-**when** EXPERIMENT runs,
-**then** an `ExperimentResult` is produced with `confidence` ≥ 0.0 and `sample_counts` accurately reflecting actual call volumes.
+**Given** a deployment with `experiment_status = "running"` and both variants have ≥ 100 traced calls with `judge_score` non-null,
+**when** `_experiment_loop` fires,
+**then** `bayesian_confidence` converges and an `evolve` job is enqueued automatically.
 
 ---
 
 ## 10. Stage [8] EVOLVE
 
 **Module:** `apps/api/src/loop/evolve/`
-**Ships in:** [Phase 4](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
-**Status:** 🔲 Not yet implemented
+**Ships in:** [Phase 4-B](ROADMAP.md#phase-4-observe--experiment--evolve-week-14-18)
+**Status:** ✅ Implemented (Phase 4-B, 2026-04-23)
 
 ### Purpose
 
-Promote the winning variant to `status = "full"`, archive losing variants, update the canonical prompt/RAG config in `generated_assets`, and trigger the next loop cycle.
+On experiment convergence: record the winner, update the baseline, and either start the next round or complete the deployment at 100% traffic. No manual intervention required.
 
-### Inputs
-
-| Field | Type | Description |
-|---|---|---|
-| `experiment_id` | `UUID` | Completed `ExperimentResult` with a winner |
-
-### Outputs — `Evolution`
+### Inputs (EVOLVE job payload)
 
 | Field | Type | Description |
 |---|---|---|
-| `evolution_id` | `UUID` | Stable identifier |
-| `promoted_deployment_id` | `UUID` | The winner, now at 100% traffic |
-| `archived_deployment_ids` | `list[UUID]` | Losers, set to `"archived"` |
-| `next_cycle_triggered` | `bool` | Whether ANALYZE was re-queued |
+| `experiment_id` | `str` | Converged experiment row UUID |
+| `deployment_id` | `str` | Owning deployment UUID |
+| `winner_variant` | `str` | `"original"` / `"cot"` / `"few_shot"` / `"role_play"` / `"concise"` |
+| `confidence` | `float` | Bayesian confidence at convergence |
+| `current_challenger` | `str` | Used to determine next challenger |
 
-### Algorithm
+### State Transitions
 
-1. Verify `ExperimentResult.confidence ≥ 0.95` and `winner_deployment_id` is set.
-2. Set winner's `Deployment.status = "full"`, `traffic_split = {"winner": 1.0}`.
-3. Set all losers' `Deployment.status = "archived"`.
-4. Copy winning `PromptVariant` into the service's canonical slot in `generated_assets`.
-5. Optionally enqueue a new ANALYZE job for the next cycle.
-6. Persist `Evolution` to `evolutions` table.
+```
+EVOLVE job runs:
+  → experiments: status="converged", winner_variant, confidence, converged_at
+  → deployments: current_baseline_variant = winner_variant
+
+If next challenger exists:
+  → INSERT experiments(baseline=winner, challenger=next, status="running")
+  → deployments: traffic_split = {winner: 0.9, next: 0.1}
+
+If no more challengers (all 4 rounds done):
+  → deployments: traffic_split = {winner: 1.0}
+  → deployments: experiment_status = "completed"
+```
+
+### Key Files
+
+| File | Purpose |
+|---|---|
+| `apps/api/src/loop/evolve/engine.py` | `promote_winner`, `next_challenger`, `start_next_challenger`, `complete_deployment` |
+| `apps/api/src/loop/evolve/repository.py` | `update_deployment_baseline`, `update_traffic_split`, `set_experiment_status` |
+| `apps/api/src/worker/handlers/evolve.py` | `handle_evolve` — EVOLVE job handler |
 
 ### Completion Criteria
 
-**Given** a completed `ExperimentResult` with `confidence ≥ 0.95`,
-**when** EVOLVE runs,
-**then** the winner deployment reaches 100% traffic, losers are archived, and the winning prompt is the new canonical.
+**Given** a converged `experiment` row with `confidence ≥ 0.95` and `winner_variant` set,
+**when** the `evolve` job runs,
+**then** `traffic_split` is updated atomically (next round or 100% winner) and no manual action is required from the service owner.
 
 ### ArcanaInsight Dogfood Example
 
-If the Chain-of-Thought variant wins with confidence 0.97, EVOLVE promotes it, archives the original, and ArcanaInsight's tarot reads now always use the Chain-of-Thought prompt — with no manual intervention from xzawed.
+If the Chain-of-Thought variant wins round 1 with confidence 0.97, EVOLVE promotes it to baseline, starts round 2 (`cot` vs `few_shot` at 90/10 split), and ArcanaInsight routes traffic accordingly — all within 5 minutes of the experiment converging.
 
 ---
 
@@ -525,9 +565,9 @@ All loop stages are executed by the Python worker child process via the `verum_j
 | Column | Description |
 |---|---|
 | `id` | UUID PK |
-| `type` | `"analyze"` / `"infer"` / `"harvest"` / `"generate"` |
+| `kind` | `"analyze"` / `"infer"` / `"harvest"` / `"retrieve"` / `"generate"` / `"deploy"` / `"judge"` / `"evolve"` |
 | `payload` | JSONB — stage-specific input |
-| `status` | `"pending"` / `"running"` / `"done"` / `"error"` |
+| `status` | `"queued"` / `"running"` / `"done"` / `"failed"` |
 | `error` | Error message if status=`"error"` |
 | `created_at` | UTC timestamp |
 
@@ -543,6 +583,8 @@ Stages are chained automatically by the worker handlers:
 - ANALYZE → INFER: triggered on `analyze` job completion
 - INFER → HARVEST: triggered on `infer` job completion (confidence ≥ 0.4)
 - HARVEST → GENERATE: triggered on `harvest` job completion
+- DEPLOY → EXPERIMENT: triggered on `deploy` job completion (inserts first experiment row + sets `experiment_status = "running"`)
+- EXPERIMENT → EVOLVE: triggered by `_experiment_loop()` background task (every 300s) when convergence is detected — enqueues `evolve` job with idempotency guard
 
 Each stage enqueues the next via `INSERT INTO verum_jobs` inside the same transaction as its own result write. If the result write fails, the next job is not enqueued.
 
