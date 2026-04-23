@@ -36,6 +36,10 @@ engine = create_async_engine(
     _FINAL_URL,
     echo=False,
     pool_pre_ping=True,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "20")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "40")),
+    pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "1800")),
+    pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "30")),
 )
 
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
