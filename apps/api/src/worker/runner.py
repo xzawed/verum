@@ -220,16 +220,24 @@ async def run_loop() -> None:
     asyncio.create_task(_experiment_loop())
     logger.info("Experiment loop started (interval=%ds)", EXPERIMENT_INTERVAL)
 
+    from src.worker.listener import get_wake_event, start_listener
+    await start_listener()
+    logger.info("LISTEN/NOTIFY listener started")
+    _wake_event = get_wake_event()
+
     while True:
         try:
             async with AsyncSessionLocal() as db:
                 job = await _claim_one(db)
 
             if job is None:
-                # No jobs available; short sleep before checking again.
-                # LISTEN/NOTIFY would be cleaner but requires a persistent connection.
-                # For simplicity, polling every 2 s keeps latency low without tight loop.
-                await asyncio.sleep(2)
+                # Wait for NOTIFY wake (fired by trigger on verum_jobs INSERT)
+                # or fall back to 1s timeout to catch jobs from other sources.
+                try:
+                    await asyncio.wait_for(_wake_event.wait(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    pass
+                _wake_event.clear()
                 continue
 
             job_id: uuid.UUID = job["id"]
