@@ -71,13 +71,24 @@ async def save_chunks(
             metadata_={"source_id": str(source_id), "chunk_index": idx},
         ))
 
-    # Single flush for all INSERTs, then one batch UPDATE for embedding_vec
     await db.flush()
-    for cid, embedding in zip(chunk_ids, embeddings):
-        vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    if chunk_ids:
+        row_params: dict[str, str] = {}
+        value_placeholders: list[str] = []
+        for i, (cid, emb) in enumerate(zip(chunk_ids, embeddings)):
+            id_key = f"id{i}"
+            vec_key = f"vec{i}"
+            row_params[id_key] = str(cid)
+            row_params[vec_key] = "[" + ",".join(str(v) for v in emb) + "]"
+            value_placeholders.append(f"(:{id_key}::uuid, :{vec_key}::vector({EMBEDDING_DIM}))")
+
         await db.execute(
-            text("UPDATE chunks SET embedding_vec = :vec WHERE id = :id"),
-            {"vec": vec_str, "id": str(cid)},
+            text(
+                "UPDATE chunks SET embedding_vec = v.vec"
+                " FROM (VALUES " + ", ".join(value_placeholders) + ") AS v(id, vec)"
+                " WHERE chunks.id = v.id"
+            ),
+            row_params,
         )
 
     await db.commit()
