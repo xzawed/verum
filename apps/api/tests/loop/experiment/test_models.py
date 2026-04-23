@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 
 import pytest
 from src.loop.experiment.models import ExperimentResult, VariantStats
