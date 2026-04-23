@@ -11,10 +11,11 @@ export async function POST(req: Request) {
     return new Response("score must be 1 or -1", { status: 400 });
   }
 
-  const deploymentId = await validateApiKey(apiKey);
-  if (!deploymentId) {
+  const auth_result = await validateApiKey(apiKey);
+  if (!auth_result) {
     return new Response("unauthorized", { status: 401 });
   }
+  const { deploymentId } = auth_result;
 
   const ok = await updateFeedback(deploymentId, body.trace_id, body.score);
   if (!ok) return new Response("not found", { status: 404 });

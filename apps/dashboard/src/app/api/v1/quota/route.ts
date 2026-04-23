@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 
 const FREE_LIMITS = {
@@ -28,7 +28,7 @@ export async function GET() {
         LIMIT 1`
   );
 
-  const quota = rows[0] as
+  const quota = rows.rows[0] as
     | { traces_used: number; chunks_stored: number; repos_connected: number; plan: string }
     | undefined;
 

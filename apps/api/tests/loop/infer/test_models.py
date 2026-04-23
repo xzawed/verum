@@ -110,16 +110,10 @@ async def test_run_infer_uses_passed_analysis_id(sample_analysis: AnalysisResult
     expected_analysis_id = uuid.uuid4()
     assert expected_analysis_id != sample_analysis.repo_id
 
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock(text='{"domain": "divination/tarot", "tone": "mystical", "language": "ko", "user_type": "consumer", "confidence": 0.9, "summary": "A tarot service."}')]
+    json_resp = '{"domain": "divination/tarot", "tone": "mystical", "language": "ko", "user_type": "consumer", "confidence": 0.9, "summary": "A tarot service."}'
 
-    with patch("src.loop.infer.engine.anthropic.AsyncAnthropic") as mock_cls:
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-        mock_client.messages.create = AsyncMock(return_value=mock_message)
-
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
-            result = await run_infer(sample_analysis, analysis_id=expected_analysis_id)
+    with patch("src.loop.infer.engine.call_claude", new_callable=AsyncMock, return_value=json_resp):
+        result = await run_infer(sample_analysis, analysis_id=expected_analysis_id)
 
     assert result.analysis_id == expected_analysis_id
     assert result.repo_id == sample_analysis.repo_id

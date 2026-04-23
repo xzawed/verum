@@ -11,10 +11,13 @@ import logging
 import uuid
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.loop.email import send_quota_warning_email
 from src.loop.generate.repository import create_pending_generation
 from src.loop.harvest.pipeline import harvest_source
+from src.loop.quota import FREE_LIMITS, QuotaExceededError, get_or_create_quota, increment_quota
 from src.worker.chain import enqueue_next
 
 logger = logging.getLogger(__name__)
@@ -58,6 +61,21 @@ async def handle_harvest(
             f"sources succeeded, {total_chunks} chunks total — GENERATE skipped"
         )
 
+    # Quota enforcement (free tier)
+    quota = await get_or_create_quota(db, owner_user_id)  # commits quota upsert
+    if quota["plan"] == "free":
+        if quota["chunks_stored"] + total_chunks > FREE_LIMITS["chunks"]:
+            raise QuotaExceededError("chunks", quota["chunks_stored"], FREE_LIMITS["chunks"])
+        pct = (quota["chunks_stored"] + total_chunks) / FREE_LIMITS["chunks"]
+        if pct >= 0.8:
+            user_row = await db.execute(
+                text("SELECT email FROM users WHERE id = :uid"),
+                {"uid": str(owner_user_id)},
+            )
+            user = user_row.mappings().first()
+            if user and user["email"]:
+                send_quota_warning_email(user["email"], "chunks", pct)
+
     # Chain HARVEST → GENERATE
     generation_id = uuid.uuid4()
     # create_pending_generation flushes and commits the generation row
@@ -69,6 +87,8 @@ async def handle_harvest(
         payload={"inference_id": str(inference_id), "generation_id": str(generation_id)},
         owner_user_id=owner_user_id,
     )
+    # Increment after successful chain — committed with the job enqueue
+    await increment_quota(db, owner_user_id, chunks=total_chunks)
     await db.commit()
 
     logger.info(

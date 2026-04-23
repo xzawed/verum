@@ -1,14 +1,11 @@
 """INFER engine — calls Claude Sonnet to classify a service's domain and purpose."""
 from __future__ import annotations
 
-import json
-import os
-import re
 import uuid
 
-import anthropic
-
 import src.config as cfg
+from src.loop.llm_client import call_claude
+from src.loop.utils import parse_json_response
 from src.loop.analyze.models import AnalysisResult
 from .models import DOMAIN_TAXONOMY, LANGUAGE_OPTIONS, TONE_OPTIONS, USER_TYPE_OPTIONS
 from .models import ServiceInference, SuggestedSource
@@ -104,29 +101,15 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
         RuntimeError: if ANTHROPIC_API_KEY is not set.
         anthropic.APIError: on Anthropic API failure.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set")
-
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-
-    message = await client.messages.create(
-        model=cfg.INFER_MODEL,
-        max_tokens=cfg.INFER_MAX_TOKENS,
+    raw_text = await call_claude(
+        cfg.INFER_MODEL,
+        cfg.INFER_MAX_TOKENS,
+        _build_user_message(result),
         system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _build_user_message(result)}],
+        temperature=0.2,
     )
 
-    raw_text = next(
-        (block.text for block in message.content if hasattr(block, "text")),
-        "{}",
-    )
-
-    # Strip markdown code fences if present
-    raw_text = re.sub(r"^```(?:json)?\s*\n?", "", raw_text.strip(), flags=re.MULTILINE)
-    raw_text = re.sub(r"\n?```\s*$", "", raw_text, flags=re.MULTILINE).strip()
-
-    parsed: dict[str, object] = json.loads(raw_text)
+    parsed: dict[str, object] = parse_json_response(raw_text)
 
     # Validate and clamp domain to taxonomy
     domain = parsed.get("domain", "other")

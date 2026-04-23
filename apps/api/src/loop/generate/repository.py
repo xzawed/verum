@@ -100,14 +100,8 @@ async def mark_generate_error(
     generation_id: uuid.UUID,
     error: str,
 ) -> None:
-    stmt = select(Generation).where(Generation.id == generation_id)
-    row = (await db.execute(stmt)).scalar_one_or_none()
-    if row is None:
-        _logger.warning("mark_generate_error: generation %s not found, skipping", generation_id)
-        return
-    row.status = "error"
-    row.error = error[:1024]
-    await db.commit()
+    from src.db.error_helpers import mark_error
+    await mark_error(db, Generation, generation_id, error)
 
 
 async def get_generation_summary(

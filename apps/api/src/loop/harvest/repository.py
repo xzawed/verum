@@ -42,12 +42,8 @@ async def mark_source_done(db: AsyncSession, source_id: uuid.UUID, chunks_count:
 
 
 async def mark_source_error(db: AsyncSession, source_id: uuid.UUID, error: str) -> None:
-    await db.execute(
-        update(HarvestSource)
-        .where(HarvestSource.id == source_id)
-        .values(status="error", error=error[:1024])
-    )
-    await db.commit()
+    from src.db.error_helpers import mark_error
+    await mark_error(db, HarvestSource, source_id, error)
 
 
 async def save_chunks(
@@ -67,7 +63,6 @@ async def save_chunks(
             inference_id=inference_id,
             content=text_content,
             chunk_index=idx,
-            embedding=embedding,
             metadata_={"source_id": str(source_id), "chunk_index": idx},
         ))
 

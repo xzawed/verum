@@ -66,11 +66,8 @@ async def mark_inference_error(
     inference_id: uuid.UUID,
     error: str,
 ) -> None:
-    stmt = select(Inference).where(Inference.id == inference_id)
-    row = (await db.execute(stmt)).scalar_one()
-    row.status = "error"
-    row.error = error[:1024]
-    await db.commit()
+    from src.db.error_helpers import mark_error
+    await mark_error(db, Inference, inference_id, error)
 
 
 async def get_inference(

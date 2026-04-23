@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
 import { validateApiKey } from "@/lib/api/validateApiKey";
+import { checkAndIncrementTraceQuota, FREE_LIMITS } from "@/lib/db/quota";
 
 // POST — SDK-facing: API key auth via X-Verum-API-Key header
 export async function POST(req: Request) {
@@ -22,9 +23,21 @@ export async function POST(req: Request) {
     return new Response("bad request", { status: 400 });
   }
 
-  const deploymentId = await validateApiKey(apiKey);
-  if (!deploymentId) {
+  const auth_result = await validateApiKey(apiKey);
+  if (!auth_result) {
     return new Response("unauthorized", { status: 401 });
+  }
+  const { deploymentId, userId } = auth_result;
+
+  const quotaResult = await checkAndIncrementTraceQuota(userId);
+  if (quotaResult.status === "exceeded") {
+    return new Response("quota exceeded", { status: 429 });
+  }
+  if (quotaResult.status === "warning") {
+    const pct = Math.round((quotaResult.tracesUsed / FREE_LIMITS.traces) * 100);
+    console.warn(
+      `[QUOTA WARNING] user ${userId}: traces at ${quotaResult.tracesUsed}/${FREE_LIMITS.traces} (${pct}%) — configure SMTP_URL for email delivery`
+    );
   }
 
   // Calculate cost
