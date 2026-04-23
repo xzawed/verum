@@ -1,11 +1,9 @@
-import { auth } from "@/auth";
 import { enqueueInfer } from "@/lib/db/jobs";
 import { getAnalysis } from "@/lib/db/queries";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return new Response("unauthorized", { status: 401 });
-  const uid = String((session.user as Record<string, unknown>).id ?? "");
+  const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
 
   const body = await req.json() as { analysis_id: string; repo_id: string };
