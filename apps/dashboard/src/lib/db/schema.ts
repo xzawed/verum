@@ -253,6 +253,27 @@ export const usage_quotas = pgTable("usage_quotas", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const sdk_pr_requests = pgTable("sdk_pr_requests", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  repo_id: uuid("repo_id")
+    .notNull()
+    .references(() => repos.id, { onDelete: "cascade" }),
+  owner_user_id: uuid("owner_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  analysis_id: uuid("analysis_id")
+    .notNull()
+    .references(() => analyses.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 32 }).notNull().default("pending"),
+  pr_url: text("pr_url"),
+  pr_number: integer("pr_number"),
+  branch_name: varchar("branch_name", { length: 255 }),
+  files_changed: integer("files_changed").notNull().default(0),
+  error: text("error"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Experiment = typeof experiments.$inferSelect;
 
 export type User = typeof users.$inferSelect;
@@ -272,3 +293,4 @@ export type Span = typeof spans.$inferSelect;
 export type JudgePrompt = typeof judge_prompts.$inferSelect;
 export type Chunk = typeof chunks.$inferSelect;
 export type UsageQuota = typeof usage_quotas.$inferSelect;
+export type SdkPrRequest = typeof sdk_pr_requests.$inferSelect;
