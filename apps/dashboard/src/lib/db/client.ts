@@ -4,13 +4,28 @@ import * as schema from "./schema";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
+/**
+ * Validate DATABASE_URL on module load.
+ *
+ * Throws immediately if DATABASE_URL is not set in any environment.
+ * This prevents misconfigured deployments from silently using insecure
+ * hardcoded credentials.
+ */
+const dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+  throw new Error(
+    "DATABASE_URL environment variable is required. " +
+    "Set it to a valid PostgreSQL connection string before starting the application."
+  );
+}
+
 function getDb() {
   if (!_db) {
     const pool = new Pool({
-      connectionString: process.env.DATABASE_URL ?? "postgresql://verum:verum@localhost:5432/verum",
+      connectionString: dbUrl,
       ssl:
         process.env.NODE_ENV === "production"
-          ? { rejectUnauthorized: false }
+          ? true
           : false,
     });
     _db = drizzle(pool, { schema });
