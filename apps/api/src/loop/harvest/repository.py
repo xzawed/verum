@@ -75,7 +75,7 @@ async def save_chunks(
             vec_key = f"vec{i}"
             row_params[id_key] = str(cid)
             row_params[vec_key] = "[" + ",".join(str(v) for v in emb) + "]"
-            value_placeholders.append(f"(:{id_key}::uuid, :{vec_key}::vector({EMBEDDING_DIM}))")
+            value_placeholders.append(f"(cast(:{id_key} as uuid), cast(:{vec_key} as vector({EMBEDDING_DIM})))")
 
         await db.execute(
             text(
@@ -122,9 +122,9 @@ async def vector_search(
     vec_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     result = await db.execute(
         text(
-            "SELECT id, content, 1 - (embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ")) AS score "  # nosec B608
+            "SELECT id, content, 1 - (embedding_vec <=> cast(:vec as vector(" + str(EMBEDDING_DIM) + "))) AS score "  # nosec B608
             "FROM chunks WHERE inference_id = :inf_id AND embedding_vec IS NOT NULL "
-            "ORDER BY embedding_vec <=> :vec::vector(" + str(EMBEDDING_DIM) + ") "  # nosec B608
+            "ORDER BY embedding_vec <=> cast(:vec as vector(" + str(EMBEDDING_DIM) + ")) "  # nosec B608
             "LIMIT :k"
         ),
         {"vec": vec_str, "inf_id": str(inference_id), "k": top_k},
