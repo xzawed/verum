@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
+import { validateApiKey } from "@/lib/api/validateApiKey";
 
 // POST — SDK-facing: API key auth via X-Verum-API-Key header
 export async function POST(req: Request) {
@@ -17,12 +18,12 @@ export async function POST(req: Request) {
     error?: string | null;
   };
 
-  if (!body.deployment_id || !body.model) {
+  if (!body.model) {
     return new Response("bad request", { status: 400 });
   }
 
-  // API key is the deployment_id (simple auth for Phase 4-A)
-  if (apiKey !== body.deployment_id) {
+  const deploymentId = await validateApiKey(apiKey);
+  if (!deploymentId) {
     return new Response("unauthorized", { status: 401 });
   }
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
 
   try {
     const traceId = await insertTrace({
-      deploymentId: body.deployment_id,
+      deploymentId,
       variant: body.variant ?? "baseline",
       model: body.model,
       inputTokens: body.input_tokens,

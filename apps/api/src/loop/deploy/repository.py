@@ -1,7 +1,9 @@
 """Database I/O for the DEPLOY stage."""
 from __future__ import annotations
 
+import hashlib
 import json
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -9,27 +11,45 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.loop.deploy.engine import compute_traffic_split
-from src.loop.deploy.models import Deployment
+from src.loop.deploy.models import Deployment, DeploymentWithKey
 
 
 async def create_deployment(
     db: AsyncSession,
     generation_id: uuid.UUID,
     variant_fraction: float = 0.10,
-) -> Deployment:
+) -> DeploymentWithKey:
+    """Create a new deployment and return it with a one-time raw API key.
+
+    The raw token is returned in DeploymentWithKey.api_key and must be
+    surfaced to the caller immediately — it is never stored in the DB.
+    Only the sha256 hash is persisted in the api_key_hash column.
+
+    Args:
+        db: Async SQLAlchemy session.
+        generation_id: UUID of the generation to deploy.
+        variant_fraction: Fraction of traffic routed to the variant (0–1).
+
+    Returns:
+        DeploymentWithKey containing the deployment data and the raw api_key.
+    """
+    token = secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(token.encode()).hexdigest()
+
     split = compute_traffic_split(variant_fraction)
     row = (await db.execute(
         text(
-            "INSERT INTO deployments (generation_id, status, traffic_split)"
-            " VALUES (:gid, 'canary', :split::jsonb)"
+            "INSERT INTO deployments (generation_id, status, traffic_split, api_key_hash)"
+            " VALUES (:gid, 'canary', :split::jsonb, :key_hash)"
             " RETURNING id, generation_id, status, traffic_split, error_count, total_calls, created_at, updated_at"
         ),
-        {"gid": str(generation_id), "split": json.dumps(split)},
+        {"gid": str(generation_id), "split": json.dumps(split), "key_hash": key_hash},
     )).mappings().first()
     await db.commit()
     if row is None:
         raise RuntimeError(f"create_deployment: INSERT returned no row for generation_id={generation_id}")
-    return _row_to_deployment(dict(row))
+    deployment = _row_to_deployment(dict(row))
+    return DeploymentWithKey(**deployment.model_dump(), api_key=token)
 
 
 async def get_deployment(db: AsyncSession, deployment_id: uuid.UUID) -> Deployment | None:

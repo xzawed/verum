@@ -164,6 +164,7 @@ export const deployments = pgTable("deployments", {
   total_calls: integer("total_calls").notNull().default(0),
   experiment_status: text("experiment_status").notNull().default("idle"),
   current_baseline_variant: text("current_baseline_variant").notNull().default("original"),
+  apiKeyHash: text("api_key_hash").notNull(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

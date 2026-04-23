@@ -9,6 +9,7 @@ Run from repo root: cd apps/api && python ../../scripts/seed_demo.py
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import random
@@ -379,6 +380,10 @@ async def seed_generation(session, inference_id: str) -> str:
     return generation_id
 
 
+DEMO_API_KEY = "demo-api-key-for-testing-only"
+DEMO_API_KEY_HASH = hashlib.sha256(DEMO_API_KEY.encode()).hexdigest()
+
+
 async def seed_deployment(session, generation_id: str) -> str:
     """Insert DEPLOY stage result. Returns deployment_id."""
     print("  → deployments")
@@ -395,11 +400,11 @@ async def seed_deployment(session, generation_id: str) -> str:
     await session.execute(text("""
         INSERT INTO deployments (
             id, generation_id, status, traffic_split, error_count, total_calls,
-            experiment_status, current_baseline_variant, created_at, updated_at
+            experiment_status, current_baseline_variant, api_key_hash, created_at, updated_at
         )
         VALUES (
             :id, :generation_id, :status, :traffic_split::jsonb, :error_count, :total_calls,
-            :exp_status, :baseline_variant, :created_at, :updated_at
+            :exp_status, :baseline_variant, :api_key_hash, :created_at, :updated_at
         )
         ON CONFLICT (id) DO NOTHING
     """), {
@@ -411,6 +416,7 @@ async def seed_deployment(session, generation_id: str) -> str:
         "total_calls": 820,
         "exp_status": "converged",
         "baseline_variant": "cot",
+        "api_key_hash": DEMO_API_KEY_HASH,
         "created_at": days_ago(10),
         "updated_at": hours_ago(1),
     })
@@ -638,6 +644,8 @@ async def main() -> None:
     print("  Experiments: 2 converged (cot beat original @ 0.97, beat few_shot @ 0.96)")
     print("  Traces:      420 (210 original, 210 cot)")
     print("  Winner:      cot (judge_score ~0.81 vs original ~0.71)")
+    print()
+    print(f"Demo API key: {DEMO_API_KEY}")
 
 
 if __name__ == "__main__":

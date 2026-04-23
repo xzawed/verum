@@ -1,4 +1,5 @@
 import { updateFeedback } from "@/lib/db/jobs";
+import { validateApiKey } from "@/lib/api/validateApiKey";
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
@@ -10,8 +11,12 @@ export async function POST(req: Request) {
     return new Response("score must be 1 or -1", { status: 400 });
   }
 
-  // API key is the deployment_id; use it to scope the feedback update
-  const ok = await updateFeedback(apiKey, body.trace_id, body.score);
+  const deploymentId = await validateApiKey(apiKey);
+  if (!deploymentId) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
+  const ok = await updateFeedback(deploymentId, body.trace_id, body.score);
   if (!ok) return new Response("not found", { status: 404 });
 
   return new Response(null, { status: 204 });
