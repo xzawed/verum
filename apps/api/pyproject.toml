@@ -18,7 +18,7 @@ dependencies = [
     # DB + job queue
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
-    "asyncpg>=0.29",
+    "asyncpg>=0.31.0",
     "pgvector>=0.3",
     # ANALYZE — static analysis
     "tree-sitter>=0.25.2",
