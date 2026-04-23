@@ -118,9 +118,6 @@ last-updated: 2026-04-24
 | POST | `/api/v1/infer` | Infer 잡 큐 등록 |
 | GET | `/api/v1/infer/[id]` | Infer 상태 폴링 |
 | PATCH | `/api/v1/infer/[id]/confirm` | 도메인 확인/오버라이드 |
-| POST | `/api/v1/harvest/propose` | 크롤링 소스 제안 |
-| POST | `/api/v1/harvest/start` | 승인된 소스 크롤링 시작 |
-| POST | `/api/v1/retrieve` | 의미론적/하이브리드 검색 |
 | POST | `/api/v1/generate` | Generate 잡 큐 등록 |
 | GET | `/api/v1/generate/[id]` | Generate 상태 폴링 |
 | PATCH | `/api/v1/generate/[id]/approve` | 생성 자산 승인 |
@@ -133,6 +130,7 @@ last-updated: 2026-04-24
 | GET | `/api/v1/experiments` | 배포별 실험 목록 (`?deployment_id=`) |
 | GET | `/api/v1/experiments/[id]` | 실험 상세 (Bayesian 신뢰도 포함) |
 | GET | `/api/v1/quota` | 사용자 현재 쿼터 상태 |
+| GET | `/api/repos/[id]/status` | Repo 잡 상태 폴링 (미들웨어 제외 경로) |
 
 ### SDK-facing (X-Verum-API-Key 헤더 = cryptographic token)
 
@@ -144,6 +142,12 @@ last-updated: 2026-04-24
 | POST | `/api/v1/feedback` | `client.feedback()` 사용자 피드백 |
 | GET | `/api/v1/deploy/[id]/config` | SDK `chat()` 라우팅용 배포 설정 |
 | POST | `/api/v1/retrieve-sdk` | SDK `retrieve()` pgvector 의미 검색 (OpenAI 임베딩 + api_key_hash 인증) |
+
+### Test-only (VERUM_TEST_MODE=1 환경만 활성화)
+
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/api/test/login` | CI/E2E용 JWT 세션 쿠키 발급 (GitHub OAuth 우회). 미들웨어 matcher 제외 경로. |
 
 ---
 
@@ -213,6 +217,7 @@ trace_id = await client.record(
 | `apps/api/src/loop/evolve/engine.py` | `promote_winner`, `next_challenger`, `start_next_challenger`, `complete_deployment` |
 | `apps/api/src/loop/evolve/repository.py` | `update_deployment_baseline`, `update_traffic_split`, `set_experiment_status` |
 | `apps/api/src/loop/deploy/repository.py` | `create_deployment()` — api_key 생성 + sha256 해시 저장, 평문은 응답에만 |
+| `apps/api/src/loop/deploy/orchestrator.py` | `run_deploy()` — deployment 생성 + 트래픽 초기화 오케스트레이션 |
 
 ### Next.js Dashboard
 
@@ -239,6 +244,8 @@ trace_id = await client.record(
 | `apps/dashboard/src/app/api/v1/experiments/route.ts` | GET 실험 목록 (배포별) |
 | `apps/dashboard/src/app/api/v1/experiments/[id]/route.ts` | GET 실험 상세 |
 | `apps/dashboard/src/app/repos/[id]/ExperimentSection.tsx` | EXPERIMENT 섹션 UI (5초 폴링, Bayesian 신뢰도 바) |
+| `apps/dashboard/src/app/api/repos/[id]/status/route.ts` | Repo 잡 상태 폴링 (미들웨어 matcher `api/repos` 제외) |
+| `apps/dashboard/src/app/api/test/login/route.ts` | CI/E2E JWT 세션 발급 (`VERUM_TEST_MODE=1`만 활성화) |
 
 ---
 
@@ -249,6 +256,8 @@ trace_id = await client.record(
 | SDK 엔드포인트 (`POST /api/v1/traces`, `POST /api/v1/feedback`) | `X-Verum-API-Key` 헤더 → SHA-256 해시 → `deployments.api_key_hash` 조회 |
 | 브라우저 엔드포인트 (모든 GET, 대시보드 PATCH/POST) | Auth.js JWT 세션 (GitHub OAuth) |
 | `/health` | 인증 없음 |
+| `/api/test/login` (VERUM_TEST_MODE=1) | 인증 없음 (미들웨어 제외, 테스트 환경 전용) |
+| `/api/repos/[id]/status` | 미들웨어 제외 경로 (라우트 자체에서 auth 검증) |
 
 ---
 
@@ -314,9 +323,11 @@ function getClient() {
 |------|------|
 | `apps/api/tests/conftest.py` | `mock_db` (AsyncMock), `make_execute_result(rows)`, `owner_user_id` UUID, `requires_db` skip marker, `async_db_session` (real Postgres + rollback) |
 
-- `async_db_session` fixture: pytest-asyncio 기반, `DATABASE_URL` env 없으면 자동 skip (`requires_db` 마커).
-- CI에서 실제 DB 없이 실행 시 통합 테스트는 skip — 단위 테스트(mock_db)는 항상 실행됨.
+- `async_db_session` fixture: pytest-asyncio 기반, Postgres가 도달 불가능하면 자동 skip.
+- `requires_db` 마커: `conftest.py`의 `requires_db = pytest.mark.skipif(not _is_db_available(), ...)`. `pyproject.toml` `[tool.pytest.ini_options]`에 마커 등록됨.
+- CI `test-api` 잡은 Postgres service를 기동하므로 `requires_db` 테스트가 CI에서 자동 실행됨.
+- 로컬에서 `DATABASE_URL` 없으면 `requires_db` 테스트만 skip — 나머지 mock-based 단위 테스트는 항상 실행됨.
 
 ---
 
-_Last updated: 2026-04-25 (CI stabilization — ts-node, mypy, smoke tests, SonarCloud; next build lazy-init pattern; retrieve-sdk endpoint) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-26 (CI reporting fix — codecov-action v4→v5; jest collectCoverageFrom expanded to src/**; sonar exclusion conflict fixed; 10 skip-stub tests implemented; 8 new unit test files added) | Maintained by: Claude at end of each implementation session_

@@ -30,6 +30,7 @@ status: active
 | ADR-008 | Loop directory | `apps/api/src/loop/{8 stages}/` is sacred — CLAUDE.md update required before adding/removing a stage | [ARCHITECTURE.md §ADR-008](ARCHITECTURE.md#adr-008-appsapisrclop-directory-structure-is-sacred) |
 | ADR-009 | Runtime architecture | Single container: Node.js PID 1 + Python worker child + Postgres job queue. Supersedes ADR-003. | [ARCHITECTURE.md §ADR-009](ARCHITECTURE.md#adr-009-single-container--nodejs-pid-1--python-worker-child--postgres-job-queue) |
 | ADR-010 | next build compatibility | All external clients (OpenAI, DB pool, etc.) must be lazy-initialized inside a getter function, never at module scope | [ARCHITECTURE.md §ADR-010](ARCHITECTURE.md#adr-010-lazy-initialization-for-next-build-compatibility) |
+| ADR-011 | Codecov uploader | `codecov/codecov-action` pinned to **v5**. v4 bundled uploader suffered a shasum/GPG regression (2026-04-26); v5 uses `codecov-cli` and avoids the issue. `fail_ci_if_error` remains `false` until green baseline confirmed, then set to `true`. | [ARCHITECTURE.md §ADR-011](ARCHITECTURE.md#adr-011-codecov-action-pinned-to-v5) |
 
 ---
 
