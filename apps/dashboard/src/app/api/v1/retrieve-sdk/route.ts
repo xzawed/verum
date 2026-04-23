@@ -4,7 +4,11 @@ import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import OpenAI from "openai";
 
-const openai = new OpenAI();
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI();
+  return _openai;
+}
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
@@ -23,7 +27,7 @@ export async function POST(req: Request) {
 
   const topK = typeof body.top_k === "number" ? Math.min(body.top_k, 20) : 5;
 
-  const embeddingRes = await openai.embeddings.create({
+  const embeddingRes = await getOpenAI().embeddings.create({
     model: "text-embedding-3-small",
     input: body.query,
   });
