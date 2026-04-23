@@ -31,6 +31,11 @@ def upgrade() -> None:
     # Now make it NOT NULL and add unique index
     op.alter_column("deployments", "api_key_hash", nullable=False)
     op.create_index("ix_deployments_api_key_hash", "deployments", ["api_key_hash"], unique=True)
+    print(
+        "\n[MIGRATION 0014] WARNING: Existing deployments have been assigned new random API keys.\n"
+        "These keys cannot be recovered. Deployment owners must regenerate their API keys\n"
+        "from the dashboard Settings → Deployments → Regenerate Key.\n"
+    )
 
 def downgrade() -> None:
     op.drop_index("ix_deployments_api_key_hash", table_name="deployments")
