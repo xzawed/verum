@@ -330,4 +330,28 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-26 (CI reporting fix — codecov-action v4→v5; jest collectCoverageFrom expanded to src/**; sonar exclusion conflict fixed; 10 skip-stub tests implemented; 8 new unit test files added) | Maintained by: Claude at end of each implementation session_
+---
+
+## 테스트 커버리지 현황 (2026-04-26)
+
+| 구분 | 테스트 파일 수 | 테스트 수 | 비고 |
+|------|--------------|---------|------|
+| Python API (loop + worker) | 44 | 265 (non-DB) | `requires_db` 1개 skip (로컬 DB 없음) |
+| Dashboard Jest | 22 suites | 104 | 16개 route handler + lib 커버 |
+| E2E Playwright | 3 | ~16 | smoke + auth + repos-flow; dev server 필요 |
+
+### Python 신규 커버 모듈 (Phase 3, 2026-04-26)
+- `loop/analyze/repository.py` — 8 tests
+- `loop/infer/repository.py` — 7 tests
+- `loop/deploy/repository.py` — 8 tests
+- `loop/evolve/repository.py` — 6 tests
+- `loop/experiment/repository.py` — 10 tests
+
+### 테스트 Role 위치
+- `.claude/agents/test-orchestrator.md` — 총괄 에이전트 (6개 전문가 시스템)
+- `.claude/skills/test-patterns.md` — AsyncMock, makeSelectChain 패턴
+- `.claude/hooks/post_test_edit.py` — src/ 편집 시 자동 테스트 실행 (비블로킹)
+
+---
+
+_Last updated: 2026-04-26 (Phase 3 repository tests — 5 new files, 39 tests; total Python 265 non-DB passing) | Maintained by: Claude at end of each implementation session_
