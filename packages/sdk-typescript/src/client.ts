@@ -43,6 +43,16 @@ interface FeedbackParams {
   score: 1 | -1;
 }
 
+interface RecordParams {
+  deploymentId: string;
+  variant: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  error?: string | null;
+}
+
 export class VerumClient {
   private readonly apiUrl: string;
   private readonly apiKey: string;
@@ -98,6 +108,25 @@ export class VerumClient {
       body: JSON.stringify({ trace_id: params.traceId, score: params.score }),
     });
     if (!res.ok) throw new Error(`feedback failed: ${res.status}`);
+  }
+
+  async record(params: RecordParams): Promise<string> {
+    const res = await fetch(`${this.apiUrl}/api/v1/traces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-verum-api-key": this.apiKey },
+      body: JSON.stringify({
+        deployment_id: params.deploymentId,
+        variant: params.variant,
+        model: params.model,
+        input_tokens: params.inputTokens,
+        output_tokens: params.outputTokens,
+        latency_ms: params.latencyMs,
+        error: params.error ?? null,
+      }),
+    });
+    if (!res.ok) throw new Error(`record failed: ${res.status}`);
+    const data = await res.json() as { trace_id: string };
+    return data.trace_id;
   }
 
   private async getDeploymentConfig(deploymentId: string): Promise<DeploymentConfig> {
