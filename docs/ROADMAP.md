@@ -204,20 +204,20 @@ A complete OBSERVE → EXPERIMENT → EVOLVE cycle on ArcanaInsight tarot:
 
 | ID | Deliverable | Status |
 |---|---|---|
-| F-5.1 | English documentation site live (`docs.verum.dev`) | 🔲 |
-| F-5.2 | Quickstart guide (connect Repo → full loop in < 30 minutes) | 🔲 |
-| F-5.3 | API reference | 🔲 |
-| F-5.4 | Python SDK reference | 🔲 |
-| F-5.5 | TypeScript SDK reference | 🔲 |
-| F-5.6 | Self-hosting guide (`docker compose up` walkthrough) | 🔲 |
-| F-5.7 | ArcanaInsight case study (auto-optimization in production) | 🔲 |
-| F-5.8 | "How Verum Works" blog posts: 3–5 articles (dev.to, Medium, velog) | 🔲 |
-| F-5.9 | Hacker News / Reddit r/MachineLearning launch post | 🔲 |
-| F-5.10 | Langfuse vs Verum honest comparison document | 🔲 |
-| F-5.11 | Demo video: ArcanaInsight auto-optimization real-time (3–5 minutes, Loom) | 🔲 |
-| F-5.12 | Demo environment live (`demo.verum.dev`) with pre-populated data | 🔲 |
-| F-5.13 | Cloud SaaS MVP open (`verum.dev`) with GitHub OAuth onboarding | 🔲 |
-| F-5.14 | "Not affiliated with Verum AI Platform (verumai.com)" statement on all landing pages | 🔲 |
+| F-5.1 | English documentation site live (`docs.verum.dev`) | ✅ `/docs` route in dashboard with markdown rendering |
+| F-5.2 | Quickstart guide (connect Repo → full loop in < 30 minutes) | ✅ `docs/QUICKSTART.md` |
+| F-5.3 | API reference | ✅ `docs/API.md` (23 endpoints) |
+| F-5.4 | Python SDK reference | ✅ `docs/SDK_PYTHON.md` |
+| F-5.5 | TypeScript SDK reference | ✅ `docs/SDK_TYPESCRIPT.md` |
+| F-5.6 | Self-hosting guide (`docker compose up` walkthrough) | ✅ `docs/SELF_HOSTING.md` |
+| F-5.7 | ArcanaInsight case study (auto-optimization in production) | ✅ `docs/CASE_STUDY.md` (placeholder metrics pending F-4.11) |
+| F-5.8 | "How Verum Works" blog posts: 3–5 articles (dev.to, Medium, velog) | ✅ `docs/blog/` — 3 drafts ready for xzawed to publish |
+| F-5.9 | Hacker News / Reddit r/MachineLearning launch post | ✅ `docs/HN_LAUNCH.md` — kit ready, post pending prerequisites |
+| F-5.10 | Langfuse vs Verum honest comparison document | ✅ `docs/COMPARISON.md` |
+| F-5.11 | Demo video: ArcanaInsight auto-optimization real-time (3–5 minutes, Loom) | 🔲 xzawed records after F-4.11 |
+| F-5.12 | Demo environment live (`demo.verum.dev`) with pre-populated data | ✅ `scripts/seed_demo.py` — 420 traces, 2 converged experiments |
+| F-5.13 | Cloud SaaS MVP open (`verum.dev`) with GitHub OAuth onboarding | ✅ usage_quota migration + rate limiting + email stubs (0011) |
+| F-5.14 | "Not affiliated with Verum AI Platform (verumai.com)" statement on all landing pages | ✅ README.md + README.ko.md |
 
 ---
 
@@ -233,4 +233,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-23_
+_Maintainer: xzawed | Last updated: 2026-04-24_
