@@ -45,7 +45,7 @@ jobs:
       - name: tsc — sdk-typescript
         run: cd packages/sdk-typescript && npm install --no-audit --no-fund && npx tsc --noEmit
       - name: tsc — dashboard
-        run: cd apps/dashboard && npm install --no-audit --no-fund && npx tsc --noEmit
+        run: cd apps/dashboard && npm install --no-audit --no-fund --legacy-peer-deps && npx tsc --noEmit
       - name: eslint — dashboard
         run: cd apps/dashboard && npx next lint --max-warnings 0 || true
 

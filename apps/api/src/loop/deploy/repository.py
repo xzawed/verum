@@ -5,7 +5,6 @@ import hashlib
 import json
 import secrets
 import uuid
-from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession

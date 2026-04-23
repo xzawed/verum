@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from src.loop.experiment.models import ExperimentResult
 
 import numpy as np
 
