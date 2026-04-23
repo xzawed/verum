@@ -21,6 +21,8 @@ from src.loop.observe.repository import update_judge_score
 
 logger = logging.getLogger(__name__)
 
+_judge_parse_failures = 0
+
 _JUDGE_MODEL = "claude-sonnet-4-6"
 
 
@@ -155,8 +157,12 @@ async def handle_judge(
             logger.warning("Judge LLM call failed on attempt %d: %s", attempt + 1, exc)
 
     if score is None:
+        global _judge_parse_failures
+        _judge_parse_failures += 1
         logger.warning(
-            "Judge gave up on trace %s — leaving judge_score NULL", trace_id
+            "judge_parse_failures_total=%d — trace %s: all parse attempts failed",
+            _judge_parse_failures,
+            trace_id,
         )
         return {"trace_id": str(trace_id), "judge_score": None, "skipped": False}
 

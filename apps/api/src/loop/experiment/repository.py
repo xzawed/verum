@@ -73,13 +73,13 @@ async def aggregate_variant_wins(
     baseline_variant: str,
     challenger_variant: str,
     win_threshold: float,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, int]:
     """Count binary wins (winner_score > win_threshold) per variant.
 
     winner_score = judge_score - 0.1 * (cost_usd / max_cost_in_window).
     Traces with NULL judge_score are excluded.
 
-    Returns (baseline_wins, baseline_n, challenger_wins, challenger_n).
+    Returns (baseline_wins, baseline_n, challenger_wins, challenger_n, null_score_count).
     """
     max_cost_row = (
         await db.execute(
@@ -110,7 +110,8 @@ async def aggregate_variant_wins(
                 "      t.judge_score - 0.1 * CASE WHEN :max_cost > 0"
                 "        THEN COALESCE(trace_cost.total_cost, 0)::float / :max_cost ELSE 0 END"
                 "    ) > :threshold"
-                "  ) AS wins"
+                "  ) AS wins,"
+                "  COUNT(*) FILTER (WHERE t.judge_score IS NULL) AS null_score_count"
                 " FROM traces t"
                 " LEFT JOIN ("
                 "   SELECT trace_id, SUM(cost_usd) AS total_cost"
@@ -132,18 +133,24 @@ async def aggregate_variant_wins(
     ).mappings().all()
 
     stats: dict[str, dict[str, int]] = {
-        baseline_variant: {"wins": 0, "n": 0},
-        challenger_variant: {"wins": 0, "n": 0},
+        baseline_variant: {"wins": 0, "n": 0, "null_count": 0},
+        challenger_variant: {"wins": 0, "n": 0, "null_count": 0},
     }
     for row in rows:
         if row["variant"] in stats:
-            stats[row["variant"]] = {"wins": int(row["wins"]), "n": int(row["n"])}
+            stats[row["variant"]] = {
+                "wins": int(row["wins"]),
+                "n": int(row["n"]),
+                "null_count": int(row["null_score_count"]),
+            }
 
+    null_total = sum(s["null_count"] for s in stats.values())
     return (
         stats[baseline_variant]["wins"],
         stats[baseline_variant]["n"],
         stats[challenger_variant]["wins"],
         stats[challenger_variant]["n"],
+        null_total,
     )
 
 

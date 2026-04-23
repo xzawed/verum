@@ -53,7 +53,8 @@ def bayesian_confidence(
         logger.warning("scipy not available; falling back to raw win-rate comparison")
         b_rate = b_wins / b_n if b_n > 0 else 0.0
         c_rate = c_wins / c_n if c_n > 0 else 0.0
-        return 1.0 if c_rate > b_rate else 0.0
+        denom = c_rate + b_rate
+        return c_rate / denom if denom > 0 else 0.5
 
 
 def check_experiment(

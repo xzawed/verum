@@ -140,7 +140,7 @@ async def _experiment_loop() -> None:
                 for exp in experiments:
                     try:
                         deployment_id = exp["deployment_id"]
-                        b_wins, b_n, c_wins, c_n = await aggregate_variant_wins(
+                        b_wins, b_n, c_wins, c_n, _null_count = await aggregate_variant_wins(
                             db,
                             deployment_id,
                             exp["baseline_variant"],

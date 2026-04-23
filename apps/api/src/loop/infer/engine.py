@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 
 import anthropic
@@ -122,12 +123,8 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
     )
 
     # Strip markdown code fences if present
-    raw_text = raw_text.strip()
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("```")[1]
-        if raw_text.startswith("json"):
-            raw_text = raw_text[4:]
-    raw_text = raw_text.strip()
+    raw_text = re.sub(r"^```(?:json)?\s*\n?", "", raw_text.strip(), flags=re.MULTILINE)
+    raw_text = re.sub(r"\n?```\s*$", "", raw_text, flags=re.MULTILINE).strip()
 
     parsed: dict[str, object] = json.loads(raw_text)
 
