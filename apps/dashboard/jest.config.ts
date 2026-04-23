@@ -24,7 +24,7 @@ const config: Config = {
   collectCoverageFrom: [
     "src/lib/**/*.ts",
     "!src/**/*.d.ts",
-    "!src/lib/db/client.test.ts",
+    "!src/lib/**/__tests__/**",
   ],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "json-summary"],

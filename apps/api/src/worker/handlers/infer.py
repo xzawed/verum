@@ -40,10 +40,10 @@ async def handle_infer(
     # Reconstruct AnalysisResult from DB row to pass into engine
     ar = AnalysisResult(
         repo_id=analysis.repo_id,
-        call_sites=analysis.call_sites or [],
-        prompt_templates=analysis.prompt_templates or [],
-        model_configs=analysis.model_configs or [],
-        language_breakdown=analysis.language_breakdown or {},
+        call_sites=analysis.call_sites or [],  # type: ignore[arg-type]
+        prompt_templates=analysis.prompt_templates or [],  # type: ignore[arg-type]
+        model_configs=analysis.model_configs or [],  # type: ignore[arg-type]
+        language_breakdown=analysis.language_breakdown or {},  # type: ignore[arg-type]
         analyzed_at=analysis.analyzed_at or datetime.now(tz=timezone.utc),
     )
 

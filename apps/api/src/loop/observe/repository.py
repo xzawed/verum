@@ -169,7 +169,7 @@ async def update_user_feedback(
         {"score": score, "id": str(trace_id)},
     )
     await db.commit()
-    return result.rowcount == 1
+    return result.rowcount == 1  # type: ignore[attr-defined]
 
 
 async def get_daily_metrics(

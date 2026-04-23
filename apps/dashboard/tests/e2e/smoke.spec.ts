@@ -21,15 +21,26 @@ test.describe("Smoke — authentication guard", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("unauthenticated request to /dashboard redirects to /login", async ({ page }) => {
-    await page.goto("/dashboard", { waitUntil: "networkidle" });
+  test("unauthenticated request to /repos redirects to /login", async ({ page }) => {
+    await page.goto("/repos", { waitUntil: "networkidle" });
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("SDK API routes return 401 without API key", async ({ request }) => {
+  test("POST /api/v1/traces without X-Verum-API-Key returns 401", async ({ request }) => {
     const response = await request.post("/api/v1/traces", {
       headers: { "Content-Type": "application/json" },
-      data: { deployment_id: "test", span_id: "s1", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
+      data: { deployment_id: "test", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test("POST /api/v1/traces with invalid API key returns 401", async ({ request }) => {
+    const response = await request.post("/api/v1/traces", {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Verum-API-Key": "invalid-key-32-chars-long-xxxxxxxxx",
+      },
+      data: { deployment_id: "test", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
     });
     expect(response.status()).toBe(401);
   });

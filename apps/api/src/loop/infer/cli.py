@@ -60,11 +60,11 @@ async def _run(analysis_id: uuid_mod.UUID) -> ServiceInference:
 
     ar = AnalysisResult(
         repo_id=row.repo_id,
-        call_sites=row.call_sites or [],
-        prompt_templates=row.prompt_templates or [],
-        model_configs=row.model_configs or [],
-        language_breakdown=row.language_breakdown or {},
-        analyzed_at=row.analyzed_at,
+        call_sites=row.call_sites or [],  # type: ignore[arg-type]
+        prompt_templates=row.prompt_templates or [],  # type: ignore[arg-type]
+        model_configs=row.model_configs or [],  # type: ignore[arg-type]
+        language_breakdown=row.language_breakdown or {},  # type: ignore[arg-type]
+        analyzed_at=row.analyzed_at,  # type: ignore[arg-type]
     )
 
     return await run_infer(ar, analysis_id=analysis_id)

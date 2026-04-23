@@ -123,10 +123,10 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
         repo_id=result.repo_id,
         analysis_id=analysis_id,
         domain=domain,
-        tone=parsed.get("tone", "professional"),
-        language=parsed.get("language", "en"),
-        user_type=parsed.get("user_type", "consumer"),
-        confidence=float(parsed.get("confidence", 0.5)),
+        tone=str(parsed.get("tone", "professional")),
+        language=str(parsed.get("language", "en")),
+        user_type=str(parsed.get("user_type", "consumer")),
+        confidence=float(parsed.get("confidence", 0.5)),  # type: ignore[arg-type]
         summary=str(parsed.get("summary", "")),
         suggested_sources=[
             SuggestedSource(url=s["url"], title=s["title"], description=s["description"])

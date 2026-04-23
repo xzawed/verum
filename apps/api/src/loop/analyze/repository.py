@@ -65,7 +65,7 @@ async def save_analysis_result(
     row.call_sites = [cs.model_dump() for cs in result.call_sites]
     row.prompt_templates = [pt.model_dump() for pt in result.prompt_templates]
     row.model_configs = [mc.model_dump() for mc in result.model_configs]
-    row.language_breakdown = result.language_breakdown
+    row.language_breakdown = result.language_breakdown  # type: ignore[assignment]
     row.analyzed_at = result.analyzed_at
     # Also update the repo's last_analyzed_at
     repo_stmt = select(Repo).where(Repo.id == result.repo_id)

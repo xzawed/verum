@@ -34,7 +34,7 @@ async def handle_retrieve(
         # Merge: interleave and dedupe by content, prefer higher score
         seen: set[str] = set()
         merged: list[dict[str, Any]] = []
-        for r in sorted(vector_results + text_results, key=lambda x: -x["score"]):
+        for r in sorted(vector_results + text_results, key=lambda x: -float(x["score"])):  # type: ignore[arg-type]
             if r["content"] not in seen:
                 seen.add(str(r["content"]))
                 merged.append(r)
