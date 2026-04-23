@@ -17,7 +17,7 @@ def calculate_cost(
     input_tokens: int,
     output_tokens: int,
     pricing: dict[str, float] | None,
-) -> float:
+) -> float | None:
     """Calculate USD cost from token counts and pricing row.
 
     Args:
@@ -27,10 +27,10 @@ def calculate_cost(
             or ``None`` if the model is not in the pricing table.
 
     Returns:
-        Cost in USD rounded to 6 decimal places, or 0.0 if pricing is None.
+        Cost in USD rounded to 6 decimal places, or None if pricing is missing.
     """
     if pricing is None:
-        return 0.0
+        return None
     input_cost = (input_tokens / 1_000_000) * pricing["input_per_1m_usd"]
     output_cost = (output_tokens / 1_000_000) * pricing["output_per_1m_usd"]
     return round(input_cost + output_cost, 6)
@@ -50,7 +50,7 @@ async def _get_pricing(db: AsyncSession, model: str) -> dict[str, float] | None:
     ).mappings().first()
     if row is None:
         _logger.warning(
-            "model_pricing: no pricing found for model=%s, cost stored as 0", model
+            "model_pricing: no pricing found for model=%s, cost_usd will be NULL", model
         )
         return None
     return dict(row)
