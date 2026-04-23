@@ -51,6 +51,6 @@ def test_calculate_cost_known_model():
     assert abs(cost - 12.0) < 0.0001
 
 
-def test_calculate_cost_zero_for_no_pricing():
+def test_calculate_cost_none_for_no_pricing():
     cost = calculate_cost(input_tokens=500, output_tokens=300, pricing=None)
-    assert cost == 0.0
+    assert cost is None
