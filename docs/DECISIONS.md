@@ -29,6 +29,7 @@ status: active
 | ADR-007 | Embedding dims | Never hardcode — store per-collection in `harvest_sources.embedding_dim` | [ARCHITECTURE.md §ADR-007](ARCHITECTURE.md#adr-007-never-hardcode-embedding-dimensions) |
 | ADR-008 | Loop directory | `apps/api/src/loop/{8 stages}/` is sacred — CLAUDE.md update required before adding/removing a stage | [ARCHITECTURE.md §ADR-008](ARCHITECTURE.md#adr-008-appsapisrclop-directory-structure-is-sacred) |
 | ADR-009 | Runtime architecture | Single container: Node.js PID 1 + Python worker child + Postgres job queue. Supersedes ADR-003. | [ARCHITECTURE.md §ADR-009](ARCHITECTURE.md#adr-009-single-container--nodejs-pid-1--python-worker-child--postgres-job-queue) |
+| ADR-010 | next build compatibility | All external clients (OpenAI, DB pool, etc.) must be lazy-initialized inside a getter function, never at module scope | [ARCHITECTURE.md §ADR-010](ARCHITECTURE.md#adr-010-lazy-initialization-for-next-build-compatibility) |
 
 ---
 

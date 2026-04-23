@@ -630,4 +630,34 @@ make docker-healthcheck   # Railway 환경(PORT=8080, HOSTNAME 미주입) 로컬
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-22_
+### ADR-010: Lazy Initialization for `next build` Compatibility
+
+**Status:** Accepted | **Date:** 2026-04-25
+
+**Decision:** Every external client (database pool, OpenAI, Anthropic, Redis, etc.) instantiated in a Next.js route module **must** be wrapped in a lazy getter function. Module-scope instantiation is forbidden.
+
+```typescript
+// ❌ Forbidden — throws at build time when env var is absent
+const openai = new OpenAI();
+
+// ✅ Required pattern
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI();
+  return _openai;
+}
+```
+
+**Why:** `next build` runs "Collecting page data" which imports every route module in a Docker build environment that has **no** runtime secrets (`DATABASE_URL`, `OPENAI_API_KEY`, etc.). Both the `pg` Pool and the `openai` SDK validate their required configuration at instantiation time — calling them at module scope causes every Railway build to fail with a cryptic env-var error.
+
+Discovered in two sequential Railway build failures (2026-04-24/25):
+1. `DATABASE_URL` in `lib/db/client.ts` — moved inside `getDb()`
+2. `OPENAI_API_KEY` in `api/v1/retrieve-sdk/route.ts` — moved inside `getOpenAI()`
+
+**Trade-off accepted:** Singleton state lives in a module-level variable. The first real request bears the one-time initialization cost. This is the standard Next.js + external client pattern and is safe in a single-process Node.js server.
+
+**Revisit trigger:** If Next.js adds a native "defer to runtime" annotation or if the app moves to Edge Runtime where module-level singletons behave differently.
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-04-25_
