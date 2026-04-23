@@ -169,12 +169,12 @@ ArcanaInsight's tarot reading endpoint must:
 | F-4.2 | Cost calculation: token count × pricing table (OpenAI, Anthropic, xAI) | ✅ |
 | F-4.3 | Dashboard: trace list + span waterfall view + cost/latency metrics | ✅ |
 | F-4.4 | User feedback collection: `verum.feedback(trace_id, score)` | ✅ |
-| F-4.5 | A/B test engine: traffic split + Bayesian stopping criterion | 🔲 |
-| F-4.6 | RAGAS integration: faithfulness, answer_relevancy, context_precision | 🔲 |
+| F-4.5 | A/B test engine: sequential pairwise Bayesian (4 rounds, CHALLENGER_ORDER) | ✅ |
+| F-4.6 | RAGAS integration: faithfulness, answer_relevancy, context_precision | 🔲 deferred to Phase 5 |
 | F-4.7 | LLM-as-Judge evaluation (async job per trace) | ✅ |
-| F-4.8 | Auto-winner selection: weighted score (satisfaction + RAGAS + cost) at confidence ≥ 0.95 | 🔲 |
-| F-4.9 | EVOLVE: promote winner to 100% traffic, archive losers | 🔲 |
-| F-4.10 | Dashboard: experiment view + evolution history | 🔲 |
+| F-4.8 | Auto-winner selection: judge_score − 0.1×cost_normalized at confidence ≥ 0.95 | ✅ |
+| F-4.9 | EVOLVE: promote winner to 100% traffic, archive losers | ✅ |
+| F-4.10 | Dashboard: ExperimentSection with Bayesian confidence bar + history table | ✅ |
 | F-4.11 | **ArcanaInsight auto-evolution** — at least 1 prompt improvement cycle completed | 🔲 |
 
 ### ArcanaInsight Validation
@@ -233,4 +233,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-22_
+_Maintainer: xzawed | Last updated: 2026-04-23_

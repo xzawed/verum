@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/xzawed/verum/actions/workflows/ci.yml/badge.svg)](https://github.com/xzawed/verum/actions/workflows/ci.yml)
-[![Phase](https://img.shields.io/badge/Phase-4A%20완료%20%E2%80%94%20OBSERVE-brightgreen)](docs/ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-4B%20완료%20%E2%80%94%20EXPERIMENT%20%2B%20EVOLVE-brightgreen)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
@@ -46,8 +46,8 @@ GitHub Repo를 한 번 등록하면 루프가 자동으로 시작됩니다.
 | ✨ GENERATE | ✅ 완료 | 프롬프트 변형·RAG 설정·평가셋 자동 생성 (HARVEST 완료 후 자동 실행) |
 | 🚀 DEPLOY | ✅ 완료 | SDK 기반 카나리 배포 + 트래픽 분할 + 롤백 |
 | 👁️ OBSERVE | ✅ 완료 | 트레이스 + 스팬 수집, 비용/지연 메트릭, LLM-as-Judge 점수 |
-| 🧪 EXPERIMENT | 🔲 예정 | 베이지안 A/B 테스트로 프롬프트 변형 비교 |
-| 🔄 EVOLVE | 🔲 예정 | 승자 자동 승격, 패배자 아카이브 |
+| 🧪 EXPERIMENT | ✅ 완료 | 순차 쌍별 베이지안 A/B 테스트 (5개 프롬프트 변형, 4라운드) |
+| 🔄 EVOLVE | ✅ 완료 | 승자 자동 승격, 패배자 아카이브 — 수동 개입 없음 |
 
 ---
 

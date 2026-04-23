@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/xzawed/verum/actions/workflows/ci.yml/badge.svg)](https://github.com/xzawed/verum/actions/workflows/ci.yml)
-[![Phase](https://img.shields.io/badge/Phase-4A%20Complete%20%E2%80%94%20OBSERVE-brightgreen)](docs/ROADMAP.md)
+[![Phase](https://img.shields.io/badge/Phase-4B%20Complete%20%E2%80%94%20EXPERIMENT%20%2B%20EVOLVE-brightgreen)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](apps/dashboard)
@@ -46,8 +46,8 @@ Register a GitHub repo once. The loop runs automatically.
 | ✨ GENERATE | ✅ Done | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
 | 🚀 DEPLOY | ✅ Done | SDK-based canary deployment with traffic splitting + rollback |
 | 👁️ OBSERVE | ✅ Done | Trace + span ingestion, cost/latency metrics, LLM-as-Judge scoring |
-| 🧪 EXPERIMENT | 🔲 Planned | Bayesian A/B testing across prompt variants |
-| 🔄 EVOLVE | 🔲 Planned | Auto-promote winners, archive losers |
+| 🧪 EXPERIMENT | ✅ Done | Sequential pairwise Bayesian A/B across 5 prompt variants |
+| 🔄 EVOLVE | ✅ Done | Auto-promote winners, archive losers — no manual intervention |
 
 ---
 
