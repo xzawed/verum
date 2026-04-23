@@ -25,10 +25,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_index("ix_inferences_repo_id", "inferences", ["repo_id"])
-    op.create_index("ix_inferences_analysis_id", "inferences", ["analysis_id"])
+    op.create_index("ix_inferences_repo_id", "inferences", ["repo_id"], if_not_exists=True)
+    op.create_index("ix_inferences_analysis_id", "inferences", ["analysis_id"], if_not_exists=True)
     op.execute(
-        "CREATE INDEX ix_traces_deployment_created"
+        "CREATE INDEX IF NOT EXISTS ix_traces_deployment_created"
         " ON traces(deployment_id, created_at DESC)"
     )
 
