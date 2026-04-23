@@ -11,6 +11,7 @@ import {
   harvest_sources,
   inferences,
   repos,
+  sdk_pr_requests,
   verum_jobs,
   type Inference,
 } from "./schema";
@@ -386,4 +387,42 @@ export async function getModelPricing(
   return (rows.rows[0] as Record<string, unknown> | undefined) as
     | { input_per_1m_usd: string; output_per_1m_usd: string }
     | null;
+}
+
+// ── SDK PR ────────────────────────────────────────────────────
+
+export async function createSdkPrRequest(opts: {
+  userId: string;
+  repoId: string;
+  analysisId: string;
+}): Promise<string> {
+  const rows = await db
+    .insert(sdk_pr_requests)
+    .values({
+      repo_id: opts.repoId,
+      owner_user_id: opts.userId,
+      analysis_id: opts.analysisId,
+      status: "pending",
+    })
+    .returning({ id: sdk_pr_requests.id });
+  const row = rows[0];
+  if (!row) throw new Error("createSdkPrRequest: INSERT returned no row");
+  return row.id;
+}
+
+export async function updateSdkPrRequest(
+  requestId: string,
+  patch: {
+    status: string;
+    pr_url?: string | null;
+    pr_number?: number | null;
+    branch_name?: string | null;
+    files_changed?: number;
+    error?: string | null;
+  },
+): Promise<void> {
+  await db
+    .update(sdk_pr_requests)
+    .set({ ...patch, updated_at: new Date() })
+    .where(eq(sdk_pr_requests.id, requestId));
 }

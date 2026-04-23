@@ -15,6 +15,7 @@ import {
   prompt_variants,
   rag_configs,
   repos,
+  sdk_pr_requests,
   users,
   verum_jobs,
   worker_heartbeat,
@@ -430,4 +431,35 @@ export async function getExperiment(
   if (!dep) return null;
 
   return rows[0];
+}
+
+// ── SDK PR ────────────────────────────────────────────────────
+
+export async function getSdkPrRequest(userId: string, requestId: string) {
+  const rows = await db
+    .select()
+    .from(sdk_pr_requests)
+    .where(
+      and(
+        eq(sdk_pr_requests.id, requestId),
+        eq(sdk_pr_requests.owner_user_id, userId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getLatestSdkPrRequest(userId: string, repoId: string) {
+  const rows = await db
+    .select()
+    .from(sdk_pr_requests)
+    .where(
+      and(
+        eq(sdk_pr_requests.repo_id, repoId),
+        eq(sdk_pr_requests.owner_user_id, userId),
+      ),
+    )
+    .orderBy(desc(sdk_pr_requests.created_at))
+    .limit(1);
+  return rows[0] ?? null;
 }
