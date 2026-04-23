@@ -184,6 +184,7 @@ async def _experiment_loop() -> None:
                                     "     AND (payload->>'experiment_id') = :eid::text"
                                     "     AND status IN ('queued', 'running')"
                                     " )"
+                                    " ON CONFLICT DO NOTHING"
                                 ),
                                 {
                                     "eid": str(exp["id"]),
