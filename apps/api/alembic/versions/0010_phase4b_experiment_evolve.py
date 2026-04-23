@@ -23,13 +23,13 @@ def upgrade() -> None:
     # 1. New columns on deployments
     op.add_column(
         "deployments",
-        sa.Column("experiment_status", sa.Text, nullable=False, server_default="idle"),
+        sa.Column("experiment_status", sa.Text(), nullable=False, server_default="idle"),
     )
     op.add_column(
         "deployments",
         sa.Column(
             "current_baseline_variant",
-            sa.Text,
+            sa.Text(),
             nullable=False,
             server_default="original",
         ),
