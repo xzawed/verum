@@ -1,13 +1,17 @@
 """Unit tests for src.worker.runner core functions.
 
 Tests cover:
+- _reset_stale requeue logic
 - _mark_failed retry vs final-fail logic (no external I/O)
 - _claim_one SQL execution and row mapping
+- _mark_done JSON serialization
 - _dispatch_job handler success → mark_done, handler exception → mark_failed
+- _dispatch_job payload schema validation
 - SKIP LOCKED: two concurrent _claim_one calls — only one gets the job
 """
 from __future__ import annotations
 
+import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
@@ -19,6 +23,7 @@ from src.worker.runner import (
     _dispatch_job,
     _mark_done,
     _mark_failed,
+    _reset_stale,
 )
 
 
@@ -258,3 +263,149 @@ async def test_dispatch_job_unknown_kind_calls_mark_failed() -> None:
     mock_failed.assert_awaited_once()
     error_msg = mock_failed.await_args.args[2]
     assert "unknown job kind" in error_msg
+
+
+# ── _reset_stale ──────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_reset_stale_executes_update_query(mock_db: AsyncMock) -> None:
+    """_reset_stale issues a single UPDATE touching 'running' → 'queued' rows."""
+    mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
+
+    await _reset_stale(mock_db)
+
+    mock_db.execute.assert_awaited_once()
+    sql_text = str(mock_db.execute.await_args.args[0])
+    # The UPDATE should reference both source status and target status
+    assert "running" in sql_text
+    assert "queued" in sql_text
+
+
+@pytest.mark.asyncio
+async def test_reset_stale_commits(mock_db: AsyncMock) -> None:
+    """_reset_stale calls db.commit() once after the UPDATE."""
+    mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
+
+    await _reset_stale(mock_db)
+
+    mock_db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_reset_stale_passes_cutoff_param(mock_db: AsyncMock) -> None:
+    """_reset_stale passes a :cutoff bind parameter (datetime) to the UPDATE."""
+    from datetime import datetime
+
+    mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
+
+    await _reset_stale(mock_db)
+
+    params = mock_db.execute.await_args.args[1]
+    assert "cutoff" in params
+    assert isinstance(params["cutoff"], datetime)
+
+
+# ── _mark_done JSON serialization ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_mark_done_serializes_result_to_json_string(mock_db: AsyncMock) -> None:
+    """_mark_done passes the result as a JSON string, not a raw dict."""
+    job_id = uuid.uuid4()
+    payload = {"status": "ok", "count": 7}
+
+    await _mark_done(mock_db, job_id, payload)
+
+    params = mock_db.execute.await_args.args[1]
+    # result param must be a JSON string, not a dict
+    assert isinstance(params["result"], str)
+    parsed = json.loads(params["result"])
+    assert parsed == payload
+
+
+@pytest.mark.asyncio
+async def test_mark_done_serializes_uuid_values(mock_db: AsyncMock) -> None:
+    """_mark_done handles UUID values via default=str without raising."""
+    job_id = uuid.uuid4()
+    result_with_uuid = {"id": uuid.uuid4(), "label": "test"}
+
+    # Should not raise a TypeError for non-serializable UUID
+    await _mark_done(mock_db, job_id, result_with_uuid)
+
+    params = mock_db.execute.await_args.args[1]
+    parsed = json.loads(params["result"])
+    assert "id" in parsed
+
+
+# ── _dispatch_job payload schema validation ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_dispatch_job_invalid_payload_calls_mark_failed_not_handler() -> None:
+    """A job with a payload that fails Pydantic validation is failed immediately."""
+    from src.worker.payloads import DeployPayload
+
+    job_id = uuid.uuid4()
+    job = {
+        "id": job_id,
+        "kind": "deploy",
+        # Missing required 'generation_id' field → Pydantic validation error
+        "payload": {"wrong_field": "oops"},
+        "owner_user_id": uuid.uuid4(),
+        "attempts": 1,
+    }
+
+    mock_handler = AsyncMock()
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch("src.worker.runner._HANDLERS", {"deploy": mock_handler}),
+        patch("src.worker.runner._PAYLOAD_SCHEMAS", {"deploy": DeployPayload}),
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._mark_done", new=AsyncMock()) as mock_done,
+        patch("src.worker.runner._mark_failed", new=AsyncMock()) as mock_failed,
+    ):
+        await _dispatch_job(job)
+
+    mock_handler.assert_not_awaited()
+    mock_done.assert_not_awaited()
+    mock_failed.assert_awaited_once()
+    error_msg = mock_failed.await_args.args[2]
+    assert "invalid payload" in error_msg
+
+
+@pytest.mark.asyncio
+async def test_dispatch_job_valid_payload_passes_schema_and_calls_handler() -> None:
+    """A job with a valid payload passes schema validation and reaches the handler."""
+    from src.worker.payloads import DeployPayload
+
+    generation_id = uuid.uuid4()
+    job_id = uuid.uuid4()
+    job = {
+        "id": job_id,
+        "kind": "deploy",
+        "payload": {"generation_id": str(generation_id)},
+        "owner_user_id": uuid.uuid4(),
+        "attempts": 1,
+    }
+
+    mock_handler = AsyncMock(return_value={"ok": True})
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+
+    with (
+        patch("src.worker.runner._HANDLERS", {"deploy": mock_handler}),
+        patch("src.worker.runner._PAYLOAD_SCHEMAS", {"deploy": DeployPayload}),
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._mark_done", new=AsyncMock()) as mock_done,
+        patch("src.worker.runner._mark_failed", new=AsyncMock()) as mock_failed,
+    ):
+        await _dispatch_job(job)
+
+    mock_handler.assert_awaited_once()
+    mock_done.assert_awaited_once()
+    mock_failed.assert_not_awaited()
