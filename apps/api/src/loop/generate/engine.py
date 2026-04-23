@@ -122,7 +122,7 @@ async def _generate_eval_pairs(
     summary: str,
     chunks_preview: str,
 ) -> list[EvalPair]:
-    """Call Claude to produce 20 diverse evaluation Q&A pairs."""
+    """Call Claude to produce 30 diverse evaluation Q&A pairs."""
     eval_prompt = f"""You are testing a {domain} AI service for {user_type} users.
 Service: {summary}
 
