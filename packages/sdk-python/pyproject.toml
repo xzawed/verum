@@ -31,6 +31,7 @@ asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["src"]
+relative_files = true
 
 [tool.coverage.report]
 exclude_lines = ["if __name__ == .__main__.:"]
