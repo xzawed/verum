@@ -84,8 +84,14 @@ async def aggregate_variant_wins(
     max_cost_row = (
         await db.execute(
             text(
-                "SELECT COALESCE(MAX(s.cost_usd), 0) AS max_cost"
-                " FROM traces t JOIN spans s ON s.trace_id = t.id"
+                "SELECT COALESCE(MAX(trace_cost.total_cost), 0) AS max_cost"
+                " FROM traces t"
+                " LEFT JOIN ("
+                "   SELECT trace_id, SUM(cost_usd) AS total_cost"
+                "   FROM spans"
+                "   WHERE created_at >= now() - interval '7 days'"
+                "   GROUP BY trace_id"
+                " ) trace_cost ON trace_cost.trace_id = t.id"
                 " WHERE t.deployment_id = :did AND t.created_at >= now() - interval '7 days'"
             ),
             {"did": str(deployment_id)},
@@ -102,11 +108,15 @@ async def aggregate_variant_wins(
                 "    WHERE t.judge_score IS NOT NULL"
                 "    AND ("
                 "      t.judge_score - 0.1 * CASE WHEN :max_cost > 0"
-                "        THEN COALESCE(s.cost_usd, 0)::float / :max_cost ELSE 0 END"
+                "        THEN COALESCE(trace_cost.total_cost, 0)::float / :max_cost ELSE 0 END"
                 "    ) > :threshold"
                 "  ) AS wins"
                 " FROM traces t"
-                " LEFT JOIN spans s ON s.trace_id = t.id"
+                " LEFT JOIN ("
+                "   SELECT trace_id, SUM(cost_usd) AS total_cost"
+                "   FROM spans"
+                "   GROUP BY trace_id"
+                " ) trace_cost ON trace_cost.trace_id = t.id"
                 " WHERE t.deployment_id = :did"
                 "   AND t.variant IN (:bv, :cv)"
                 " GROUP BY t.variant"
