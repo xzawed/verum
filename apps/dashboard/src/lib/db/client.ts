@@ -4,29 +4,21 @@ import * as schema from "./schema";
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
-/**
- * Validate DATABASE_URL on module load.
- *
- * Throws immediately if DATABASE_URL is not set in any environment.
- * This prevents misconfigured deployments from silently using insecure
- * hardcoded credentials.
- */
-const dbUrl = process.env.DATABASE_URL;
-if (!dbUrl) {
-  throw new Error(
-    "DATABASE_URL environment variable is required. " +
-    "Set it to a valid PostgreSQL connection string before starting the application."
-  );
-}
-
+// DATABASE_URL is validated lazily in getDb() so that `next build` can import
+// this module without a database connection present in the build environment.
+// The throw fires on the first actual query attempt, not at module load time.
 function getDb() {
   if (!_db) {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      throw new Error(
+        "DATABASE_URL environment variable is required. " +
+        "Set it to a valid PostgreSQL connection string before starting the application."
+      );
+    }
     const pool = new Pool({
       connectionString: dbUrl,
-      ssl:
-        process.env.NODE_ENV === "production"
-          ? true
-          : false,
+      ssl: process.env.NODE_ENV === "production" ? true : false,
     });
     _db = drizzle(pool, { schema });
   }
