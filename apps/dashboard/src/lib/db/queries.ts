@@ -7,6 +7,7 @@ import { db } from "./client";
 import {
   analyses,
   deployments,
+  experiments,
   eval_pairs,
   generations,
   harvest_sources,
@@ -19,6 +20,7 @@ import {
   worker_heartbeat,
   type Analysis,
   type Deployment,
+  type Experiment,
   type EvalPair,
   type Generation,
   type HarvestSource,
@@ -29,7 +31,7 @@ import {
   type VerumJob,
 } from "./schema";
 
-export type { Analysis, Deployment, EvalPair, Generation, HarvestSource, Inference, PromptVariant, RagConfig, Repo, VerumJob };
+export type { Analysis, Deployment, Experiment, EvalPair, Generation, HarvestSource, Inference, PromptVariant, RagConfig, Repo, VerumJob };
 
 export async function getUserByGithubId(githubId: number) {
   const rows = await db.select().from(users).where(eq(users.github_id, githubId)).limit(1);
@@ -387,4 +389,38 @@ export async function getDailyMetrics(deploymentId: string, days: number = 7) {
     `,
   );
   return rows.rows;
+}
+
+// ── EXPERIMENT ────────────────────────────────────────────────
+
+export async function getExperiments(
+  userId: string,
+  deploymentId: string,
+): Promise<Experiment[]> {
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return [];
+
+  return db
+    .select()
+    .from(experiments)
+    .where(eq(experiments.deployment_id, deploymentId))
+    .orderBy(desc(experiments.started_at));
+}
+
+export async function getExperiment(
+  userId: string,
+  experimentId: string,
+): Promise<Experiment | null> {
+  const rows = await db
+    .select()
+    .from(experiments)
+    .where(eq(experiments.id, experimentId))
+    .limit(1);
+
+  if (!rows[0]) return null;
+
+  const dep = await getDeployment(userId, rows[0].deployment_id);
+  if (!dep) return null;
+
+  return rows[0];
 }

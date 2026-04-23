@@ -162,6 +162,8 @@ export const deployments = pgTable("deployments", {
   traffic_split: jsonb("traffic_split").notNull().default({ baseline: 0.9, variant: 0.1 }),
   error_count: integer("error_count").notNull().default(0),
   total_calls: integer("total_calls").notNull().default(0),
+  experiment_status: text("experiment_status").notNull().default("idle"),
+  current_baseline_variant: text("current_baseline_variant").notNull().default("original"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -202,6 +204,28 @@ export const judge_prompts = pgTable("judge_prompts", {
   raw_response: text("raw_response").notNull(),
   judged_at: timestamp("judged_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const experiments = pgTable("experiments", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  deployment_id: uuid("deployment_id")
+    .notNull()
+    .references(() => deployments.id, { onDelete: "cascade" }),
+  baseline_variant: text("baseline_variant").notNull(),
+  challenger_variant: text("challenger_variant").notNull(),
+  status: text("status").notNull().default("running"),
+  winner_variant: text("winner_variant"),
+  confidence: doublePrecision("confidence"),
+  baseline_wins: integer("baseline_wins").notNull().default(0),
+  baseline_n: integer("baseline_n").notNull().default(0),
+  challenger_wins: integer("challenger_wins").notNull().default(0),
+  challenger_n: integer("challenger_n").notNull().default(0),
+  win_threshold: doublePrecision("win_threshold").notNull().default(0.6),
+  cost_weight: doublePrecision("cost_weight").notNull().default(0.1),
+  started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  converged_at: timestamp("converged_at", { withTimezone: true }),
+});
+
+export type Experiment = typeof experiments.$inferSelect;
 
 export type User = typeof users.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
