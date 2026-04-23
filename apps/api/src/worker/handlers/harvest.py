@@ -6,6 +6,7 @@ Payload schema:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -29,20 +30,33 @@ async def handle_harvest(
     chunking_strategy: str = payload.get("chunking_strategy", "recursive")
     use_playwright: bool = bool(payload.get("use_playwright", False))
 
-    total_chunks = 0
-    results: list[dict[str, Any]] = []
-    for source_id_str, url in source_pairs:
+    sem = asyncio.Semaphore(3)
+
+    async def _harvest_one(source_id_str: str, url: str) -> dict[str, Any]:
         source_id = uuid.UUID(source_id_str)
-        try:
-            count = await harvest_source(
-                db, source_id, url, inference_id,
-                chunking_strategy=chunking_strategy,
-                use_playwright=use_playwright,
-            )
-            total_chunks += count
-            results.append({"source_id": source_id_str, "chunks": count, "status": "done"})
-        except Exception as exc:
-            results.append({"source_id": source_id_str, "error": str(exc), "status": "error"})
+        async with sem:
+            try:
+                count = await harvest_source(
+                    db, source_id, url, inference_id,
+                    chunking_strategy=chunking_strategy,
+                    use_playwright=use_playwright,
+                )
+                return {"source_id": source_id_str, "chunks": count, "status": "done"}
+            except Exception as exc:
+                return {"source_id": source_id_str, "error": str(exc), "status": "error"}
+
+    results: list[dict[str, Any]] = list(await asyncio.gather(
+        *[_harvest_one(sid, url) for sid, url in source_pairs],
+        return_exceptions=False,
+    ))
+    total_chunks = sum(r.get("chunks", 0) for r in results)
+
+    successful_sources = sum(1 for r in results if r["status"] == "done")
+    if successful_sources == 0 or total_chunks == 0:
+        raise RuntimeError(
+            f"HARVEST produced no usable content: {successful_sources}/{len(source_pairs)} "
+            f"sources succeeded, {total_chunks} chunks total — GENERATE skipped"
+        )
 
     # Chain HARVEST → GENERATE
     generation_id = uuid.uuid4()
@@ -66,5 +80,6 @@ async def handle_harvest(
     return {
         "inference_id": str(inference_id),
         "total_chunks": total_chunks,
+        "successful_sources": successful_sources,
         "sources": results,
     }
