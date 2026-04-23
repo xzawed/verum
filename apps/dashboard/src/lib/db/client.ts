@@ -18,7 +18,10 @@ function getDb() {
     }
     const pool = new Pool({
       connectionString: dbUrl,
-      ssl: process.env.NODE_ENV === "production" ? true : false,
+      // Supabase Connection Pooler (Supavisor) uses a self-signed certificate chain.
+      // ssl:true triggers pg's full chain verification which fails; rejectUnauthorized:false
+      // keeps the connection encrypted while skipping chain verification.
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
     });
     _db = drizzle(pool, { schema });
   }
