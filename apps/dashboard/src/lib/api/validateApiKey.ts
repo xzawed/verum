@@ -1,30 +1,12 @@
-import { createHash, timingSafeEqual } from "crypto";
-import { db } from "@/lib/db/client";
-import { deployments } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { createHash } from "crypto";
+import { findDeploymentByApiKey } from "@/lib/db/deploys";
 
-export async function validateApiKey(rawKey: string): Promise<string | null> {
-  // Returns deployment_id if valid, null if invalid
+export type ApiKeyResult = { deploymentId: string; userId: string };
+
+export async function validateApiKey(rawKey: string): Promise<ApiKeyResult | null> {
   if (!rawKey || rawKey.length < 40) return null;
-  const incomingHash = createHash("sha256").update(rawKey).digest("hex");
-  const rows = await db
-    .select({ id: deployments.id, apiKeyHash: deployments.apiKeyHash })
-    .from(deployments)
-    .where(eq(deployments.apiKeyHash, incomingHash))
-    .limit(1);
-
-  const row = rows[0];
+  const hash = createHash("sha256").update(rawKey).digest("hex");
+  const row = await findDeploymentByApiKey(hash);
   if (!row) return null;
-
-  // Constant-time comparison to prevent timing attacks
-  const storedHashBuf = Buffer.from(row.apiKeyHash, "hex");
-  const incomingHashBuf = Buffer.from(incomingHash, "hex");
-  if (
-    storedHashBuf.byteLength !== incomingHashBuf.byteLength ||
-    !timingSafeEqual(storedHashBuf, incomingHashBuf)
-  ) {
-    return null;
-  }
-
-  return row.id;
+  return { deploymentId: row.id, userId: row.userId };
 }
