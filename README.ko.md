@@ -3,6 +3,7 @@
 # Verum
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/xzawed/verum/actions/workflows/ci.yml/badge.svg)](https://github.com/xzawed/verum/actions/workflows/ci.yml)
 [![Phase](https://img.shields.io/badge/Phase-4A%20완료%20%E2%80%94%20OBSERVE-brightgreen)](docs/ROADMAP.md)
 [![Deployed on Railway](https://img.shields.io/badge/Deployed%20on-Railway-blueviolet?logo=railway&logoColor=white)](https://railway.app)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)](apps/api)

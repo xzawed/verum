@@ -27,6 +27,8 @@
 - [ ] Loop stage is identified and documented in commit scope
 - [ ] ArcanaInsight still works (or not yet connected — Phase 0 only)
 - [ ] `docs/DECISIONS.md` updated if this PR makes a significant architectural decision
+- [ ] `docs/METHODOLOGY.md` updated if this PR changes a prompt, model, or scoring formula
+- [ ] `CHANGELOG.md` updated if this PR ships user-visible behavior
 - [ ] No LangChain/LlamaIndex imports introduced
 - [ ] No external vector DB introduced
 - [ ] No hardcoded embedding dimensions introduced
