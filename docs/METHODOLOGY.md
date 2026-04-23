@@ -12,13 +12,13 @@ status: active
 >
 > **Audience:** Software engineers familiar with LLMs and RAG; no Verum-specific context required beyond reading this document.
 >
-> **Update rule:** Any change to a prompt, model, or scoring formula **must** include a diff to this file. Phase 4-B sections marked `TODO` will be completed in the PR that implements F-4.5 / F-4.6 / F-4.8.
+> **Update rule:** Any change to a prompt, model, or scoring formula **must** include a diff to this file in the same PR.
 
 ---
 
 ## 1. The 8-Stage Loop
 
-Verum runs a continuous pipeline: **ANALYZE → INFER → HARVEST → GENERATE → DEPLOY → OBSERVE → EXPERIMENT → EVOLVE → (repeat)**. This document covers stages [4] GENERATE and [6] OBSERVE in full. Stages [7] and [8] are pending Phase 4-B implementation.
+Verum runs a continuous pipeline: **ANALYZE → INFER → HARVEST → GENERATE → DEPLOY → OBSERVE → EXPERIMENT → EVOLVE → (repeat)**. This document covers stages [4] GENERATE, [6] OBSERVE, [7] EXPERIMENT, and [8] EVOLVE in full.
 
 For stage-by-stage I/O contracts and trigger conditions, see [LOOP.md](LOOP.md). For completion gates and timeline, see [ROADMAP.md](ROADMAP.md).
 

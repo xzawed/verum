@@ -29,6 +29,9 @@ dependencies = [
     "httpx>=0.27",
     "trafilatura>=1.12",
     "playwright>=1.49",
+    # EXPERIMENT — Bayesian A/B scoring
+    "scipy>=1.13",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
