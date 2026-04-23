@@ -54,5 +54,5 @@ flags:
 
   typescript-dashboard:
     paths:
-      - apps/dashboard/src/lib/
+      - apps/dashboard/src/
     carryforward: true

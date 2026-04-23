@@ -49,9 +49,19 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "requires_db: test requires a real Postgres connection (auto-skipped without reachable DB)",
+]
 
 [tool.coverage.run]
-omit = ["src/loop/analyze/cli.py", "src/loop/infer/cli.py", "src/loop/harvest/cli.py", "src/main.py", "src/worker/main.py"]
+source = ["src"]
+omit = [
+  "src/loop/analyze/cli.py",
+  "src/loop/infer/cli.py",
+  "src/loop/harvest/cli.py",
+  "src/main.py",
+  "src/worker/main.py",
+]
 
 [tool.coverage.report]
 exclude_lines = ["if __name__ == .__main__.:"]
