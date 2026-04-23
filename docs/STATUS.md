@@ -2,7 +2,7 @@
 type: status
 authority: tier-1
 canonical-for: [current-implementation-state, file-map, api-index, db-schema]
-last-updated: 2026-04-24
+last-updated: 2026-04-26
 ---
 
 # Verum — Current Implementation Status
@@ -330,28 +330,50 @@ function getClient() {
 
 ---
 
+## 테스트 커버리지 현황
+
+| 구분 | 테스트 파일 수 | 테스트 수 | 최근 갱신 |
+|------|--------------|---------|----------|
+| Python API (loop + worker) | 38 | 265 non-DB passing, 1 skip | 2026-04-26 |
+| Dashboard Jest | 22 suites | 104 | 2026-04-26 |
+| E2E Playwright | 3 spec | ~16 | 2026-04-24 |
+
+> `requires_db` 마커가 붙은 1개 테스트는 로컬 Postgres 미기동 시 자동 skip. CI `test-api` 잡에서는 Postgres service가 기동되므로 전체 실행됨.
+
+### Python 테스트 파일 분포
+
+| 모듈 | 테스트 파일 수 | 주요 커버 영역 |
+|------|-------------|--------------|
+| `loop/analyze/` | 3 | models, repository, typescript parser |
+| `loop/infer/` | 3 | engine (Claude mock), models, repository |
+| `loop/harvest/` | 5 | chunker, chunking_strategy, embedder, playwright_crawler, repository |
+| `loop/generate/` | 4 | engine, metric_profile, models, repository |
+| `loop/deploy/` | 3 | engine, orchestrator, repository |
+| `loop/observe/` | 1 | repository |
+| `loop/experiment/` | 3 | engine (Bayesian), models, repository |
+| `loop/evolve/` | 2 | engine, repository |
+| `loop/` (root) | 2 | llm_client, utils |
+| `worker/handlers/` | 8 | 8개 핸들러 전체 |
+| `worker/` (root) | 3 | chain, payloads, runner |
+| `tests/` (root) | 1 | quota |
+| **합계** | **38** | |
+
+### 테스트 Role (.claude/)
+
+6개 전문가 에이전트가 `.claude/agents/`에 상주:
+
+| 에이전트 | 역할 |
+|---------|------|
+| `test-orchestrator` | 총괄. gap-analyzer → 병렬 writer → coverage-auditor 순서 조율 |
+| `test-gap-analyzer` | 미테스트 모듈 P0/P1/P2 리스크 랭킹 |
+| `test-unit-writer` | AsyncMock 기반 단위 테스트 (Python + TypeScript) |
+| `test-integration-writer` | `requires_db` + `async_db_session` 통합 테스트 |
+| `test-e2e-writer` | Playwright E2E (`/test/login` bypass 활용) |
+| `test-coverage-auditor` | pytest/jest/playwright 집계 → `docs/COVERAGE_REPORT.md` |
+
+- `PostToolUse` hook: `src/**` 편집 시 `.claude/hooks/post_test_edit.py`가 대응 테스트 자동 실행 (비블로킹, 항상 exit 0)
+- 스킬 참조: `.claude/skills/test-run.md`, `.claude/skills/test-patterns.md`, `.claude/skills/loop-stage-coverage.md`
+
 ---
 
-## 테스트 커버리지 현황 (2026-04-26)
-
-| 구분 | 테스트 파일 수 | 테스트 수 | 비고 |
-|------|--------------|---------|------|
-| Python API (loop + worker) | 44 | 265 (non-DB) | `requires_db` 1개 skip (로컬 DB 없음) |
-| Dashboard Jest | 22 suites | 104 | 16개 route handler + lib 커버 |
-| E2E Playwright | 3 | ~16 | smoke + auth + repos-flow; dev server 필요 |
-
-### Python 신규 커버 모듈 (Phase 3, 2026-04-26)
-- `loop/analyze/repository.py` — 8 tests
-- `loop/infer/repository.py` — 7 tests
-- `loop/deploy/repository.py` — 8 tests
-- `loop/evolve/repository.py` — 6 tests
-- `loop/experiment/repository.py` — 10 tests
-
-### 테스트 Role 위치
-- `.claude/agents/test-orchestrator.md` — 총괄 에이전트 (6개 전문가 시스템)
-- `.claude/skills/test-patterns.md` — AsyncMock, makeSelectChain 패턴
-- `.claude/hooks/post_test_edit.py` — src/ 편집 시 자동 테스트 실행 (비블로킹)
-
----
-
-_Last updated: 2026-04-26 (Phase 3 repository tests — 5 new files, 39 tests; total Python 265 non-DB passing) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-26 (doc sync — test file count corrected to 38; Test Role .claude/ system documented; all 265 Python non-DB tests passing) | Maintained by: Claude at end of each implementation session_

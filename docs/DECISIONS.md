@@ -2,7 +2,7 @@
 type: decisions
 authority: tier-2
 canonical-for: [adr-index, product-scope-decisions, superseded-decisions]
-last-updated: 2026-04-22
+last-updated: 2026-04-26
 status: active
 ---
 
