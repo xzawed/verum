@@ -5,5 +5,5 @@ const { auth } = NextAuth(authConfig);
 export { auth as middleware };
 
 export const config = {
-  matcher: ["/((?!api/auth|api/repos|api/v1/deploy/.+/config|login|health|docs|_next|favicon).*)"],
+  matcher: ["/((?!api/auth|api/repos|api/v1/deploy/.+/config|api/test|login|health|docs|_next|favicon).*)"],
 };

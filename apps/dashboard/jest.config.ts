@@ -14,6 +14,8 @@ const config: Config = {
           moduleResolution: "node",
           esModuleInterop: true,
           strict: true,
+          rootDir: "./src",
+          ignoreDeprecations: "6.0",
         },
       },
     ],
