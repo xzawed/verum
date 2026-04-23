@@ -1,9 +1,12 @@
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
-import { remark } from "remark";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
-import remarkHtml from "remark-html";
+import remarkRehype from "remark-rehype";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeStringify from "rehype-stringify";
 
 const DOCS_DIR =
   process.env.DOCS_PATH || path.join(process.cwd(), "..", "..", "docs");
@@ -51,9 +54,19 @@ export async function getDoc(
     const raw = fs.readFileSync(filePath, "utf-8");
     const { data, content } = matter(raw);
 
-    const result = await remark()
+    const result = await unified()
+      .use(remarkParse)
       .use(remarkGfm)
-      .use(remarkHtml, { sanitize: false })
+      .use(remarkRehype)
+      .use(rehypeSanitize, {
+        ...defaultSchema,
+        attributes: {
+          ...defaultSchema.attributes,
+          code: [...(defaultSchema.attributes?.code ?? []), "className"],
+          span: [...(defaultSchema.attributes?.span ?? []), "className"],
+        },
+      })
+      .use(rehypeStringify)
       .process(content);
     const contentHtml = result.toString();
 
