@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { deployments } from "./schema";
+import { deployments, generations, inferences, repos } from "./schema";
 
 /**
  * Look up a deployment by the SHA-256 hash of its API key.
@@ -15,10 +15,13 @@ export async function findDeploymentByApiKey(
   apiKeyHash: string
 ): Promise<{ id: string; userId: string } | null> {
   const rows = await db
-    .select({ id: deployments.id })
+    .select({ id: deployments.id, userId: repos.owner_user_id })
     .from(deployments)
+    .innerJoin(generations, eq(deployments.generation_id, generations.id))
+    .innerJoin(inferences, eq(generations.inference_id, inferences.id))
+    .innerJoin(repos, eq(inferences.repo_id, repos.id))
     .where(eq(deployments.apiKeyHash, apiKeyHash))
     .limit(1);
   if (!rows[0]) return null;
-  return { id: rows[0].id, userId: rows[0].id };
+  return rows[0];
 }
