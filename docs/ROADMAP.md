@@ -216,7 +216,7 @@ A complete OBSERVE → EXPERIMENT → EVOLVE cycle on ArcanaInsight tarot:
 | F-5.10 | Langfuse vs Verum honest comparison document | ✅ `docs/COMPARISON.md` |
 | F-5.11 | Demo video: ArcanaInsight auto-optimization real-time (3–5 minutes, Loom) | 🔲 xzawed records after F-4.11 |
 | F-5.12 | Demo environment live (`demo.verum.dev`) with pre-populated data | ✅ `scripts/seed_demo.py` — 420 traces, 2 converged experiments |
-| F-5.13 | Cloud SaaS MVP open (`verum.dev`) with GitHub OAuth onboarding | ✅ usage_quota migration + rate limiting + email stubs (0011) |
+| F-5.13 | Cloud SaaS MVP open (`verum.dev`) with GitHub OAuth onboarding | ✅ usage_quota (0011) + cryptographic API keys (0014) + rate limiting + email stubs |
 | F-5.14 | "Not affiliated with Verum AI Platform (verumai.com)" statement on all landing pages | ✅ README.md + README.ko.md |
 
 ---

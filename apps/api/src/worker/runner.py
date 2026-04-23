@@ -17,6 +17,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
 from src.db.session import AsyncSessionLocal
+from src.worker.payloads import (
+    AnalyzePayload,
+    DeployPayload,
+    EvolvePayload,
+    GeneratePayload,
+    HarvestPayload,
+    InferPayload,
+    JudgePayload,
+    RetrievePayload,
+)
 from .handlers.analyze import handle_analyze
 from .handlers.deploy import handle_deploy
 from .handlers.evolve import handle_evolve
@@ -42,6 +52,18 @@ _HANDLERS = {
     "deploy": handle_deploy,
     "judge": handle_judge,
     "evolve": handle_evolve,
+}
+
+# Pydantic schema for each job kind — validated before dispatch.
+_PAYLOAD_SCHEMAS = {
+    "analyze": AnalyzePayload,
+    "infer": InferPayload,
+    "harvest": HarvestPayload,
+    "generate": GeneratePayload,
+    "deploy": DeployPayload,
+    "judge": JudgePayload,
+    "evolve": EvolvePayload,
+    "retrieve": RetrievePayload,
 }
 
 
@@ -210,14 +232,54 @@ async def _experiment_loop() -> None:
             logger.warning("EXPERIMENT loop error: %s", exc)
 
 
+async def _dispatch_job(job: dict[str, Any]) -> None:
+    """Validate and execute one claimed job; mark done or failed."""
+    job_id: uuid.UUID = job["id"]
+    kind: str = job["kind"]
+    payload: dict[str, Any] = job["payload"] or {}
+    owner_user_id: uuid.UUID = job["owner_user_id"]
+    attempts: int = job["attempts"]
+
+    logger.info("Claiming job %s kind=%s attempt=%d", job_id, kind, attempts)
+
+    handler = _HANDLERS.get(kind)
+    if handler is None:
+        async with AsyncSessionLocal() as db:
+            await _mark_failed(db, job_id, f"unknown job kind: {kind}", attempts)
+        logger.error("Unknown job kind '%s' for job %s", kind, job_id)
+        return
+
+    schema = _PAYLOAD_SCHEMAS.get(kind)
+    if schema is not None:
+        try:
+            schema(**payload)
+        except Exception as exc:
+            async with AsyncSessionLocal() as db:
+                await _mark_failed(db, job_id, f"invalid payload for {kind}: {exc}", attempts)
+            logger.error("Invalid payload for job %s kind=%s: %s", job_id, kind, exc)
+            return
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await handler(db, owner_user_id, payload)
+        async with AsyncSessionLocal() as db:
+            await _mark_done(db, job_id, result)
+        logger.info("Job %s done", job_id)
+    except Exception as exc:
+        logger.exception("Job %s failed: %s", job_id, exc)
+        async with AsyncSessionLocal() as db:
+            await _mark_failed(db, job_id, str(exc), attempts)
+
+
 async def run_loop() -> None:
     logger.info("Worker starting")
     async with AsyncSessionLocal() as db:
         await _reset_stale(db)
     logger.info("Stale job reset complete")
 
-    asyncio.create_task(_heartbeat_loop())
-    asyncio.create_task(_experiment_loop())
+    _bg_tasks: set[asyncio.Task[None]] = set()
+    _bg_tasks.add(asyncio.create_task(_heartbeat_loop()))
+    _bg_tasks.add(asyncio.create_task(_experiment_loop()))
     logger.info("Experiment loop started (interval=%ds)", EXPERIMENT_INTERVAL)
 
     from src.worker.listener import get_wake_event, start_listener
@@ -231,8 +293,7 @@ async def run_loop() -> None:
                 job = await _claim_one(db)
 
             if job is None:
-                # Wait for NOTIFY wake (fired by trigger on verum_jobs INSERT)
-                # or fall back to 1s timeout to catch jobs from other sources.
+                # Wait for NOTIFY wake or fall back to 1s timeout.
                 try:
                     await asyncio.wait_for(_wake_event.wait(), timeout=1.0)
                 except asyncio.TimeoutError:
@@ -240,31 +301,7 @@ async def run_loop() -> None:
                 _wake_event.clear()
                 continue
 
-            job_id: uuid.UUID = job["id"]
-            kind: str = job["kind"]
-            payload: dict[str, Any] = job["payload"] or {}
-            owner_user_id: uuid.UUID = job["owner_user_id"]
-            attempts: int = job["attempts"]
-
-            logger.info("Claiming job %s kind=%s attempt=%d", job_id, kind, attempts)
-
-            handler = _HANDLERS.get(kind)
-            if handler is None:
-                async with AsyncSessionLocal() as db:
-                    await _mark_failed(db, job_id, f"unknown job kind: {kind}", attempts)
-                logger.error("Unknown job kind '%s' for job %s", kind, job_id)
-                continue
-
-            try:
-                async with AsyncSessionLocal() as db:
-                    result = await handler(db, owner_user_id, payload)
-                async with AsyncSessionLocal() as db:
-                    await _mark_done(db, job_id, result)
-                logger.info("Job %s done", job_id)
-            except Exception as exc:
-                logger.exception("Job %s failed: %s", job_id, exc)
-                async with AsyncSessionLocal() as db:
-                    await _mark_failed(db, job_id, str(exc), attempts)
+            await _dispatch_job(job)
 
         except Exception as exc:
             logger.exception("Unexpected runner error: %s", exc)

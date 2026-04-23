@@ -137,6 +137,7 @@ HN 포스트만 올리면 "왜 만들었는가"를 설명할 공간이 부족합
 
 ### 런치 선행 조건 체크리스트
 
+- [x] P0 보안 수정 완료 — XSS sanitize, cryptographic API key(0014), DATABASE_URL 하드코딩 제거, SQL 인젝션 패치, EVOLVE race condition unique index(0013)
 - [ ] GitHub 레포 공개 (F-5.13)
 - [ ] `demo.verum.dev` 라이브 (F-5.12)
 - [ ] `01-why-not-langchain` 블로그 발행 (F-5.8 — 2일 전)
