@@ -39,6 +39,11 @@
           }
         }
       ]
-    }
+    },
+    "coverageReporters": ["text", "lcov", "json-summary"],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.d.ts"
+    ]
   }
 }

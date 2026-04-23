@@ -1,6 +1,10 @@
 export async function register() {
   // Only run in the Node.js runtime (not Edge), and only once per process.
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    if (process.env.SKIP_PYTHON_WORKER === "1") {
+      console.log("[instrumentation] SKIP_PYTHON_WORKER=1 — skipping alembic and Python worker");
+      return;
+    }
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
     const { resolve } = await import("node:path");

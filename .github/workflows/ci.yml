@@ -15,6 +15,8 @@ on:
         default: "false"
 
 jobs:
+  # ── Lint ──────────────────────────────────────────────────────────────────────
+
   lint-python:
     name: Python lint
     runs-on: ubuntu-latest
@@ -49,9 +51,139 @@ jobs:
       - name: eslint — dashboard
         run: cd apps/dashboard && npx next lint --max-warnings 0 || true
 
-  test-api:
-    name: Python tests + coverage
+  # ── Unit & Integration Tests ──────────────────────────────────────────────────
+
+  test-sdk-python:
+    name: SDK Python tests + coverage
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install SDK + dev deps
+        run: pip install -e "./packages/sdk-python[dev]"
+      - name: Run tests with coverage
+        working-directory: packages/sdk-python
+        run: |
+          pytest tests -v \
+            --cov=src \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: packages/sdk-python/coverage.xml
+          flags: python-sdk
+          name: verum-python-sdk
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload coverage artifact for SonarCloud
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-python-coverage
+          path: packages/sdk-python/coverage.xml
+          if-no-files-found: warn
+
+  test-sdk-typescript:
+    name: SDK TypeScript tests + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: cd packages/sdk-typescript && npm install --no-audit --no-fund
+      - name: Run tests with coverage
+        run: cd packages/sdk-typescript && npx jest --coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: packages/sdk-typescript/coverage/lcov.info
+          flags: typescript-sdk
+          name: verum-typescript-sdk
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload coverage artifact for SonarCloud
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-typescript-coverage
+          path: packages/sdk-typescript/coverage/lcov.info
+          if-no-files-found: warn
+
+  test-dashboard:
+    name: Dashboard unit tests + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: cd apps/dashboard && npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Run Jest unit tests with coverage
+        run: cd apps/dashboard && npx jest --coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: apps/dashboard/coverage/lcov.info
+          flags: typescript-dashboard
+          name: verum-typescript-dashboard
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload coverage artifact for SonarCloud
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-coverage
+          path: apps/dashboard/coverage/lcov.info
+          if-no-files-found: warn
+
+  # ── E2E Tests ─────────────────────────────────────────────────────────────────
+
+  test-e2e:
+    name: E2E tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: cd apps/dashboard && npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Install Playwright browsers
+        run: cd apps/dashboard && npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        working-directory: apps/dashboard
+        run: npx playwright test
+        env:
+          SKIP_PYTHON_WORKER: "1"
+          # DATABASE_URL must be set (throws at import if unset); pool connects lazily
+          # so a non-reachable URL is fine for tests that don't make DB queries.
+          DATABASE_URL: "postgresql://verum:verum@localhost:5432/verum"
+          NEXTAUTH_SECRET: "ci-test-secret-32-chars-minimum-xx"
+          NEXTAUTH_URL: "http://localhost:3000"
+          AUTH_GITHUB_ID: "ci-dummy-github-id"
+          AUTH_GITHUB_SECRET: "ci-dummy-github-secret"
+      - name: Upload Playwright results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-results
+          path: |
+            apps/dashboard/playwright-results.xml
+            apps/dashboard/playwright-report/
+
+  # ── API Tests + SonarCloud ────────────────────────────────────────────────────
+
+  test-api:
+    name: Python tests + coverage + SonarCloud
+    runs-on: ubuntu-latest
+    needs: [test-sdk-python, test-sdk-typescript, test-dashboard]
+    if: always()
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -101,6 +233,28 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+      # Download coverage artifacts from parallel test jobs for SonarCloud
+      - name: Download SDK Python coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sdk-python-coverage
+          path: coverage-artifacts/sdk-python/
+
+      - name: Download SDK TypeScript coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sdk-typescript-coverage
+          path: coverage-artifacts/sdk-typescript/
+
+      - name: Download Dashboard coverage
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: dashboard-coverage
+          path: coverage-artifacts/dashboard/
+
       - name: SonarCloud scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
@@ -108,7 +262,10 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.python.coverage.reportPaths=apps/api/coverage.xml
+            -Dsonar.python.coverage.reportPaths=apps/api/coverage.xml,coverage-artifacts/sdk-python/coverage.xml
+            -Dsonar.javascript.lcov.reportPaths=coverage-artifacts/sdk-typescript/lcov.info,coverage-artifacts/dashboard/lcov.info
+
+  # ── Dogfood ───────────────────────────────────────────────────────────────────
 
   dogfood-arcana:
     name: Dogfood — ArcanaInsight ANALYZE

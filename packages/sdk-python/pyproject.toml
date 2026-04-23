@@ -22,8 +22,15 @@ Documentation = "https://docs.verum.dev"
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=5",
     "respx>=0.21",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:"]

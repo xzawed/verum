@@ -30,7 +30,6 @@ ignore:
   - "apps/api/src/loop/infer/cli.py"
   - "apps/api/src/loop/harvest/cli.py"
   - "scripts/**"
-  - "apps/dashboard/**"    # TypeScript coverage pending
 
 comment:
   layout: "reach,diff,flags,components"
@@ -41,4 +40,19 @@ flags:
   python-backend:
     paths:
       - apps/api/src/
+    carryforward: true
+
+  python-sdk:
+    paths:
+      - packages/sdk-python/src/
+    carryforward: true
+
+  typescript-sdk:
+    paths:
+      - packages/sdk-typescript/src/
+    carryforward: true
+
+  typescript-dashboard:
+    paths:
+      - apps/dashboard/src/lib/
     carryforward: true
