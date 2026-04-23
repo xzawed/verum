@@ -72,7 +72,6 @@ async def save_analysis_result(
     repo = (await db.execute(repo_stmt)).scalar_one_or_none()
     if repo:
         repo.last_analyzed_at = result.analyzed_at
-    await db.commit()
 
 
 async def mark_analysis_error(

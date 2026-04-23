@@ -45,7 +45,6 @@ async def handle_analyze(
                 "analysis_id": str(analysis_id),
             },
         )
-        await db.commit()
 
         await enqueue_next(
             db,
