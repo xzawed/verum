@@ -113,7 +113,6 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
 
     # Validate and clamp domain to taxonomy
     domain = parsed.get("domain", "other")
-    from .models import DOMAIN_TAXONOMY
     if domain not in DOMAIN_TAXONOMY:
         domain = "other"
 

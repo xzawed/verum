@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.enums import HarvestSourceStatus
 from src.db.models.chunks import Chunk
 from src.db.models.harvest_sources import HarvestSource
 
@@ -20,14 +21,14 @@ async def get_approved_sources(
 ) -> list[HarvestSource]:
     stmt = select(HarvestSource).where(
         HarvestSource.inference_id == inference_id,
-        HarvestSource.status == "approved",
+        HarvestSource.status == HarvestSourceStatus.APPROVED,
     )
     return list((await db.execute(stmt)).scalars().all())
 
 
 async def mark_source_crawling(db: AsyncSession, source_id: uuid.UUID) -> None:
     await db.execute(
-        update(HarvestSource).where(HarvestSource.id == source_id).values(status="crawling")
+        update(HarvestSource).where(HarvestSource.id == source_id).values(status=HarvestSourceStatus.CRAWLING)
     )
     await db.commit()
 
@@ -36,7 +37,7 @@ async def mark_source_done(db: AsyncSession, source_id: uuid.UUID, chunks_count:
     await db.execute(
         update(HarvestSource)
         .where(HarvestSource.id == source_id)
-        .values(status="done", chunks_count=chunks_count)
+        .values(status=HarvestSourceStatus.DONE, chunks_count=chunks_count)
     )
     await db.commit()
 

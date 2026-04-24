@@ -2,33 +2,30 @@
 
 Picks up where test_10 left off (INFER completed). Waits for HARVEST and GENERATE
 to complete via automatic chaining (chain.enqueue_next).
+
+Uses pipeline_state["inference_id"] set by test_10 instead of querying for
+the "latest" inference, which breaks when DB contains prior data.
 """
 from __future__ import annotations
 import pytest
 from sqlalchemy import text
 from utils.wait import wait_until
 from utils.snapshot import dump
-from utils.timeline import build as build_timeline
+import os
 from pathlib import Path
 
 pytestmark = pytest.mark.integration
 
 ARTIFACTS_DIR = Path(__file__).parent.parent.parent / "artifacts" / "integration"
-
-
-async def _latest_inference_id(async_db):
-    r = await async_db.execute(
-        text("SELECT id FROM inferences WHERE status = 'done' ORDER BY created_at DESC LIMIT 1")
-    )
-    row = r.fetchone()
-    return str(row[0]) if row else None
+HARVEST_TIMEOUT = int(os.environ.get("VERUM_TEST_HARVEST_TIMEOUT", "120"))
+GENERATE_TIMEOUT = int(os.environ.get("VERUM_TEST_GENERATE_TIMEOUT", "90"))
 
 
 @pytest.mark.asyncio
-async def test_harvest_pipeline(async_db, mock_control):
+async def test_harvest_pipeline(async_db, mock_control, pipeline_state):
     """HARVEST completes with > 10 chunks stored."""
-    inference_id = await _latest_inference_id(async_db)
-    assert inference_id, "No completed inference found — run test_10 first or check INFER stage."
+    inference_id = pipeline_state.get("inference_id")
+    assert inference_id, "pipeline_state missing inference_id — test_10 must run first"
 
     async def harvest_done():
         try:
@@ -45,7 +42,7 @@ async def test_harvest_pipeline(async_db, mock_control):
             await async_db.rollback()
             return None
 
-    done_count = await wait_until(harvest_done, timeout=120, label="HARVEST sources done")
+    done_count = await wait_until(harvest_done, timeout=HARVEST_TIMEOUT, label="HARVEST sources done")
     assert done_count >= 1, "No harvest sources completed"
 
     # Verify chunks were stored with embeddings
@@ -69,27 +66,28 @@ async def test_harvest_pipeline(async_db, mock_control):
 
 
 @pytest.mark.asyncio
-async def test_generate_pipeline(async_db):
+async def test_generate_pipeline(async_db, pipeline_state):
     """GENERATE completes with prompt variants and eval pairs."""
-    inference_id = await _latest_inference_id(async_db)
-    assert inference_id, "No completed inference found."
+    inference_id = pipeline_state.get("inference_id")
+    assert inference_id, "pipeline_state missing inference_id — test_10 must run first"
 
     async def generate_done():
         try:
             r = await async_db.execute(
                 text(
-                    "SELECT status FROM generations "
-                    "WHERE inference_id = :iid ORDER BY created_at DESC LIMIT 1"
+                    "SELECT g.id, g.status FROM generations g "
+                    "WHERE g.inference_id = :iid ORDER BY g.created_at DESC LIMIT 1"
                 ),
                 {"iid": inference_id},
             )
             row = r.fetchone()
-            return row if (row and row[0] == "done") else None
+            return row if (row and row[1] == "done") else None
         except Exception:
             await async_db.rollback()
             return None
 
-    await wait_until(generate_done, timeout=90, label="GENERATE completion")
+    gen_row = await wait_until(generate_done, timeout=GENERATE_TIMEOUT, label="GENERATE completion")
+    pipeline_state["generation_id"] = str(gen_row[0])
 
     # Check eval pairs were generated
     r = await async_db.execute(

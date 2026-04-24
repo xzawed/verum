@@ -43,6 +43,35 @@ describe("chooseVariant", () => {
   });
 });
 
+// ── Timeout tests ─────────────────────────────────────────────────────────────
+
+describe("VerumClient fetch timeout", () => {
+  it("aborts request when server hangs past timeoutMs", async () => {
+    const client = new VerumClient({
+      apiUrl: "http://test.local",
+      apiKey: "key",
+      timeoutMs: 50,
+    });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn((_url: unknown, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("The operation was aborted", "AbortError"))
+        );
+      })
+    ) as typeof fetch;
+
+    try {
+      await expect(
+        client.retrieve({ query: "test", collectionName: "col" })
+      ).rejects.toThrow();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 // ── Client tests ─────────────────────────────────────────────────────────────
 
 describe("VerumClient.chat", () => {

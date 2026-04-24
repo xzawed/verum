@@ -50,6 +50,10 @@ jobs:
         run: cd apps/dashboard && npm install --no-audit --no-fund --legacy-peer-deps && npx tsc --noEmit
       - name: eslint — dashboard
         run: cd apps/dashboard && npx next lint --max-warnings 0 || true
+      - name: npm audit — sdk-typescript
+        run: cd packages/sdk-typescript && npm audit --audit-level=high
+      - name: npm audit — dashboard
+        run: cd apps/dashboard && npm audit --audit-level=high || true
 
   # ── Unit & Integration Tests ──────────────────────────────────────────────────
 

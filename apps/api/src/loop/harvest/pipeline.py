@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config as cfg
@@ -52,7 +53,7 @@ async def harvest_source(
 
     try:
         embeddings = await embed_texts(chunks)
-    except Exception as exc:
+    except (RuntimeError, httpx.HTTPStatusError, httpx.RequestError) as exc:
         await mark_source_error(db, source_id, f"embedding failed: {exc}")
         return 0
 

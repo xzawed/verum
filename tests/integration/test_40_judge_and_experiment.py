@@ -5,6 +5,8 @@ After test_30 records 200+ traces, this test:
 2. Injects biased judge scores: variant=0.75 (wins), original=0.45 (no win)
 3. Waits for the experiment loop to aggregate and converge
 4. Verifies experiment winner == 'cot' (challenger variant)
+
+Uses pipeline_state["deployment_id"] set by test_30.
 """
 from __future__ import annotations
 
@@ -22,18 +24,15 @@ STATE_DIR = Path(os.environ.get("INTEGRATION_STATE_DIR", "/integration-state"))
 WIN_THRESHOLD = 0.6  # matches experiments.win_threshold column default
 VARIANT_WIN_SCORE = 0.75   # challenger wins: above threshold
 BASELINE_LOSE_SCORE = 0.45  # baseline loses: below threshold
-
-
-def _get_deployment_id() -> str:
-    path = STATE_DIR / "deployment_id.txt"
-    assert path.exists(), "deployment_id.txt not found — run test_30 first"
-    return path.read_text().strip()
+JUDGE_DRAIN_TIMEOUT = int(os.environ.get("VERUM_TEST_JUDGE_DRAIN_TIMEOUT", "180"))
+EVOLVE_ENQUEUE_TIMEOUT = int(os.environ.get("VERUM_TEST_EVOLVE_ENQUEUE_TIMEOUT", "60"))
 
 
 @pytest.mark.asyncio
-async def test_judge_jobs_drain(async_db):
+async def test_judge_jobs_drain(async_db, pipeline_state):
     """Wait for all JUDGE jobs to reach done/failed status."""
-    deployment_id = _get_deployment_id()
+    deployment_id = pipeline_state.get("deployment_id")
+    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
 
     async def judge_drained():
         # All traces for this deployment should have a JUDGE job that finished
@@ -45,7 +44,7 @@ async def test_judge_jobs_drain(async_db):
         )).mappings().first()
         return int(pending["n"]) == 0
 
-    drained = await wait_until(judge_drained, timeout=180, interval=5, label="JUDGE jobs drained")
+    drained = await wait_until(judge_drained, timeout=JUDGE_DRAIN_TIMEOUT, interval=5, label="JUDGE jobs drained")
     assert drained, "JUDGE jobs did not drain within 180s"
 
     # Count finished judge jobs
@@ -74,9 +73,10 @@ async def test_judge_jobs_drain(async_db):
 
 
 @pytest.mark.asyncio
-async def test_inject_biased_scores_and_converge(async_db):
+async def test_inject_biased_scores_and_converge(async_db, pipeline_state):
     """Inject variant-biased judge scores then wait for experiment loop to converge."""
-    deployment_id = _get_deployment_id()
+    deployment_id = pipeline_state.get("deployment_id")
+    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
 
     # Inject scores: variant traces win, baseline traces lose
     await async_db.execute(
@@ -106,7 +106,7 @@ async def test_inject_biased_scores_and_converge(async_db):
         )).mappings().first()
         return int(row["n"]) > 0
 
-    enqueued = await wait_until(evolve_enqueued, timeout=60, interval=3, label="EVOLVE job enqueued")
+    enqueued = await wait_until(evolve_enqueued, timeout=EVOLVE_ENQUEUE_TIMEOUT, interval=3, label="EVOLVE job enqueued")
     assert enqueued, (
         "EVOLVE job was not enqueued within 60s after score injection. "
         "Check VERUM_EXPERIMENT_INTERVAL_SECONDS and MIN_SAMPLES threshold."

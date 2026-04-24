@@ -163,7 +163,7 @@ last-updated: 2026-04-24
 | 메서드 | 설명 |
 |--------|------|
 | `await client.chat(messages, deployment_id, provider, model)` | 변형 라우팅; `{"messages": ..., "deployment_id": ..., "variant": ...}` 반환 |
-| `await client.retrieve(query, deployment_id, top_k, hybrid)` | pgvector 검색; 관련 청크 반환 |
+| `await client.retrieve(query, collection_name, top_k)` | pgvector 검색; 관련 청크 반환 |
 | `await client.record(deployment_id, variant, model, input_tokens, output_tokens, latency_ms, error)` | 트레이스 기록; `trace_id` 반환 |
 | `await client.feedback(trace_id, score)` | 사용자 피드백 (`score=1` 또는 `-1`) |
 

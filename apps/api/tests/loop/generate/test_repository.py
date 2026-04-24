@@ -152,12 +152,50 @@ async def test_save_generate_result_special_chars_in_variables() -> None:
 # Test 5 — concurrent duplicate call: documents known race condition
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Documents known bug: no UNIQUE constraint on generation_id in prompt_variants/rag_configs — "
-    "concurrent save_generate_result calls double-insert child rows. "
-    "Fix: add UNIQUE(generation_id) on rag_configs + SELECT FOR UPDATE guard."
-)
 @pytest.mark.asyncio
 async def test_save_generate_result_concurrent_calls_no_double_insert() -> None:
-    """Two concurrent save calls for the same generation_id must not produce duplicate rows."""
-    pass
+    """Two concurrent save calls for the same generation_id must complete without error.
+
+    rag_configs INSERT uses ON CONFLICT (generation_id) DO NOTHING so the second
+    call silently skips the duplicate instead of raising IntegrityError.
+    Migration 0007_rag_configs_unique adds the UNIQUE(generation_id) constraint.
+    """
+    import asyncio
+
+    from src.loop.generate.repository import save_generate_result
+
+    gen_id = uuid.uuid4()
+    result = _make_result(inference_id=uuid.uuid4())
+
+    def _make_mock_db() -> AsyncMock:
+        row = MagicMock()
+        row.status = "pending"
+        row.generated_at = None
+        row.metric_profile = None
+        sel = MagicMock()
+        sel.scalar_one_or_none.return_value = row
+        db = AsyncMock()
+        db.execute = AsyncMock(return_value=sel)
+        return db
+
+    db1, db2 = _make_mock_db(), _make_mock_db()
+
+    # Both must complete without raising
+    await asyncio.gather(
+        save_generate_result(db1, gen_id, result),
+        save_generate_result(db2, gen_id, result),
+    )
+
+    # Both sessions committed (each does its own db.commit())
+    db1.commit.assert_called_once()
+    db2.commit.assert_called_once()
+
+    # The rag_configs INSERT must include ON CONFLICT DO NOTHING
+    for db in (db1, db2):
+        rag_sql = next(
+            (str(c.args[0]) for c in db.execute.call_args_list
+             if c.args and "rag_configs" in str(c.args[0])),
+            None,
+        )
+        assert rag_sql is not None, "rag_configs INSERT not found in execute calls"
+        assert "ON CONFLICT" in rag_sql, "rag_configs INSERT missing ON CONFLICT DO NOTHING"

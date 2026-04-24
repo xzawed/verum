@@ -8,6 +8,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.enums import AnalysisStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,6 @@ async def mark_error(
     if row is None:
         logger.warning("mark_error: %s %s not found, skipping", model.__tablename__, row_id)
         return
-    row.status = "error"
+    row.status = AnalysisStatus.ERROR
     row.error = message[:1024]
     await db.commit()

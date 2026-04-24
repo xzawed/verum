@@ -36,7 +36,7 @@ async def embed_texts(
 
     results: list[list[float]] = []
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=cfg.EMBED_HTTP_TIMEOUT_SECS) as client:
         for i in range(0, len(texts), cfg.EMBED_BATCH_SIZE):
             batch = texts[i : i + cfg.EMBED_BATCH_SIZE]
             response = await client.post(

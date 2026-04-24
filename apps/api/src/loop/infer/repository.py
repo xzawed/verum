@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.enums import AnalysisStatus, HarvestSourceStatus
 from src.db.models.inferences import Inference
 from src.db.models.harvest_sources import HarvestSource
 from .models import ServiceInference
@@ -21,7 +22,7 @@ async def create_pending_inference(
         id=uuid.uuid4(),
         repo_id=repo_id,
         analysis_id=analysis_id,
-        status="pending",
+        status=AnalysisStatus.PENDING,
         created_at=datetime.now(tz=timezone.utc),
     )
     db.add(row)
@@ -38,7 +39,7 @@ async def save_inference_result(
 ) -> None:
     stmt = select(Inference).where(Inference.id == inference_id)
     row = (await db.execute(stmt)).scalar_one()
-    row.status = "done"
+    row.status = AnalysisStatus.DONE
     row.domain = result.domain
     row.tone = result.tone
     row.language = result.language
@@ -55,7 +56,7 @@ async def save_inference_result(
             url=src.url,
             title=src.title,
             description=src.description,
-            status="proposed",
+            status=HarvestSourceStatus.PROPOSED,
         ))
 
     await db.commit()
@@ -104,7 +105,7 @@ async def approve_source(
 ) -> HarvestSource:
     stmt = select(HarvestSource).where(HarvestSource.id == source_id)
     row = (await db.execute(stmt)).scalar_one()
-    row.status = "approved"
+    row.status = HarvestSourceStatus.APPROVED
     await db.commit()
     return row
 
@@ -115,6 +116,6 @@ async def reject_source(
 ) -> HarvestSource:
     stmt = select(HarvestSource).where(HarvestSource.id == source_id)
     row = (await db.execute(stmt)).scalar_one()
-    row.status = "rejected"
+    row.status = HarvestSourceStatus.REJECTED
     await db.commit()
     return row

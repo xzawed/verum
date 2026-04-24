@@ -7,6 +7,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.helpers import execute_commit
+
 
 async def get_running_experiment(
     db: AsyncSession,
@@ -16,7 +18,11 @@ async def get_running_experiment(
     row = (
         await db.execute(
             text(
-                "SELECT * FROM experiments"
+                "SELECT id, deployment_id, baseline_variant, challenger_variant,"
+                " status, winner_variant, confidence,"
+                " baseline_wins, baseline_n, challenger_wins, challenger_n,"
+                " win_threshold, started_at"
+                " FROM experiments"
                 " WHERE deployment_id = :did AND status = 'running'"
                 " ORDER BY started_at DESC LIMIT 1"
             ),
@@ -31,7 +37,11 @@ async def get_all_running_experiments(db: AsyncSession) -> list[dict[str, Any]]:
     rows = (
         await db.execute(
             text(
-                "SELECT e.* FROM experiments e"
+                "SELECT e.id, e.deployment_id, e.baseline_variant, e.challenger_variant,"
+                " e.status, e.winner_variant, e.confidence,"
+                " e.baseline_wins, e.baseline_n, e.challenger_wins, e.challenger_n,"
+                " e.win_threshold, e.started_at"
+                " FROM experiments e"
                 " JOIN deployments d ON d.id = e.deployment_id"
                 " WHERE e.status = 'running' AND d.experiment_status = 'running'"
             )
@@ -49,7 +59,8 @@ async def update_experiment_stats(
     challenger_n: int,
 ) -> None:
     """Overwrite win counters with freshly aggregated values."""
-    await db.execute(
+    await execute_commit(
+        db,
         text(
             "UPDATE experiments"
             " SET baseline_wins = :bw, baseline_n = :bn,"
@@ -64,7 +75,6 @@ async def update_experiment_stats(
             "eid": str(experiment_id),
         },
     )
-    await db.commit()
 
 
 async def aggregate_variant_wins(
@@ -185,7 +195,8 @@ async def mark_experiment_converged(
     winner_variant: str,
     confidence: float,
 ) -> None:
-    await db.execute(
+    await execute_commit(
+        db,
         text(
             "UPDATE experiments"
             " SET status = 'converged', winner_variant = :wv, confidence = :conf,"
@@ -194,4 +205,3 @@ async def mark_experiment_converged(
         ),
         {"wv": winner_variant, "conf": confidence, "eid": str(experiment_id)},
     )
-    await db.commit()

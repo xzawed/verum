@@ -9,6 +9,7 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.helpers import execute_commit
 from src.loop.deploy.engine import compute_traffic_split
 from src.loop.deploy.models import Deployment, DeploymentWithKey
 
@@ -53,7 +54,11 @@ async def create_deployment(
 
 async def get_deployment(db: AsyncSession, deployment_id: uuid.UUID) -> Deployment | None:
     row = (await db.execute(
-        text("SELECT * FROM deployments WHERE id = :id"),
+        text(
+            "SELECT id, generation_id, status, traffic_split,"
+            " error_count, total_calls, created_at, updated_at"
+            " FROM deployments WHERE id = :id"
+        ),
         {"id": str(deployment_id)},
     )).mappings().first()
     return _row_to_deployment(dict(row)) if row else None
@@ -65,27 +70,27 @@ async def update_traffic(
     variant_fraction: float,
 ) -> Deployment | None:
     split = compute_traffic_split(variant_fraction)
-    row = (await db.execute(
+    row = (await execute_commit(
+        db,
         text(
             "UPDATE deployments SET traffic_split = CAST(:split AS jsonb), updated_at = now()"
             " WHERE id = :id RETURNING *"
         ),
         {"split": json.dumps(split), "id": str(deployment_id)},
     )).mappings().first()
-    await db.commit()
     return _row_to_deployment(dict(row)) if row else None
 
 
 async def rollback_deployment(db: AsyncSession, deployment_id: uuid.UUID) -> Deployment | None:
-    split = json.dumps({"baseline": 1.0, "variant": 0.0})
-    row = (await db.execute(
+    split = json.dumps(compute_traffic_split(variant_fraction=0.0))
+    row = (await execute_commit(
+        db,
         text(
             "UPDATE deployments SET status = 'rolled_back', traffic_split = CAST(:split AS jsonb), updated_at = now()"
             " WHERE id = :id RETURNING *"
         ),
         {"split": split, "id": str(deployment_id)},
     )).mappings().first()
-    await db.commit()
     return _row_to_deployment(dict(row)) if row else None
 
 

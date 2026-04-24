@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
 
 interface Experiment {
   id: string;
@@ -31,39 +32,36 @@ const CHALLENGER_ORDER = ["cot", "few_shot", "role_play", "concise"];
 export default function ExperimentSection({ deploymentId }: Props) {
   const [data, setData] = useState<ExperimentsResponse | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchData() {
-      try {
-        const r = await fetch(`/api/v1/experiments?deployment_id=${deploymentId}`, {
-          cache: "no-store",
-        });
-        if (r.ok && !cancelled) {
-          setData(await r.json() as ExperimentsResponse);
-        }
-      } catch {
-        // ignore network errors during polling
+  const fetchData = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/v1/experiments?deployment_id=${deploymentId}`, {
+        cache: "no-store",
+      });
+      if (r.ok) {
+        setData(await r.json() as ExperimentsResponse);
       }
+    } catch {
+      // ignore network errors during polling
     }
-
-    void fetchData();
-
-    const interval = setInterval(() => {
-      void fetchData();
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, [deploymentId]);
+
+  // Kick off an immediate fetch on mount.
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const experimentActive = data?.current_experiment != null;
+  useAdaptivePolling(fetchData, experimentActive, {
+    minIntervalMs: 3_000,
+    maxIntervalMs: 30_000,
+    backoffFactor: 2,
+  });
 
   if (!data) {
     return (
       <div style={{ borderLeft: "3px solid #7c3aed", paddingLeft: 16, marginBottom: 32 }}>
         <h2 style={{ fontSize: 15, color: "#7c3aed", margin: "0 0 12px" }}>[7] EXPERIMENT</h2>
-        <p style={{ color: "#888", fontSize: 13 }}>불러오는 중...</p>
+        <p style={{ color: "#888", fontSize: 13 }}>Loading…</p>
       </div>
     );
   }
@@ -79,7 +77,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
       {current && (
         <div style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: "#aaa", marginBottom: 8 }}>
-            {`실험 진행 중 — 라운드 ${CHALLENGER_ORDER.indexOf(current.challenger_variant) + 1}/4: `}
+            {`Running — round ${CHALLENGER_ORDER.indexOf(current.challenger_variant) + 1}/4: `}
             <strong>{current.baseline_variant}</strong> vs{" "}
             <strong style={{ color: "#a78bfa" }}>{current.challenger_variant}</strong>
           </p>
@@ -111,7 +109,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
       {/* History */}
       {converged.length > 0 && (
         <div>
-          <p style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>실험 이력</p>
+          <p style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>History</p>
           <div style={{ border: "1px solid #222", borderRadius: 6, overflow: "hidden" }}>
             {converged.map((e, i) => (
               <div
@@ -142,7 +140,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
       {/* All done */}
       {!current && allExps.length > 0 && allExps[0]?.status === "converged" && (
         <p style={{ fontSize: 13, color: "#4ade80", marginTop: 8 }}>
-          실험 완료 — 최종 승자:{" "}
+          Done — winner:{" "}
           <strong style={{ fontFamily: "monospace" }}>{allExps[0].winner_variant}</strong>
         </p>
       )}

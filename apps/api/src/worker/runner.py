@@ -16,7 +16,9 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config as cfg
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
+from src.db.enums import JobStatus
 from src.db.session import AsyncSessionLocal
 from src.worker.payloads import (
     AnalyzePayload,
@@ -39,9 +41,9 @@ from .handlers.retrieve import handle_retrieve
 
 logger = logging.getLogger(__name__)
 
-MAX_ATTEMPTS = 3
-STALE_AFTER_MINUTES = 10
-HEARTBEAT_INTERVAL = 30  # seconds
+MAX_ATTEMPTS = cfg.JOB_MAX_ATTEMPTS
+STALE_AFTER_MINUTES = cfg.JOB_STALE_AFTER_MINUTES
+HEARTBEAT_INTERVAL = cfg.HEARTBEAT_INTERVAL_SECS
 EXPERIMENT_INTERVAL: int = int(os.environ.get("VERUM_EXPERIMENT_INTERVAL_SECONDS", "300"))
 if EXPERIMENT_INTERVAL <= 0:
     raise RuntimeError(
@@ -122,7 +124,7 @@ async def _mark_done(db: AsyncSession, job_id: uuid.UUID, result: Any) -> None:
 
 
 async def _mark_failed(db: AsyncSession, job_id: uuid.UUID, error: str, attempts: int) -> None:
-    next_status = "failed" if attempts >= MAX_ATTEMPTS else "queued"
+    next_status = JobStatus.FAILED if attempts >= MAX_ATTEMPTS else JobStatus.QUEUED
     await db.execute(
         text(
             "UPDATE verum_jobs SET status = :status, error = :error, finished_at = now()"
@@ -140,14 +142,34 @@ async def _update_heartbeat(db: AsyncSession) -> None:
     await db.commit()
 
 
+_heartbeat_failures: int = 0
+MAX_HEARTBEAT_FAILURES: int = int(os.environ.get("VERUM_MAX_HEARTBEAT_FAILURES", "5"))
+
+
 async def _heartbeat_loop() -> None:
-    """Update heartbeat row every HEARTBEAT_INTERVAL seconds."""
+    """Update heartbeat row every HEARTBEAT_INTERVAL seconds.
+
+    Exits the process after MAX_HEARTBEAT_FAILURES consecutive failures so the
+    container restarts instead of running as a silent zombie.
+    """
+    global _heartbeat_failures
     while True:
         try:
             async with AsyncSessionLocal() as db:
                 await _update_heartbeat(db)
+            _heartbeat_failures = 0
         except Exception as exc:
-            logger.warning("Heartbeat update failed: %s", exc)
+            _heartbeat_failures += 1
+            logger.warning(
+                "Heartbeat update failed (%d/%d): %s",
+                _heartbeat_failures, MAX_HEARTBEAT_FAILURES, exc,
+            )
+            if _heartbeat_failures >= MAX_HEARTBEAT_FAILURES:
+                logger.critical(
+                    "Heartbeat max failures reached (%d) — shutting down worker",
+                    MAX_HEARTBEAT_FAILURES,
+                )
+                os._exit(1)
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
@@ -322,7 +344,7 @@ async def run_loop() -> None:
             if job is None:
                 # Wait for NOTIFY wake or fall back to 1s timeout.
                 try:
-                    await asyncio.wait_for(_wake_event.wait(), timeout=1.0)
+                    await asyncio.wait_for(_wake_event.wait(), timeout=cfg.WORKER_POLL_TIMEOUT_SECS)
                 except asyncio.TimeoutError:
                     pass
                 _wake_event.clear()

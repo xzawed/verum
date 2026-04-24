@@ -1,7 +1,7 @@
-import time
 import pytest
 import respx
 import httpx
+from freezegun import freeze_time
 from verum import Client
 from verum._cache import DeploymentConfigCache
 from verum._router import choose_variant
@@ -23,10 +23,11 @@ def test_cache_set_and_hit():
 
 
 def test_cache_expires():
-    cache = DeploymentConfigCache(ttl=0)  # instant expiry
-    cache.set("dep-1", {"traffic_split": 0.1, "variant_prompt": "x", "status": "canary"})
-    time.sleep(0.01)
-    assert cache.get("dep-1") is None
+    with freeze_time("2026-01-01 00:00:00") as frozen:
+        cache = DeploymentConfigCache(ttl=60)
+        cache.set("dep-1", {"traffic_split": 0.1, "variant_prompt": "x", "status": "canary"})
+        frozen.tick(delta=61)
+        assert cache.get("dep-1") is None
 
 
 # ── Router tests ────────────────────────────────────────────────────────────────
