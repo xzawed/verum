@@ -47,6 +47,7 @@ if EXPERIMENT_INTERVAL <= 0:
     raise RuntimeError(
         f"VERUM_EXPERIMENT_INTERVAL_SECONDS must be a positive integer, got {EXPERIMENT_INTERVAL}"
     )
+STALE_RESET_INTERVAL: int = int(os.environ.get("VERUM_STALE_RESET_INTERVAL_SECONDS", "300"))
 
 _HANDLERS = {
     "analyze": handle_analyze,
@@ -148,6 +149,21 @@ async def _heartbeat_loop() -> None:
         except Exception as exc:
             logger.warning("Heartbeat update failed: %s", exc)
         await asyncio.sleep(HEARTBEAT_INTERVAL)
+
+
+async def _stale_reset_loop() -> None:
+    """Periodically reset stuck running jobs back to queued (every STALE_RESET_INTERVAL seconds).
+
+    Complements the one-time reset at startup: handles cases where a peer worker
+    crashed after the current worker started and no restart is imminent.
+    """
+    while True:
+        await asyncio.sleep(STALE_RESET_INTERVAL)
+        try:
+            async with AsyncSessionLocal() as db:
+                await _reset_stale(db)
+        except Exception as exc:
+            logger.warning("Periodic stale reset failed: %s", exc)
 
 
 async def _experiment_loop() -> None:
@@ -286,8 +302,12 @@ async def run_loop() -> None:
 
     _bg_tasks: set[asyncio.Task[None]] = set()
     _bg_tasks.add(asyncio.create_task(_heartbeat_loop()))
+    _bg_tasks.add(asyncio.create_task(_stale_reset_loop()))
     _bg_tasks.add(asyncio.create_task(_experiment_loop()))
-    logger.info("Experiment loop started (interval=%ds)", EXPERIMENT_INTERVAL)
+    logger.info(
+        "Background loops started — experiment=%ds stale_reset=%ds heartbeat=%ds",
+        EXPERIMENT_INTERVAL, STALE_RESET_INTERVAL, HEARTBEAT_INTERVAL,
+    )
 
     from src.worker.listener import get_wake_event, start_listener
     await start_listener()
