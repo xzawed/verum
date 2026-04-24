@@ -278,6 +278,12 @@ jobs:
       - name: SonarCloud scan
         if: always()
         uses: SonarSource/sonarcloud-github-action@v3
+        with:
+          # Inject git SHA as version so SonarCloud's "New Code" baseline
+          # advances on every push — without this, projectVersion=1.0 (static)
+          # means the "new code" period never moves and the dashboard looks stale.
+          args: >-
+            -Dsonar.projectVersion=${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
