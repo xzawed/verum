@@ -30,6 +30,7 @@ from src.worker.runner import (
     _reset_stale,
     _stale_reset_loop,
     _update_heartbeat,
+    run_loop,
 )
 
 
@@ -762,3 +763,151 @@ async def test_experiment_loop_converged_no_owner_logs_warning() -> None:
 
     # commit should NOT be called since the RuntimeError aborts before INSERT
     mock_session.commit.assert_not_awaited()
+
+
+# ── run_loop ──────────────────────────────────────────────────────────────────
+
+
+def _make_run_loop_session() -> AsyncMock:
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock()
+    mock_session.commit = AsyncMock()
+    return mock_session
+
+
+def _make_wake_event() -> MagicMock:
+    mock_event = MagicMock()
+    mock_event.wait = AsyncMock(return_value=None)
+    mock_event.clear = MagicMock()
+    return mock_event
+
+
+@pytest.mark.asyncio
+async def test_run_loop_resets_stale_on_startup() -> None:
+    """run_loop calls _reset_stale once before entering the job loop."""
+    mock_session = _make_run_loop_session()
+    mock_event = _make_wake_event()
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._reset_stale", new=AsyncMock()) as mock_reset,
+        patch("src.worker.runner._heartbeat_loop", new=AsyncMock()),
+        patch("src.worker.runner._stale_reset_loop", new=AsyncMock()),
+        patch("src.worker.runner._experiment_loop", new=AsyncMock()),
+        patch("src.worker.listener.start_listener", new=AsyncMock()),
+        patch("src.worker.listener.get_wake_event", return_value=mock_event),
+        patch("src.worker.runner._claim_one", side_effect=asyncio.CancelledError),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await run_loop()
+
+    mock_reset.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_loop_dispatches_job_when_claimed() -> None:
+    """run_loop calls _dispatch_job when _claim_one returns a job."""
+    mock_session = _make_run_loop_session()
+    mock_event = _make_wake_event()
+
+    job = {
+        "id": uuid.uuid4(),
+        "kind": "analyze",
+        "payload": {},
+        "owner_user_id": uuid.uuid4(),
+        "attempts": 1,
+    }
+
+    call_count = 0
+
+    async def fake_claim(db):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return job
+        raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._reset_stale", new=AsyncMock()),
+        patch("src.worker.runner._heartbeat_loop", new=AsyncMock()),
+        patch("src.worker.runner._stale_reset_loop", new=AsyncMock()),
+        patch("src.worker.runner._experiment_loop", new=AsyncMock()),
+        patch("src.worker.listener.start_listener", new=AsyncMock()),
+        patch("src.worker.listener.get_wake_event", return_value=mock_event),
+        patch("src.worker.runner._claim_one", side_effect=fake_claim),
+        patch("src.worker.runner._dispatch_job", new=AsyncMock()) as mock_dispatch,
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await run_loop()
+
+    mock_dispatch.assert_awaited_once_with(job)
+
+
+@pytest.mark.asyncio
+async def test_run_loop_waits_when_queue_empty() -> None:
+    """run_loop calls wait_for and clears the event when no job is available."""
+    mock_session = _make_run_loop_session()
+    mock_event = _make_wake_event()
+
+    call_count = 0
+
+    async def fake_claim(db):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return None  # no job → trigger wait path
+        raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._reset_stale", new=AsyncMock()),
+        patch("src.worker.runner._heartbeat_loop", new=AsyncMock()),
+        patch("src.worker.runner._stale_reset_loop", new=AsyncMock()),
+        patch("src.worker.runner._experiment_loop", new=AsyncMock()),
+        patch("src.worker.listener.start_listener", new=AsyncMock()),
+        patch("src.worker.listener.get_wake_event", return_value=mock_event),
+        patch("src.worker.runner._claim_one", side_effect=fake_claim),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await run_loop()
+
+    mock_event.wait.assert_awaited_once()
+    mock_event.clear.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_loop_exception_in_loop_body_is_swallowed() -> None:
+    """run_loop catches Exception, logs it, sleeps, then continues."""
+    mock_session = _make_run_loop_session()
+    mock_event = _make_wake_event()
+
+    call_count = 0
+
+    async def fake_claim(db):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("unexpected DB error")
+        raise asyncio.CancelledError
+
+    async def fake_sleep(n: float) -> None:
+        pass  # don't actually sleep
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner._reset_stale", new=AsyncMock()),
+        patch("src.worker.runner._heartbeat_loop", new=AsyncMock()),
+        patch("src.worker.runner._stale_reset_loop", new=AsyncMock()),
+        patch("src.worker.runner._experiment_loop", new=AsyncMock()),
+        patch("src.worker.listener.start_listener", new=AsyncMock()),
+        patch("src.worker.listener.get_wake_event", return_value=mock_event),
+        patch("src.worker.runner._claim_one", side_effect=fake_claim),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await run_loop()
+
+    assert call_count == 2  # loop continued after RuntimeError
