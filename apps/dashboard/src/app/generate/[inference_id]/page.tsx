@@ -61,9 +61,9 @@ export default async function GeneratePage({
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 22, margin: "16px 0 4px" }}>GENERATE — Asset Generation</h1>
-      <p style={{ color: "#666", fontSize: 13, marginBottom: 24 }}>
+    <main className="max-w-[800px] mx-auto mt-10 font-mono px-4">
+      <h1 className="text-2xl mt-4 mb-1">GENERATE — Asset Generation</h1>
+      <p className="text-gray-500 text-sm mb-6">
         Domain: <strong>{inference.domain ?? "—"}</strong> · Tone: {inference.tone ?? "—"} · Language: {inference.language ?? "—"}
       </p>
 
@@ -71,7 +71,7 @@ export default async function GeneratePage({
         <form action={triggerGenerate}>
           <button
             type="submit"
-            style={{ background: "#000", color: "#fff", border: "none", padding: "10px 20px", cursor: "pointer", fontSize: 14 }}
+            className="bg-black text-white border-0 px-5 py-2.5 cursor-pointer text-sm"
           >
             {t("generate", "startButton")}
           </button>
@@ -80,51 +80,51 @@ export default async function GeneratePage({
 
       {latestGen && (
         <>
-          <div style={{ marginBottom: 16, padding: "8px 12px", background: "#f9f9f9", border: "1px solid #ddd", fontSize: 13 }}>
+          <div className="mb-4 px-3 py-2 bg-gray-50 border border-gray-200 text-sm">
             Status: <strong>{latestGen.status}</strong>
             {latestGen.status === "pending" && (
-              <span style={{ marginLeft: 12, color: "#888" }}>
+              <span className="ml-3 text-gray-400">
                 {t("generate", "generating")} <a href={`/generate/${inference_id}`}>{t("generate", "refresh")}</a>
               </span>
             )}
           </div>
 
           {metricProfile && (
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, marginBottom: 6 }}>{t("generate", "metricProfileHeading")} — {metricProfile.profile_name}</h2>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="mb-5">
+              <h2 className="text-sm mb-1.5">{t("generate", "metricProfileHeading")} — {metricProfile.profile_name}</h2>
+              <div className="flex gap-2 flex-wrap">
                 {metricProfile.primary_metrics.map((m) => (
-                  <span key={m} style={{ background: "#e0f2fe", padding: "2px 8px", fontSize: 12, borderRadius: 4 }}>{m}</span>
+                  <span key={m} className="bg-sky-100 px-2 py-0.5 text-xs rounded">{m}</span>
                 ))}
                 {metricProfile.secondary_metrics.map((m) => (
-                  <span key={m} style={{ background: "#f3f4f6", padding: "2px 8px", fontSize: 12, borderRadius: 4, color: "#666" }}>{m}</span>
+                  <span key={m} className="bg-gray-100 px-2 py-0.5 text-xs rounded text-gray-500">{m}</span>
                 ))}
               </div>
             </div>
           )}
 
           {full && full.variants.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 8 }}>{t("generate", "promptVariantsHeading")} ({full.variants.length})</h2>
+            <div className="mb-6">
+              <h2 className="text-sm mb-2">{t("generate", "promptVariantsHeading")} ({full.variants.length})</h2>
               {full.variants.map((v) => (
-                <details key={v.id} style={{ marginBottom: 8, border: "1px solid #ddd", padding: "8px 12px" }}>
-                  <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: "bold" }}>{v.variant_type}</summary>
-                  <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, marginTop: 8, color: "#333" }}>{v.content}</pre>
+                <details key={v.id} className="mb-2 border border-gray-200 px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-bold">{v.variant_type}</summary>
+                  <pre className="whitespace-pre-wrap text-xs mt-2 text-gray-700">{v.content}</pre>
                 </details>
               ))}
             </div>
           )}
 
           {full?.rag && (
-            <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 8 }}>RAG Config</h2>
-              <table style={{ fontSize: 13, borderCollapse: "collapse" }}>
+            <div className="mb-6">
+              <h2 className="text-sm mb-2">RAG Config</h2>
+              <table className="text-sm border-collapse">
                 {Object.entries(full.rag)
                   .filter(([k]) => k !== "id" && k !== "generation_id" && k !== "created_at")
                   .map(([k, v]) => (
                     <tr key={k}>
-                      <td style={{ padding: "2px 12px 2px 0", color: "#666" }}>{k}</td>
-                      <td style={{ padding: "2px 0" }}>{String(v)}</td>
+                      <td className="pr-3 py-0.5 text-gray-500">{k}</td>
+                      <td className="py-0.5">{String(v)}</td>
                     </tr>
                   ))}
               </table>
@@ -132,12 +132,12 @@ export default async function GeneratePage({
           )}
 
           {full && full.pairs.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontSize: 15, marginBottom: 8 }}>{t("generate", "evalPairsHeading")}</h2>
+            <div className="mb-6">
+              <h2 className="text-sm mb-2">{t("generate", "evalPairsHeading")}</h2>
               {full.pairs.map((p, i) => (
-                <div key={p.id} style={{ marginBottom: 8, padding: "8px 12px", background: "#f9f9f9", border: "1px solid #ddd", fontSize: 12 }}>
+                <div key={p.id} className="mb-2 px-3 py-2 bg-gray-50 border border-gray-200 text-xs">
                   <strong>Q{i + 1}:</strong> {p.query}<br />
-                  <span style={{ color: "#555" }}>A: {p.expected_answer}</span>
+                  <span className="text-gray-600">A: {p.expected_answer}</span>
                 </div>
               ))}
             </div>
@@ -148,7 +148,7 @@ export default async function GeneratePage({
               <input type="hidden" name="generation_id" value={latestGen.id} />
               <button
                 type="submit"
-                style={{ background: "#16a34a", color: "#fff", border: "none", padding: "10px 24px", cursor: "pointer", fontSize: 14 }}
+                className="bg-green-700 text-white border-0 px-6 py-2.5 cursor-pointer text-sm"
               >
                 {t("generate", "approveButton")}
               </button>

@@ -67,10 +67,10 @@ export default async function DeployPage({
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 22, margin: "16px 0 4px" }}>DEPLOY — Canary Deployment</h1>
+    <main className="max-w-3xl mx-auto mt-10 font-mono px-4">
+      <h1 className="text-2xl mt-4 mb-1">DEPLOY — Canary Deployment</h1>
 
-      <div style={{ display: "flex", gap: 32, marginBottom: 24, marginTop: 16 }}>
+      <div className="flex gap-8 mb-6 mt-4">
         <div><strong>Status</strong><br />{deployment.status}</div>
         <div><strong>Variant traffic</strong><br />{variantPct}%</div>
         <div><strong>Total calls</strong><br />{deployment.total_calls}</div>
@@ -78,25 +78,18 @@ export default async function DeployPage({
       </div>
 
       {deployment.status === "rolled_back" && (
-        <div style={{ background: "#fef2f2", border: "1px solid #ef4444", padding: "12px 16px", marginBottom: 16 }}>
-          <strong style={{ color: "#ef4444" }}>{t("deploy", "rolledBackLabel")}</strong> — {t("deploy", "rolledBackDesc")}
+        <div className="bg-red-50 border border-red-400 px-4 py-3 mb-4">
+          <strong className="text-red-500">{t("deploy", "rolledBackLabel")}</strong> — {t("deploy", "rolledBackDesc")}
         </div>
       )}
 
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t("deploy", "trafficSplitHeading")}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+      <div className="mb-6">
+        <h2 className="text-sm mb-2">{t("deploy", "trafficSplitHeading")}</h2>
+        <div className="flex gap-2">
           <form action={setTraffic10}>
             <button
               type="submit"
-              style={{
-                padding: "6px 16px",
-                border: "1px solid #ddd",
-                background: variantPct === 10 ? "#000" : "#fff",
-                color: variantPct === 10 ? "#fff" : "#000",
-                cursor: "pointer",
-                fontSize: 13,
-              }}
+              className={`px-4 py-1.5 border border-gray-300 cursor-pointer text-sm ${variantPct === 10 ? "bg-black text-white" : "bg-white text-black"}`}
             >
               10%
             </button>
@@ -104,14 +97,7 @@ export default async function DeployPage({
           <form action={setTraffic50}>
             <button
               type="submit"
-              style={{
-                padding: "6px 16px",
-                border: "1px solid #ddd",
-                background: variantPct === 50 ? "#000" : "#fff",
-                color: variantPct === 50 ? "#fff" : "#000",
-                cursor: "pointer",
-                fontSize: 13,
-              }}
+              className={`px-4 py-1.5 border border-gray-300 cursor-pointer text-sm ${variantPct === 50 ? "bg-black text-white" : "bg-white text-black"}`}
             >
               50%
             </button>
@@ -119,20 +105,13 @@ export default async function DeployPage({
           <form action={setTraffic100}>
             <button
               type="submit"
-              style={{
-                padding: "6px 16px",
-                border: "1px solid #ddd",
-                background: variantPct === 100 ? "#000" : "#fff",
-                color: variantPct === 100 ? "#fff" : "#000",
-                cursor: "pointer",
-                fontSize: 13,
-              }}
+              className={`px-4 py-1.5 border border-gray-300 cursor-pointer text-sm ${variantPct === 100 ? "bg-black text-white" : "bg-white text-black"}`}
             >
               100%
             </button>
           </form>
         </div>
-        <p style={{ fontSize: 11, color: "#888", marginTop: 8 }}>
+        <p className="text-xs text-gray-400 mt-2">
           {t("deploy", "trafficRefreshHint")}
         </p>
       </div>
@@ -141,14 +120,7 @@ export default async function DeployPage({
         <form action={triggerRollback}>
           <button
             type="submit"
-            style={{
-              background: "#ef4444",
-              color: "#fff",
-              border: "none",
-              padding: "8px 18px",
-              cursor: "pointer",
-              fontSize: 13,
-            }}
+            className="bg-red-500 text-white border-0 px-[18px] py-2 cursor-pointer text-sm"
           >
             {t("deploy", "rollbackButton")}
           </button>
