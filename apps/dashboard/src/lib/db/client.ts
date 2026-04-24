@@ -16,12 +16,16 @@ function getDb() {
         "Set it to a valid PostgreSQL connection string before starting the application."
       );
     }
+    // Supabase Connection Pooler (Supavisor) uses a self-signed certificate chain.
+    // ssl:true triggers pg's full chain verification which fails; rejectUnauthorized:false
+    // keeps the connection encrypted while skipping chain verification.
+    // DB_SSL=disable overrides for Docker/integration environments where Postgres
+    // has no SSL configured and the SSLRequest would be rejected.
+    const wantSsl =
+      process.env.DB_SSL !== "disable" && process.env.NODE_ENV === "production";
     const pool = new Pool({
       connectionString: dbUrl,
-      // Supabase Connection Pooler (Supavisor) uses a self-signed certificate chain.
-      // ssl:true triggers pg's full chain verification which fails; rejectUnauthorized:false
-      // keeps the connection encrypted while skipping chain verification.
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+      ssl: wantSsl ? { rejectUnauthorized: false } : false,
     });
     _db = drizzle(pool, { schema });
   }
