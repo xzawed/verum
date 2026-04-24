@@ -24,7 +24,7 @@ async def test_mock_providers_health():
 @pytest.mark.asyncio
 async def test_mock_providers_call_log_starts_empty(mock_control):
     """After reset, call log is empty."""
-    resp = await mock_control.get("/calls")
+    resp = await mock_control.get("/control/calls")
     assert resp.status_code == 200
     assert resp.json() == []
 

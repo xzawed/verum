@@ -30,11 +30,11 @@ AUTH_SECRET = os.environ.get("AUTH_SECRET", "integration-test-secret-32chars!!")
 # Session-scoped DB engine (no transaction wrap — tests need persistent data)
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session")
-def db_engine():
+@pytest_asyncio.fixture(scope="function")
+async def db_engine():
     engine = create_async_engine(VERUM_DB_URL, pool_size=2, max_overflow=0)
     yield engine
-    # teardown happens at process exit
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")
