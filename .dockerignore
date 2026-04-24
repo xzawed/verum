@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Worktrees
+.worktrees
+
+# Node dev artifacts
+node_modules
+.npm
+.pnpm-store
+
+# Test output / coverage
+coverage
+.nyc_output
+playwright-results.xml
+playwright-report
+apps/api/coverage.xml
+packages/*/coverage*
+
+# Python bytecode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Next.js build output — safe to exclude because the Dockerfile builds .next
+# inside the web-build stage and copies .next/standalone + .next/static from
+# there; the host .next directory is never referenced in any COPY instruction.
+apps/dashboard/.next
+
+# Documentation / CI meta
+docs
+.github
+.claude
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local worktree configs
+*.local
