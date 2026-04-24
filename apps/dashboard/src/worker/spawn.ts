@@ -10,7 +10,14 @@ const WORKER_CWD =
   process.env.PYTHON_WORKER_CWD ??
   resolve(process.cwd(), "../../apps/api");
 
-const PYTHON_BIN = process.env.PYTHON_BIN ?? "python3";
+const PYTHON_BIN_RAW = process.env.PYTHON_BIN ?? "python3";
+const ALLOWED_PYTHON_BINS = new Set(["python3", "python", "python3.13", "python3.12"]);
+if (!ALLOWED_PYTHON_BINS.has(PYTHON_BIN_RAW)) {
+  throw new Error(
+    `PYTHON_BIN "${PYTHON_BIN_RAW}" is not in the allowed list: ${[...ALLOWED_PYTHON_BINS].join(", ")}`,
+  );
+}
+const PYTHON_BIN = PYTHON_BIN_RAW;
 
 export function startPythonWorker() {
   if (worker) return;
