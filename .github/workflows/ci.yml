@@ -310,13 +310,16 @@ jobs:
           if [ -f coverage-artifacts/sdk-typescript/lcov.info ]; then
             sed -i 's|^SF:src/|SF:packages/sdk-typescript/src/|g' coverage-artifacts/sdk-typescript/lcov.info
           fi
-          # Fix Python coverage.xml: pytest generates <source>/abs/path/apps/api</source>
-          # SonarCloud needs a workspace-relative path to resolve src/... file entries.
+          # Fix Python coverage.xml: pytest --cov=src generates
+          #   <source>/abs/runner/path/apps/api/src</source>
+          # with file entries like loop/analyze/cloner.py (no src/ prefix).
+          # SonarCloud needs <source>apps/api/src</source> so it resolves
+          # loop/... to apps/api/src/loop/... relative to the workspace root.
           if [ -f apps/api/coverage.xml ]; then
-            sed -i 's|<source>[^<]*</source>|<source>apps/api</source>|g' apps/api/coverage.xml
+            sed -i 's|<source>[^<]*</source>|<source>apps/api/src</source>|g' apps/api/coverage.xml
           fi
           if [ -f coverage-artifacts/sdk-python/coverage.xml ]; then
-            sed -i 's|<source>[^<]*</source>|<source>packages/sdk-python</source>|g' coverage-artifacts/sdk-python/coverage.xml
+            sed -i 's|<source>[^<]*</source>|<source>packages/sdk-python/src</source>|g' coverage-artifacts/sdk-python/coverage.xml
           fi
 
       - name: SonarCloud scan
