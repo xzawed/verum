@@ -50,6 +50,21 @@ LLM_PATH_SUFFIX_PATTERNS: list[tuple[str, list[str]]] = [
 GENERATE_MODEL: str = os.environ.get("GENERATE_MODEL", INFER_MODEL)
 GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "2048"))
 
+# ── HARVEST stage — HTTP ─────────────────────────────────────────────────────
+EMBED_HTTP_TIMEOUT_SECS: float = float(os.environ.get("EMBED_HTTP_TIMEOUT_SECS", "60.0"))
+
+# ── Worker job queue ──────────────────────────────────────────────────────────
+JOB_MAX_ATTEMPTS: int = int(os.environ.get("VERUM_JOB_MAX_ATTEMPTS", "3"))
+JOB_STALE_AFTER_MINUTES: int = int(os.environ.get("VERUM_JOB_STALE_AFTER_MINUTES", "10"))
+HEARTBEAT_INTERVAL_SECS: int = int(os.environ.get("VERUM_HEARTBEAT_INTERVAL_SECS", "30"))
+
+# ── JUDGE handler ─────────────────────────────────────────────────────────────
+JUDGE_MODEL: str = os.environ.get("JUDGE_MODEL", "claude-sonnet-4-6")
+JUDGE_MAX_TOKENS: int = int(os.environ.get("JUDGE_MAX_TOKENS", "128"))
+JUDGE_TEMPERATURE: float = float(os.environ.get("JUDGE_TEMPERATURE", "0.0"))
+JUDGE_RETRY_COUNT: int = int(os.environ.get("JUDGE_RETRY_COUNT", "2"))
+JUDGE_EVAL_PAIRS_LIMIT: int = int(os.environ.get("JUDGE_EVAL_PAIRS_LIMIT", "3"))
+
 # ── FREEMIUM plan limits ──────────────────────────────────────────────────────
 from pydantic import BaseModel  # noqa: E402
 

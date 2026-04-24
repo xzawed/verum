@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config as cfg
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
 from src.db.session import AsyncSessionLocal
 from src.worker.payloads import (
@@ -39,9 +40,9 @@ from .handlers.retrieve import handle_retrieve
 
 logger = logging.getLogger(__name__)
 
-MAX_ATTEMPTS = 3
-STALE_AFTER_MINUTES = 10
-HEARTBEAT_INTERVAL = 30  # seconds
+MAX_ATTEMPTS = cfg.JOB_MAX_ATTEMPTS
+STALE_AFTER_MINUTES = cfg.JOB_STALE_AFTER_MINUTES
+HEARTBEAT_INTERVAL = cfg.HEARTBEAT_INTERVAL_SECS
 EXPERIMENT_INTERVAL: int = int(os.environ.get("VERUM_EXPERIMENT_INTERVAL_SECONDS", "300"))
 if EXPERIMENT_INTERVAL <= 0:
     raise RuntimeError(

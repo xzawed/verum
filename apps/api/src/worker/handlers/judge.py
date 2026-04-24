@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config as cfg
 from src.db.models.traces import Trace
 from src.loop.llm_client import call_claude
 from src.loop.observe.repository import update_judge_score
@@ -22,8 +23,6 @@ from src.loop.observe.repository import update_judge_score
 logger = logging.getLogger(__name__)
 
 _judge_parse_failures = 0
-
-_JUDGE_MODEL = "claude-sonnet-4-6"
 
 
 def _build_judge_prompt(
@@ -33,7 +32,7 @@ def _build_judge_prompt(
 ) -> str:
     examples = "\n".join(
         f"  Q: {p['query']}\n  A: {p['expected_answer']}"
-        for p in eval_pairs[:3]
+        for p in eval_pairs[: cfg.JUDGE_EVAL_PAIRS_LIMIT]
     )
     return (
         "You are evaluating an AI assistant response for quality.\n"
@@ -123,7 +122,7 @@ async def handle_judge(
                 " JOIN generations g ON g.id = ep.generation_id"
                 " JOIN deployments d ON d.generation_id = g.id"
                 " WHERE d.id = :dep"
-                " ORDER BY ep.created_at ASC LIMIT 3"
+                f" ORDER BY ep.created_at ASC LIMIT {cfg.JUDGE_EVAL_PAIRS_LIMIT}"
             ),
             {"dep": str(deployment_id)},
         )
@@ -136,9 +135,11 @@ async def handle_judge(
     score: float | None = None
     reason: str | None = None
 
-    for attempt in range(2):
+    for attempt in range(cfg.JUDGE_RETRY_COUNT):
         try:
-            raw_response = await call_claude(_JUDGE_MODEL, 128, prompt, temperature=0.0)
+            raw_response = await call_claude(
+                cfg.JUDGE_MODEL, cfg.JUDGE_MAX_TOKENS, prompt, temperature=cfg.JUDGE_TEMPERATURE
+            )
             score, reason = _parse_judge_response(raw_response)
             if score is not None:
                 break
