@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { RepoStatus } from "@/lib/db/queries";
+import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
 import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
 import ObserveSection from "./ObserveSection";
 import ExperimentSection from "./ExperimentSection";
@@ -16,32 +17,36 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
   const [status, setStatus] = useState<RepoStatus>(initial);
   const [alive, setAlive] = useState(initialWorkerAlive);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    async function poll() {
-      try {
-        const r = await fetch(`/api/repos/${repoId}/status`, {
-          signal: ac.signal,
-          cache: "no-store",
-        });
-        if (r.ok) {
-          const json = await r.json();
-          setStatus(json.status);
-          setAlive(json.workerAlive);
-        }
-      } catch {
-        // ignore AbortError and network errors during polling
-      }
-    }
-    const id = setInterval(() => void poll(), 3000);
-    return () => {
-      clearInterval(id);
-      ac.abort();
-    };
-  }, [repoId]);
-
   const { repo, latestAnalysis, latestInference, harvestChunks, harvestSourcesDone, harvestSourcesTotal, latestGeneration, latestDeploymentId, latestDeploymentExperimentStatus } = status;
   const isRunning = (s: string | null | undefined) => s === "pending" || s === "running";
+
+  const anyJobActive =
+    isRunning(latestAnalysis?.status) ||
+    isRunning(latestInference?.status) ||
+    isRunning(latestGeneration?.status);
+
+  const pollStatus = useCallback(async () => {
+    const ac = new AbortController();
+    try {
+      const r = await fetch(`/api/repos/${repoId}/status`, {
+        signal: ac.signal,
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const json = await r.json() as { status: RepoStatus; workerAlive: boolean };
+        setStatus(json.status);
+        setAlive(json.workerAlive);
+      }
+    } catch {
+      // ignore AbortError and network errors during polling
+    }
+  }, [repoId]);
+
+  useAdaptivePolling(pollStatus, anyJobActive, {
+    minIntervalMs: 2_000,
+    maxIntervalMs: 30_000,
+    backoffFactor: 2,
+  });
 
   return (
     <>

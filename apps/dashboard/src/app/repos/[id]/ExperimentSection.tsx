@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
 
 interface Experiment {
   id: string;
@@ -31,33 +32,30 @@ const CHALLENGER_ORDER = ["cot", "few_shot", "role_play", "concise"];
 export default function ExperimentSection({ deploymentId }: Props) {
   const [data, setData] = useState<ExperimentsResponse | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchData() {
-      try {
-        const r = await fetch(`/api/v1/experiments?deployment_id=${deploymentId}`, {
-          cache: "no-store",
-        });
-        if (r.ok && !cancelled) {
-          setData(await r.json() as ExperimentsResponse);
-        }
-      } catch {
-        // ignore network errors during polling
+  const fetchData = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/v1/experiments?deployment_id=${deploymentId}`, {
+        cache: "no-store",
+      });
+      if (r.ok) {
+        setData(await r.json() as ExperimentsResponse);
       }
+    } catch {
+      // ignore network errors during polling
     }
-
-    void fetchData();
-
-    const interval = setInterval(() => {
-      void fetchData();
-    }, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, [deploymentId]);
+
+  // Kick off an immediate fetch on mount.
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const experimentActive = data?.current_experiment != null;
+  useAdaptivePolling(fetchData, experimentActive, {
+    minIntervalMs: 3_000,
+    maxIntervalMs: 30_000,
+    backoffFactor: 2,
+  });
 
   if (!data) {
     return (
