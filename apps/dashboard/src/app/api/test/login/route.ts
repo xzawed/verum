@@ -23,16 +23,22 @@ export async function POST() {
   }
 
   // Ensure the test user row exists so repos.owner_user_id FK is satisfied.
-  await db
-    .insert(users)
-    .values({
-      id: TEST_USER_ID,
-      github_id: TEST_GITHUB_ID,
-      github_login: "verum-test",
-      email: "test@verum.dev",
-      avatar_url: null,
-    })
-    .onConflictDoNothing();
+  // Best-effort: E2E CI runs without a real DB, so we swallow connection errors
+  // and still return the JWT. Integration tests have a live DB so this succeeds.
+  try {
+    await db
+      .insert(users)
+      .values({
+        id: TEST_USER_ID,
+        github_id: TEST_GITHUB_ID,
+        github_login: "verum-test",
+        email: "test@verum.dev",
+        avatar_url: null,
+      })
+      .onConflictDoNothing();
+  } catch {
+    // No-op: DB unavailable (e.g. E2E without Postgres). JWT is still valid.
+  }
 
   // Encode a minimal JWT session that next-auth v5 can verify.
   // token.sub is the internal user UUID stored by auth.ts jwt callback.
