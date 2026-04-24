@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.helpers import execute_commit
 from src.loop.observe.models import DailyMetric, TraceRecord
 
 _logger = logging.getLogger(__name__)
@@ -162,13 +163,11 @@ async def update_user_feedback(
     Returns:
         True if the row was updated, False if trace_id was not found.
     """
-    result = await db.execute(
-        text(
-            "UPDATE traces SET user_feedback = :score WHERE id = :id RETURNING id"
-        ),
+    result = await execute_commit(
+        db,
+        text("UPDATE traces SET user_feedback = :score WHERE id = :id RETURNING id"),
         {"score": score, "id": str(trace_id)},
     )
-    await db.commit()
     return result.rowcount == 1  # type: ignore[attr-defined]
 
 
