@@ -2,7 +2,7 @@
 type: decisions
 authority: tier-2
 canonical-for: [adr-index, product-scope-decisions, superseded-decisions]
-last-updated: 2026-04-26
+last-updated: 2026-04-24
 status: active
 ---
 
@@ -32,6 +32,7 @@ status: active
 | ADR-010 | next build compatibility | All external clients (OpenAI, DB pool, etc.) must be lazy-initialized inside a getter function, never at module scope | [ARCHITECTURE.md §ADR-010](ARCHITECTURE.md#adr-010-lazy-initialization-for-next-build-compatibility) |
 | ADR-011 | Codecov uploader | `codecov/codecov-action` pinned to **v5**. v4 bundled uploader suffered a shasum/GPG regression (2026-04-26); v5 uses `codecov-cli` and avoids the issue. `fail_ci_if_error` remains `false` until green baseline confirmed, then set to `true`. | [ARCHITECTURE.md §ADR-011](ARCHITECTURE.md#adr-011-codecov-action-pinned-to-v5) |
 | ADR-012 | Integration test via prod-image compose + mock provider stack | Full Verum Loop (ANALYZE→EVOLVE) validated against the same `Dockerfile` used in Railway. All external APIs redirected to a FastAPI mock stack. 5+2 env-gated hooks in production code; business logic (`apps/api/src/loop/**`) untouched. `VERUM_TEST_MODE=1` exposes `api_key` in DEPLOY job result for fake-arcana. Nightly + workflow_dispatch CI; informational until 2-week stability baseline. | [INTEGRATION.md](INTEGRATION.md) |
+| ADR-013 | SQLAlchemy `text()` PostgreSQL cast syntax | `text()` 쿼리에서 `:param::type` 캐스트 금지. `CAST(:param AS type)` 만 허용. | [ARCHITECTURE.md §ADR-013](ARCHITECTURE.md#adr-013-sqlalchemy-text--postgresql-cast-syntax) |
 
 ---
 

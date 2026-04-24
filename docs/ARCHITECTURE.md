@@ -660,4 +660,34 @@ Discovered in two sequential Railway build failures (2026-04-24/25):
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25_
+### ADR-013: SQLAlchemy `text()` / PostgreSQL Cast Syntax
+
+**Status:** Accepted | **Date:** 2026-04-24
+
+**Decision:** In all SQLAlchemy `text()` queries, PostgreSQL-style inline casts (`:param::type`) are **forbidden**. Use ANSI `CAST(:param AS type)` exclusively.
+
+```python
+# ❌ Forbidden — SQLAlchemy skips bind-param detection, sends literal ":param" to asyncpg
+text("INSERT INTO t (col) VALUES (:val::jsonb)")
+
+# ✅ Required
+text("INSERT INTO t (col) VALUES (CAST(:val AS jsonb))")
+```
+
+**Why:** SQLAlchemy's `text()` parser treats `:name` as a bind parameter **only when** it is not immediately followed by `::`. When `::` is present, the parser intentionally skips the token to avoid ambiguity with PostgreSQL's cast operator. As a result, the literal string `:val` (colon included) is forwarded to asyncpg, which raises a syntax error:
+
+```
+sqlalchemy.exc.ProgrammingError: (asyncpg.exceptions.PostgresSyntaxError)
+syntax error at or near ":"
+STATEMENT: INSERT INTO t (col) VALUES (:val::jsonb)
+```
+
+This manifests silently in development if you happen to test with mock sessions, but explodes at runtime against a real Postgres connection. Found in five separate locations across `loop/generate/repository.py`, `loop/deploy/repository.py`, `loop/deploy/orchestrator.py`, `loop/evolve/repository.py`, and `worker/runner.py` during integration test stabilisation (2026-04-24).
+
+**Trade-off accepted:** `CAST(:x AS jsonb)` is slightly more verbose than `:x::jsonb`. The verbosity is worth the deterministic behaviour.
+
+**Revisit trigger:** None — this is a permanent rule. SQLAlchemy's behaviour here is intentional and documented.
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-04-24_

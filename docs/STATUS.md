@@ -2,7 +2,7 @@
 type: status
 authority: tier-1
 canonical-for: [current-implementation-state, file-map, api-index, db-schema]
-last-updated: 2026-04-26
+last-updated: 2026-04-24
 ---
 
 # Verum — Current Implementation Status
@@ -30,6 +30,8 @@ last-updated: 2026-04-26
 **Next:** F-4.11 — ArcanaInsight 자동 진화 1회 달성 (프로덕션 데이터 누적 필요, xzawed 담당)
 
 **Integration test pipeline:** `make integration-up && make integration-test` — ANALYZE→EVOLVE full-loop via Docker Compose (prod image + mock-providers + fake-arcana). Nightly CI at 08:00 UTC. See [docs/INTEGRATION.md](INTEGRATION.md).
+
+**CI Failure Analyzer:** `feat/claude-ci-analyzer` PR (#24) 리뷰 중 — CI 실패 시 Claude가 자동 분석 후 PR/커밋에 한국어 리포트 코멘트를 게시하는 `workflow_run` 트리거 워크플로우.
 
 ---
 
@@ -203,7 +205,7 @@ trace_id = await client.record(
 | `apps/api/src/worker/main.py` | asyncio entrypoint (`python3 -m src.worker.main`) |
 | `apps/api/src/worker/runner.py` | LISTEN/NOTIFY 잡 루프 + 핸들러 디스패치 + payload 스키마 검증 |
 | `apps/api/src/worker/payloads.py` | 8개 job kind별 Pydantic payload 모델 |
-| `apps/api/src/worker/listener.py` | asyncpg 전용 연결로 LISTEN/NOTIFY wake event 관리 |
+| `apps/api/src/worker/listener.py` | asyncpg 전용 연결로 LISTEN/NOTIFY wake event 관리. DSN에서 `+asyncpg` dialect prefix를 제거해야 asyncpg.connect()가 수락함 |
 | `apps/api/src/worker/chain.py` | `enqueue_next()` — 핸들러가 다음 잡을 큐에 등록하는 공통 헬퍼 |
 | `apps/api/src/db/session.py` | SQLAlchemy async engine + `AsyncSessionLocal` (pool_size=20, max_overflow=40) |
 | `apps/api/src/db/error_helpers.py` | `mark_error(db, model, row_id, msg)` — 4개 단계 공통 에러 마킹 헬퍼 |
@@ -248,7 +250,7 @@ trace_id = await client.record(
 | `apps/dashboard/src/app/api/v1/experiments/[id]/route.ts` | GET 실험 상세 |
 | `apps/dashboard/src/app/repos/[id]/ExperimentSection.tsx` | EXPERIMENT 섹션 UI (5초 폴링, Bayesian 신뢰도 바) |
 | `apps/dashboard/src/app/api/repos/[id]/status/route.ts` | Repo 잡 상태 폴링 (미들웨어 matcher `api/repos` 제외) |
-| `apps/dashboard/src/app/api/test/login/route.ts` | CI/E2E JWT 세션 발급 (`VERUM_TEST_MODE=1`만 활성화) |
+| `apps/dashboard/src/app/api/test/login/route.ts` | CI/E2E JWT 세션 발급 (`VERUM_TEST_MODE=1`만 활성화). DB upsert는 best-effort (try/catch) — Postgres 없는 E2E 환경에서도 JWT 반환 |
 
 ---
 
@@ -320,6 +322,18 @@ function getClient() {
 
 ---
 
+## Integration 테스트 인프라
+
+| 파일 | 역할 |
+|------|------|
+| `tests/integration/conftest.py` | pytest-asyncio session/function scope fixtures; `_session_token` (session), `async_db`/`dashboard_client` (function) |
+| `tests/integration/utils/wait.py` | `wait_until(fn, label, timeout)` — 폴링 헬퍼. `first_exc` + `last_exc` 양쪽 추적으로 `InFailedSQLTransactionError` cascade에 가려진 원본 오류 노출 |
+| `tests/integration/mock-providers/` | FastAPI mock 스택 (Anthropic, OpenAI). `_match_system_contains` + `_match_user_contains` 두 매처 지원 |
+
+**SQLAlchemy `text()` CAST 규칙 (ADR-013):** `text()` 쿼리에서 `:param::type` PostgreSQL 캐스트 구문 금지. SQLAlchemy가 `::` 앞을 bind param으로 처리하지 않아 asyncpg에 literal `:param` 문자열이 전달됨. 반드시 `CAST(:param AS type)` 사용.
+
+**`analyses` 테이블 컬럼 주의:** `analyses`는 `started_at` 컬럼을 사용한다 (`created_at` 아님). `inferences`, `generations` 등 다른 테이블은 `created_at`.
+
 ## Python 테스트 인프라
 
 | 파일 | 역할 |
@@ -379,4 +393,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-26 (doc sync — test file count corrected to 38; Test Role .claude/ system documented; all 265 Python non-DB tests passing) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-24 (integration test pipeline 안정화 — SQLAlchemy CAST() 통일, LISTEN/NOTIFY DSN 수정, InFailedSQLTransactionError 복구 로직, E2E test/login DB best-effort, repos-flow strict-mode 헤딩 locator 수정; CI Failure Analyzer PR #24 생성) | Maintained by: Claude at end of each implementation session_
