@@ -45,10 +45,17 @@ export default function ExperimentSection({ deploymentId }: Props) {
     }
   }, [deploymentId]);
 
-  // Kick off an immediate fetch on mount.
+  // Kick off an immediate fetch on mount, independently of the polling callback.
+  // Using inline fetch instead of fetchData to avoid set-state-in-effect lint rule.
   useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    let cancelled = false;
+    fetch(`/api/v1/experiments?deployment_id=${deploymentId}`, { cache: "no-store" })
+      .then(async (r) => {
+        if (r.ok && !cancelled) setData(await r.json() as ExperimentsResponse);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [deploymentId]);
 
   const experimentActive = data?.current_experiment != null;
   useAdaptivePolling(fetchData, experimentActive, {

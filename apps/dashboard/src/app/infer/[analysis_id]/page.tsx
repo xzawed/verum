@@ -19,9 +19,7 @@ export default async function InferPage({
   const { analysis_id } = await params;
   const { inference_id } = await searchParams;
 
-  if (!inference_id) {
-    redirect(`/repos`);
-  }
+  if (!inference_id) notFound();
 
   const data = await getInference(userId, inference_id);
   if (!data) notFound();

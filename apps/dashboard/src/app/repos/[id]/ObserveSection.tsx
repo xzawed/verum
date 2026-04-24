@@ -44,6 +44,7 @@ export default function ObserveSection({ deploymentId }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional pre-fetch reset, state update is not in render phase
     setLoading(true);
     Promise.all([
       fetch(`/api/v1/metrics?deployment_id=${deploymentId}&days=${days}`).then((r) => r.json()),

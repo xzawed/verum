@@ -2,11 +2,20 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.loop.harvest.repository import vector_search
+from src.loop.harvest.repository import (
+    count_chunks,
+    get_approved_sources,
+    mark_source_crawling,
+    mark_source_done,
+    mark_source_error,
+    save_chunks,
+    text_search,
+    vector_search,
+)
 
 
 @pytest.mark.asyncio
@@ -84,6 +93,114 @@ async def test_vector_search_handles_empty_results() -> None:
     result = await vector_search(mock_session, inference_id, query_embedding)
 
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# get_approved_sources, mark_source_*, save_chunks, count_chunks, text_search
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_approved_sources_returns_list():
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.all.return_value = [MagicMock(), MagicMock()]
+    db.execute.return_value = result_mock
+
+    sources = await get_approved_sources(db, uuid.uuid4())
+    assert len(sources) == 2
+    db.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mark_source_crawling_commits():
+    db = AsyncMock()
+    db.commit = AsyncMock()
+    db.execute = AsyncMock()
+    await mark_source_crawling(db, uuid.uuid4())
+    db.execute.assert_awaited_once()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mark_source_done_commits():
+    db = AsyncMock()
+    db.commit = AsyncMock()
+    db.execute = AsyncMock()
+    await mark_source_done(db, uuid.uuid4(), chunks_count=42)
+    db.execute.assert_awaited_once()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mark_source_error_delegates_to_mark_error():
+    db = AsyncMock()
+    with patch("src.db.error_helpers.mark_error", new=AsyncMock()) as mock_err:
+        await mark_source_error(db, uuid.uuid4(), "crawl failed")
+    mock_err.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_chunks_empty_list_returns_zero():
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    count = await save_chunks(db, uuid.uuid4(), uuid.uuid4(), [], [])
+    assert count == 0
+    db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_chunks_with_content_adds_and_flushes():
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock()
+    db.add = MagicMock()
+
+    texts = ["chunk A", "chunk B"]
+    embeddings = [[0.1] * 1024, [0.2] * 1024]
+    count = await save_chunks(db, uuid.uuid4(), uuid.uuid4(), texts, embeddings)
+
+    assert count == 2
+    assert db.add.call_count == 2
+    db.flush.assert_awaited_once()
+    db.execute.assert_awaited_once()  # bulk UPDATE for embeddings
+
+
+@pytest.mark.asyncio
+async def test_count_chunks_returns_integer():
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.fetchone.return_value = (7,)
+    db.execute.return_value = result_mock
+
+    count = await count_chunks(db, uuid.uuid4())
+    assert count == 7
+
+
+@pytest.mark.asyncio
+async def test_count_chunks_returns_zero_on_no_row():
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.fetchone.return_value = None
+    db.execute.return_value = result_mock
+
+    count = await count_chunks(db, uuid.uuid4())
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_text_search_returns_list():
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.fetchall.return_value = [
+        (uuid.uuid4(), "tarot content", 0.88),
+    ]
+    db.execute.return_value = result_mock
+
+    results = await text_search(db, uuid.uuid4(), "tarot meaning")
+    assert len(results) == 1
+    assert results[0]["content"] == "tarot content"
+    assert results[0]["score"] == pytest.approx(0.88)
 
 
 @pytest.mark.asyncio

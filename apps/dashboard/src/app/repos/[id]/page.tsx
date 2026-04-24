@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getRepoStatus, getWorkerAlive, getLatestSdkPrRequest } from "@/lib/db/queries";
 import StagesView from "./StagesView";
@@ -19,7 +19,7 @@ export default async function RepoDashboardPage({
   const { id } = await params;
   const repoId = id;
   const status = await getRepoStatus(userId, repoId);
-  if (!status) redirect("/repos");
+  if (!status) notFound();
 
   const workerAlive = await getWorkerAlive();
   const repoName = status.repo.github_url.replace("https://github.com/", "");

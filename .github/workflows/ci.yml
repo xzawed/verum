@@ -310,18 +310,21 @@ jobs:
           if [ -f coverage-artifacts/sdk-typescript/lcov.info ]; then
             sed -i 's|^SF:src/|SF:packages/sdk-typescript/src/|g' coverage-artifacts/sdk-typescript/lcov.info
           fi
-
-      - name: Configure SonarCloud New Code period (30 days)
-        if: always()
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          curl -s -u "${SONAR_TOKEN}:" \
-            -d "project=xzawed_verum&type=NUMBER_OF_DAYS&value=30" \
-            -X POST "https://sonarcloud.io/api/new_code_periods/set" || true
+          # Fix Python coverage.xml: pytest --cov=src generates
+          #   <source>/abs/runner/path/apps/api/src</source>
+          # with file entries like loop/analyze/cloner.py (no src/ prefix).
+          # SonarCloud needs <source>apps/api/src</source> so it resolves
+          # loop/... to apps/api/src/loop/... relative to the workspace root.
+          if [ -f apps/api/coverage.xml ]; then
+            sed -i 's|<source>[^<]*</source>|<source>apps/api/src</source>|g' apps/api/coverage.xml
+          fi
+          if [ -f coverage-artifacts/sdk-python/coverage.xml ]; then
+            sed -i 's|<source>[^<]*</source>|<source>packages/sdk-python/src</source>|g' coverage-artifacts/sdk-python/coverage.xml
+          fi
 
       - name: SonarCloud scan
-        if: always()
+        # Skip on Dependabot PRs and fork PRs — SONAR_TOKEN is not available to those workflows
+        if: always() && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: SonarSource/sonarcloud-github-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
