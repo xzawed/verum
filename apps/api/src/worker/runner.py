@@ -43,6 +43,10 @@ MAX_ATTEMPTS = 3
 STALE_AFTER_MINUTES = 10
 HEARTBEAT_INTERVAL = 30  # seconds
 EXPERIMENT_INTERVAL: int = int(os.environ.get("VERUM_EXPERIMENT_INTERVAL_SECONDS", "300"))
+if EXPERIMENT_INTERVAL <= 0:
+    raise RuntimeError(
+        f"VERUM_EXPERIMENT_INTERVAL_SECONDS must be a positive integer, got {EXPERIMENT_INTERVAL}"
+    )
 
 _HANDLERS = {
     "analyze": handle_analyze,

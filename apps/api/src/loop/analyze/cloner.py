@@ -65,13 +65,22 @@ async def clone_repo(
     """
     if not _GITHUB_URL_RE.match(repo_url):
         allowed = os.environ.get("VERUM_ALLOW_INSECURE_CLONE_HOSTS", "")
-        if allowed:
-            from urllib.parse import urlparse
-            host = urlparse(repo_url).hostname or ""
-            if host not in [h.strip() for h in allowed.split(",")]:
-                raise ValueError(f"Invalid GitHub URL: {repo_url!r}")
-        else:
+        if not allowed:
             raise ValueError(f"Invalid GitHub URL: {repo_url!r}")
+        from urllib.parse import urlparse
+        parsed = urlparse(repo_url)
+        scheme = parsed.scheme
+        host = parsed.hostname or ""
+        if scheme not in {"http", "https"}:
+            raise ValueError(
+                f"Invalid URL scheme {scheme!r} in {repo_url!r}: only http/https are allowed"
+            )
+        allowed_hosts = [h.strip() for h in allowed.split(",")]
+        if host not in allowed_hosts:
+            raise ValueError(
+                f"Host {host!r} is not in VERUM_ALLOW_INSECURE_CLONE_HOSTS; "
+                f"allowed: {allowed_hosts}"
+            )
 
     target = _CLONE_BASE / str(analysis_id)
     target.parent.mkdir(parents=True, exist_ok=True)
