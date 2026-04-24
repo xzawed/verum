@@ -10,16 +10,22 @@ from verum._cache import DeploymentConfigCache
 from verum._router import choose_variant
 
 _DEFAULT_CACHE_TTL = 60.0
+_DEFAULT_RETRIES = 3
 
 
 class Client:
     """Connect an AI service to The Verum Loop.
 
     Usage:
-        client = verum.Client()  # reads VERUM_API_URL / VERUM_API_KEY from env
-        chunks = await client.retrieve(query="...", collection_name="arcana-tarot-knowledge")
-        routed = await client.chat(messages=[...], deployment_id="...", provider="grok", model="grok-2-1212")
-        # then pass routed["messages"] to the actual LLM SDK
+        async with verum.Client() as client:
+            chunks = await client.retrieve(query="...", collection_name="arcana-tarot-knowledge")
+            routed = await client.chat(messages=[...], deployment_id="...", provider="grok", model="grok-2-1212")
+            # then pass routed["messages"] to the actual LLM SDK
+
+    Or without a context manager (call aclose() when done):
+        client = verum.Client()
+        ...
+        await client.aclose()
     """
 
     def __init__(
@@ -27,10 +33,23 @@ class Client:
         api_url: str | None = None,
         api_key: str | None = None,
         cache_ttl: float = _DEFAULT_CACHE_TTL,
+        retries: int = _DEFAULT_RETRIES,
     ) -> None:
         self._api_url = (api_url or os.environ.get("VERUM_API_URL", "")).rstrip("/")
         self._api_key = api_key or os.environ.get("VERUM_API_KEY", "")
         self._cache: DeploymentConfigCache = DeploymentConfigCache(ttl=cache_ttl)
+        self._http = httpx.AsyncClient(
+            transport=httpx.AsyncHTTPTransport(retries=retries),
+        )
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
+
+    async def __aenter__(self) -> "Client":
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.aclose()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -91,15 +110,14 @@ class Client:
         Returns:
             List of chunk dicts with at least a "content" key.
         """
-        async with httpx.AsyncClient() as http:
-            resp = await http.post(
-                f"{self._api_url}/api/v1/retrieve-sdk",
-                json={"query": query, "collection_name": collection_name, "top_k": top_k},
-                headers=self._headers(),
-                timeout=10.0,
-            )
-            resp.raise_for_status()
-            return resp.json().get("chunks", [])
+        resp = await self._http.post(
+            f"{self._api_url}/api/v1/retrieve-sdk",
+            json={"query": query, "collection_name": collection_name, "top_k": top_k},
+            headers=self._headers(),
+            timeout=10.0,
+        )
+        resp.raise_for_status()
+        return resp.json().get("chunks", [])
 
     async def feedback(self, trace_id: str, score: int) -> None:
         """Record user feedback for a trace.
@@ -108,14 +126,13 @@ class Client:
             trace_id: The trace UUID from the LLM response.
             score: 1 (positive) or -1 (negative).
         """
-        async with httpx.AsyncClient() as http:
-            resp = await http.post(
-                f"{self._api_url}/api/v1/feedback",
-                json={"trace_id": trace_id, "score": score},
-                headers=self._headers(),
-                timeout=5.0,
-            )
-            resp.raise_for_status()
+        resp = await self._http.post(
+            f"{self._api_url}/api/v1/feedback",
+            json={"trace_id": trace_id, "score": score},
+            headers=self._headers(),
+            timeout=5.0,
+        )
+        resp.raise_for_status()
 
     async def record(
         self,
@@ -145,23 +162,22 @@ class Client:
         Returns:
             trace_id string to pass to feedback().
         """
-        async with httpx.AsyncClient() as http:
-            resp = await http.post(
-                f"{self._api_url}/api/v1/traces",
-                json={
-                    "deployment_id": deployment_id,
-                    "variant": variant,
-                    "model": model,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "latency_ms": latency_ms,
-                    "error": error,
-                },
-                headers=self._headers(),
-                timeout=5.0,
-            )
-            resp.raise_for_status()
-            return resp.json()["trace_id"]
+        resp = await self._http.post(
+            f"{self._api_url}/api/v1/traces",
+            json={
+                "deployment_id": deployment_id,
+                "variant": variant,
+                "model": model,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "latency_ms": latency_ms,
+                "error": error,
+            },
+            headers=self._headers(),
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["trace_id"]
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
@@ -170,15 +186,13 @@ class Client:
         if cached is not None:
             return cached  # type: ignore[return-value]
 
-        async with httpx.AsyncClient() as http:
-            resp = await http.get(
-                f"{self._api_url}/api/v1/deploy/{deployment_id}/config",
-                headers=self._headers(),
-                timeout=5.0,
-            )
-            resp.raise_for_status()
-            config: dict[str, Any] = resp.json()
-
+        resp = await self._http.get(
+            f"{self._api_url}/api/v1/deploy/{deployment_id}/config",
+            headers=self._headers(),
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        config: dict[str, Any] = resp.json()
         self._cache.set(deployment_id, config)
         return config
 
