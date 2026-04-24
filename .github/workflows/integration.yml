@@ -31,6 +31,9 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p artifacts/integration
 
+      - name: Install integration test dependencies
+        run: pip install pytest pytest-asyncio httpx sqlalchemy asyncpg
+
       - name: Build and start integration stack
         run: make integration-up
 
