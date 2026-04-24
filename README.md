@@ -39,10 +39,10 @@ Register a GitHub repo once. The loop runs automatically.
 
 | Stage | Status | Description |
 |---|---|---|
-| 🔬 ANALYZE | ✅ Done | AST-based LLM call detection across Python + JS/TS repos |
+| 🔬 ANALYZE | ✅ Done | AST-based LLM call detection (JS/TS); Python deferred to Phase 1.5 |
 | 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
 | 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
-| 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge |
+| 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge *(support stage — invoked by DEPLOY/SDK, not a loop step)* |
 | ✨ GENERATE | ✅ Done | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
 | 🚀 DEPLOY | ✅ Done | SDK-based canary deployment with traffic splitting + rollback |
 | 👁️ OBSERVE | ✅ Done | Trace + span ingestion, cost/latency metrics, LLM-as-Judge scoring |
