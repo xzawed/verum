@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.inferences import Inference
 from src.loop.generate.engine import run_generate
 from src.loop.generate.repository import mark_generate_error, save_generate_result
+from src.worker.utils import safe_rollback
 
 logger = logging.getLogger(__name__)
 
@@ -79,5 +80,6 @@ async def handle_generate(
             "rag_strategy": result.rag_config.chunking_strategy,
         }
     except Exception as exc:
+        await safe_rollback(db)
         await mark_generate_error(db, generation_id, str(exc))
         raise

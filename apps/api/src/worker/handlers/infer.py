@@ -19,6 +19,7 @@ from src.loop.analyze.models import AnalysisResult
 from src.loop.infer.engine import run_infer
 from src.loop.infer.repository import mark_inference_error, save_inference_result
 from src.worker.chain import enqueue_next
+from src.worker.utils import safe_rollback
 
 logger = logging.getLogger(__name__)
 
@@ -98,5 +99,6 @@ async def handle_infer(
 
         return {"inference_id": str(inference_id), "domain": result.domain}
     except Exception as exc:
+        await safe_rollback(db)
         await mark_inference_error(db, inference_id, str(exc))
         raise

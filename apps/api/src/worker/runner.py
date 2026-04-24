@@ -226,10 +226,31 @@ async def _experiment_loop() -> None:
                             max_cost_in_window=1.0,
                         )
                         if result.converged and result.winner_variant:
+                            # Resolve owner_user_id before INSERT to catch NULL and
+                            # raise explicitly rather than silently drop the evolve job.
+                            owner_row = (
+                                await db.execute(
+                                    text(
+                                        "SELECT r.owner_user_id FROM repos r"
+                                        " JOIN inferences inf ON inf.repo_id = r.id"
+                                        " JOIN generations gen ON gen.inference_id = inf.id"
+                                        " JOIN deployments dep ON dep.generation_id = gen.id"
+                                        " WHERE dep.id = :did LIMIT 1"
+                                    ),
+                                    {"did": str(deployment_id)},
+                                )
+                            ).mappings().first()
+                            if owner_row is None or owner_row["owner_user_id"] is None:
+                                raise RuntimeError(
+                                    f"Cannot enqueue EVOLVE for experiment {exp['id']}: "
+                                    f"deployment {deployment_id} has no resolvable owner_user_id"
+                                )
+                            evolve_owner_user_id = owner_row["owner_user_id"]
                             await db.execute(
                                 text(
                                     "INSERT INTO verum_jobs (kind, payload, status, owner_user_id)"
-                                    " SELECT 'evolve',"
+                                    " VALUES ("
+                                    "   'evolve',"
                                     "   jsonb_build_object("
                                     "     'experiment_id', :eid,"
                                     "     'deployment_id', :did,"
@@ -238,16 +259,7 @@ async def _experiment_loop() -> None:
                                     "     'current_challenger', :cv"
                                     "   ),"
                                     "   'queued',"
-                                    "   (SELECT r.owner_user_id FROM repos r"
-                                    "    JOIN inferences inf ON inf.repo_id = r.id"
-                                    "    JOIN generations gen ON gen.inference_id = inf.id"
-                                    "    JOIN deployments dep ON dep.generation_id = gen.id"
-                                    "    WHERE dep.id = :did LIMIT 1)"
-                                    " WHERE NOT EXISTS ("
-                                    "   SELECT 1 FROM verum_jobs"
-                                    "   WHERE kind = 'evolve'"
-                                    "     AND (payload->>'experiment_id') = :eid"
-                                    "     AND status IN ('queued', 'running')"
+                                    "   :owner_uid"
                                     " )"
                                     " ON CONFLICT ((payload->>'experiment_id'))"
                                     " WHERE kind = 'evolve' AND status IN ('queued', 'running')"
@@ -259,6 +271,7 @@ async def _experiment_loop() -> None:
                                     "wv": result.winner_variant,
                                     "conf": result.confidence,
                                     "cv": exp["challenger_variant"],
+                                    "owner_uid": str(evolve_owner_user_id),
                                 },
                             )
                             await db.commit()

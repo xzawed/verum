@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.loop.analyze.pipeline import run_analysis
 from src.loop.analyze.repository import mark_analysis_error, save_analysis_result
 from src.worker.chain import enqueue_next
+from src.worker.utils import safe_rollback
 
 
 async def handle_analyze(
@@ -64,5 +65,6 @@ async def handle_analyze(
             "inference_id": str(inference_id),
         }
     except Exception as exc:
+        await safe_rollback(db)
         await mark_analysis_error(db, analysis_id, str(exc))
         raise
