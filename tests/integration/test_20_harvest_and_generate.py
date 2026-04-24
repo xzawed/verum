@@ -31,15 +31,19 @@ async def test_harvest_pipeline(async_db, mock_control):
     assert inference_id, "No completed inference found — run test_10 first or check INFER stage."
 
     async def harvest_done():
-        r = await async_db.execute(
-            text(
-                "SELECT COUNT(*) FROM harvest_sources "
-                "WHERE inference_id = :iid AND status = 'done'"
-            ),
-            {"iid": inference_id},
-        )
-        count = r.scalar_one()
-        return count if count > 0 else None
+        try:
+            r = await async_db.execute(
+                text(
+                    "SELECT COUNT(*) FROM harvest_sources "
+                    "WHERE inference_id = :iid AND status = 'done'"
+                ),
+                {"iid": inference_id},
+            )
+            count = r.scalar_one()
+            return count if count > 0 else None
+        except Exception:
+            await async_db.rollback()
+            return None
 
     done_count = await wait_until(harvest_done, timeout=120, label="HARVEST sources done")
     assert done_count >= 1, "No harvest sources completed"
@@ -71,15 +75,19 @@ async def test_generate_pipeline(async_db):
     assert inference_id, "No completed inference found."
 
     async def generate_done():
-        r = await async_db.execute(
-            text(
-                "SELECT status FROM generations "
-                "WHERE inference_id = :iid ORDER BY created_at DESC LIMIT 1"
-            ),
-            {"iid": inference_id},
-        )
-        row = r.fetchone()
-        return row if (row and row[0] == "done") else None
+        try:
+            r = await async_db.execute(
+                text(
+                    "SELECT status FROM generations "
+                    "WHERE inference_id = :iid ORDER BY created_at DESC LIMIT 1"
+                ),
+                {"iid": inference_id},
+            )
+            row = r.fetchone()
+            return row if (row and row[0] == "done") else None
+        except Exception:
+            await async_db.rollback()
+            return None
 
     await wait_until(generate_done, timeout=90, label="GENERATE completion")
 

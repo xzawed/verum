@@ -47,12 +47,16 @@ async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_contro
 
     # 3. Wait for ANALYZE to complete
     async def analyze_done():
-        r = await async_db.execute(
-            text("SELECT status, jsonb_array_length(call_sites) FROM analyses WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
-            {"rid": repo_id},
-        )
-        row = r.fetchone()
-        return row if (row and row[0] == "done") else None
+        try:
+            r = await async_db.execute(
+                text("SELECT status, jsonb_array_length(call_sites) FROM analyses WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
+                {"rid": repo_id},
+            )
+            row = r.fetchone()
+            return row if (row and row[0] == "done") else None
+        except Exception:
+            await async_db.rollback()
+            return None
 
     analysis_row = await wait_until(analyze_done, timeout=90, label="ANALYZE completion")
     assert analysis_row[1] >= 4, (
@@ -62,12 +66,16 @@ async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_contro
 
     # 4. Wait for INFER to complete
     async def infer_done():
-        r = await async_db.execute(
-            text("SELECT status, domain FROM inferences WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
-            {"rid": repo_id},
-        )
-        row = r.fetchone()
-        return row if (row and row[0] == "done") else None
+        try:
+            r = await async_db.execute(
+                text("SELECT status, domain FROM inferences WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
+                {"rid": repo_id},
+            )
+            row = r.fetchone()
+            return row if (row and row[0] == "done") else None
+        except Exception:
+            await async_db.rollback()
+            return None
 
     infer_row = await wait_until(infer_done, timeout=60, label="INFER completion")
     assert infer_row[1] is not None, "inferences.domain is NULL after INFER"
