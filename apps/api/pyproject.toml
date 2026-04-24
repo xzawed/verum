@@ -30,7 +30,7 @@ dependencies = [
     "trafilatura>=2.0.0,<3.0",
     "playwright>=1.49,<2.0",
     # EXPERIMENT — Bayesian A/B scoring
-    "scipy>=1.13,<2.0",
+    "scipy>=1.17.1,<2.0",
     "numpy>=1.26,<3.0",
     # Email delivery
     "aiosmtplib>=3.0,<4.0",
