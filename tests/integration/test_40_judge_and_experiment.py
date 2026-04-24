@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
-from tests.integration.utils.wait import wait_until
+from utils.wait import wait_until
 
 pytestmark = pytest.mark.integration
 
