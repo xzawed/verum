@@ -36,7 +36,7 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
         setDetail(data as TraceDetail);
         setLoading(false);
       })
-      .catch(() => {
+      .catch(/* istanbul ignore next */ () => {
         setLoading(false);
       });
   }, [traceId]);

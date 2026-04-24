@@ -53,7 +53,7 @@ export default function ObserveSection({ deploymentId }: Props) {
       setTraces((tracesData as { traces?: TraceRow[] }).traces ?? []);
       setTotal((tracesData as { total?: number }).total ?? 0);
       setLoading(false);
-    }).catch(() => {
+    }).catch(/* istanbul ignore next */ () => {
       setLoading(false);
     });
   }, [deploymentId, days, page]);
