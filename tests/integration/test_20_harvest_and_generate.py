@@ -6,9 +6,9 @@ to complete via automatic chaining (chain.enqueue_next).
 from __future__ import annotations
 import pytest
 from sqlalchemy import text
-from .utils.wait import wait_until
-from .utils.snapshot import dump
-from .utils.timeline import build as build_timeline
+from utils.wait import wait_until
+from utils.snapshot import dump
+from utils.timeline import build as build_timeline
 from pathlib import Path
 
 pytestmark = pytest.mark.integration
@@ -94,7 +94,7 @@ async def test_generate_pipeline(async_db):
     await dump(async_db, ARTIFACTS_DIR / "test_20_generate" / "snapshot.jsonl")
 
     # Build timeline after P0 pipeline completes
-    from .utils.timeline import build as build_timeline
+    from utils.timeline import build as build_timeline
     timeline_path = ARTIFACTS_DIR / "timeline.md"
     timeline_text = await build_timeline(async_db, timeline_path)
     print(f"\n{timeline_text}\n")

@@ -6,9 +6,9 @@ and asserts the expected DB state.
 from __future__ import annotations
 import pytest
 from sqlalchemy import text
-from .utils.wait import wait_until
-from .utils.snapshot import dump
-from .utils.timeline import build as build_timeline
+from utils.wait import wait_until
+from utils.snapshot import dump
+from utils.timeline import build as build_timeline
 from pathlib import Path
 import os
 
