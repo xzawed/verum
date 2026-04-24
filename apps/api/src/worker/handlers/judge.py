@@ -155,11 +155,14 @@ async def handle_judge(
         global _judge_parse_failures
         _judge_parse_failures += 1
         logger.warning(
-            "judge_parse_failures_total=%d — trace %s: all parse attempts failed",
+            "judge_parse_failures_total=%d — trace %s: all LLM judge attempts failed",
             _judge_parse_failures,
             trace_id,
         )
-        return {"trace_id": str(trace_id), "judge_score": None, "skipped": False}
+        raise RuntimeError(
+            f"LLM judge evaluation failed after {cfg.JUDGE_RETRY_COUNT} attempts "
+            f"for trace {trace_id} — job cannot be completed"
+        )
 
     await update_judge_score(
         db,
