@@ -275,6 +275,16 @@ jobs:
           echo "=== Dashboard ==="
           ls -lh coverage-artifacts/dashboard/lcov.info 2>/dev/null || echo "MISSING — check test-dashboard artifact upload"
 
+      - name: Fix LCOV paths for SonarCloud
+        if: always()
+        run: |
+          if [ -f coverage-artifacts/dashboard/lcov.info ]; then
+            sed -i 's|^SF:src/|SF:apps/dashboard/src/|g' coverage-artifacts/dashboard/lcov.info
+          fi
+          if [ -f coverage-artifacts/sdk-typescript/lcov.info ]; then
+            sed -i 's|^SF:src/|SF:packages/sdk-typescript/src/|g' coverage-artifacts/sdk-typescript/lcov.info
+          fi
+
       - name: SonarCloud scan
         if: always()
         uses: SonarSource/sonarcloud-github-action@v3

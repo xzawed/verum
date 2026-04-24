@@ -53,6 +53,8 @@ export default function ObserveSection({ deploymentId }: Props) {
       setTraces((tracesData as { traces?: TraceRow[] }).traces ?? []);
       setTotal((tracesData as { total?: number }).total ?? 0);
       setLoading(false);
+    }).catch(() => {
+      setLoading(false);
     });
   }, [deploymentId, days, page]);
 

@@ -44,6 +44,7 @@ def _write_integration_state(deployment_id: uuid.UUID, api_key: str) -> None:
             f.write(payload)
         os.replace(tmp_path, target)
     except Exception:
+        logger.exception("DEPLOY: failed to write integration state, cleaning up %s", tmp_path)
         try:
             os.unlink(tmp_path)
         except OSError:
