@@ -122,7 +122,7 @@ async def handle_judge(
                 " JOIN generations g ON g.id = ep.generation_id"
                 " JOIN deployments d ON d.generation_id = g.id"
                 " WHERE d.id = :dep"
-                f" ORDER BY ep.created_at ASC LIMIT {cfg.JUDGE_EVAL_PAIRS_LIMIT}"
+                f" ORDER BY ep.created_at ASC LIMIT {cfg.JUDGE_EVAL_PAIRS_LIMIT}"  # nosec B608
             ),
             {"dep": str(deployment_id)},
         )

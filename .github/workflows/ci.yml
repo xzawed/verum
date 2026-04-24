@@ -152,13 +152,36 @@ jobs:
   test-e2e:
     name: E2E tests (Playwright)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: verum
+          POSTGRES_PASSWORD: verum
+          POSTGRES_DB: verum
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
       - name: Install deps
         run: cd apps/dashboard && npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Install API deps (for Alembic migrations)
+        run: pip install -e "./apps/api[dev]"
+      - name: Run Alembic migrations
+        run: alembic -c apps/api/alembic.ini upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5432/verum
       - name: Install Playwright browsers
         run: cd apps/dashboard && npx playwright install --with-deps chromium
       - name: Run E2E tests
@@ -166,8 +189,6 @@ jobs:
         run: npx playwright test
         env:
           SKIP_PYTHON_WORKER: "1"
-          # DATABASE_URL must be set (throws at import if unset); pool connects lazily
-          # so a non-reachable URL is fine for tests that don't make DB queries.
           DATABASE_URL: "postgresql://verum:verum@localhost:5432/verum"
           NEXTAUTH_SECRET: "ci-test-secret-32-chars-minimum-xx"
           AUTH_SECRET: "ci-test-secret-32-chars-minimum-xx"
