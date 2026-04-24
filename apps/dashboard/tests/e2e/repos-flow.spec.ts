@@ -44,7 +44,7 @@ test.describe("Repos flow", () => {
     expect(page.url()).not.toMatch(/\/login/);
 
     // The repos page renders a recognisable heading
-    const heading = page.getByRole("heading", { name: /repo/i });
+    const heading = page.getByRole("heading", { level: 1, name: /repo/i });
     await expect(heading).toBeVisible();
   });
 
