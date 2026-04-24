@@ -29,6 +29,13 @@ export async function POST(req: Request) {
   }
   const { deploymentId, userId } = auth_result;
 
+  // Verify deployment exists and belongs to this API key's owner BEFORE touching quota.
+  // Without this check, quota increments even for requests against deleted/foreign deployments.
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) {
+    return new Response("deployment not found", { status: 404 });
+  }
+
   const quotaResult = await checkAndIncrementTraceQuota(userId);
   if (quotaResult.status === "exceeded") {
     return new Response("quota exceeded", { status: 429 });
@@ -49,21 +56,17 @@ export async function POST(req: Request) {
     costUsd = (inputCost + outputCost).toFixed(6);
   }
 
-  try {
-    const traceId = await insertTrace({
-      deploymentId,
-      variant: body.variant ?? "baseline",
-      model: body.model,
-      inputTokens: body.input_tokens,
-      outputTokens: body.output_tokens,
-      latencyMs: body.latency_ms,
-      error: body.error ?? null,
-      costUsd,
-    });
-    return Response.json({ trace_id: traceId }, { status: 201 });
-  } catch {
-    return new Response("deployment not found", { status: 404 });
-  }
+  const traceId = await insertTrace({
+    deploymentId,
+    variant: body.variant ?? "baseline",
+    model: body.model,
+    inputTokens: body.input_tokens,
+    outputTokens: body.output_tokens,
+    latencyMs: body.latency_ms,
+    error: body.error ?? null,
+    costUsd,
+  });
+  return Response.json({ trace_id: traceId }, { status: 201 });
 }
 
 // GET — browser-facing: Auth.js session
