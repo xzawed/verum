@@ -54,7 +54,7 @@ def _parse_judge_response(raw: str) -> tuple[float | None, str | None]:
         score = max(0.0, min(1.0, score))  # clamp to [0, 1]
         reason = str(data.get("reason", ""))
         return score, reason
-    except Exception:
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
         return None, None
 
 

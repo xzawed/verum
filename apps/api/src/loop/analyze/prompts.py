@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import tree_sitter_typescript as ts_ts
 from tree_sitter import Language, Node, Parser
@@ -216,7 +219,8 @@ def _parse_tsconfig_paths(repo_root: Path) -> dict[str, str]:
                 target_clean = targets[0].rstrip("*").rstrip("/")
                 result[alias_clean] = target_clean
         return result
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to parse tsconfig paths from %s: %s", tsconfig, exc)
         return {}
 
 

@@ -47,10 +47,10 @@ export default function ExperimentSection({ deploymentId }: Props) {
       }
     }
 
-    fetchData();
+    void fetchData();
 
     const interval = setInterval(() => {
-      fetchData();
+      void fetchData();
     }, 5000);
 
     return () => {

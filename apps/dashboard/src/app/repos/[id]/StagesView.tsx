@@ -18,7 +18,7 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
 
   useEffect(() => {
     const ac = new AbortController();
-    const id = setInterval(async () => {
+    async function poll() {
       try {
         const r = await fetch(`/api/repos/${repoId}/status`, {
           signal: ac.signal,
@@ -32,7 +32,8 @@ export default function StagesView({ initial, repoId, workerAlive: initialWorker
       } catch {
         // ignore AbortError and network errors during polling
       }
-    }, 3000);
+    }
+    const id = setInterval(() => void poll(), 3000);
     return () => {
       clearInterval(id);
       ac.abort();
