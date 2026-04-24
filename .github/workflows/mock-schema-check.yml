@@ -1,0 +1,60 @@
+name: Mock-Providers Schema Drift
+
+on:
+  schedule:
+    # First day of each month at 09:00 UTC
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+
+jobs:
+  schema-drift:
+    name: Validate Anthropic fixture schema
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install anthropic SDK
+        run: pip install anthropic
+
+      - name: Run fixture schema check
+        id: check
+        run: python .github/scripts/check_mock_schema.py
+        continue-on-error: true
+
+      - name: Open GitHub issue on drift
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "chore: Anthropic mock fixture schema drift detected" \
+            --label "maintenance,dependencies" \
+            --body "## Mock-Providers Schema Drift
+
+          The monthly fixture validation found that one or more fixtures in
+          \`tests/integration/mock-providers/fixtures/anthropic/\` no longer
+          match the current \`anthropic\` SDK's \`Message\` model shape.
+
+          ### What to do
+
+          1. Check the workflow run log for which fixtures failed and why.
+          2. Update the fixtures to match the current SDK response format.
+          3. Or pin the \`anthropic\` SDK version in \`apps/api/pyproject.toml\`
+             if the change is unintentional breakage.
+
+          Triggered by workflow run: ${{ github.run_id }}" \
+            || echo "Issue may already exist — skipping"
+
+      - name: Fail job if drift was detected
+        if: steps.check.outcome == 'failure'
+        run: |
+          echo "Schema drift detected in Anthropic mock fixtures."
+          exit 1
