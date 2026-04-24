@@ -11,11 +11,14 @@ import pytest
 from sqlalchemy import text
 from utils.wait import wait_until
 from utils.snapshot import dump
+import os
 from pathlib import Path
 
 pytestmark = pytest.mark.integration
 
 ARTIFACTS_DIR = Path(__file__).parent.parent.parent / "artifacts" / "integration"
+HARVEST_TIMEOUT = int(os.environ.get("VERUM_TEST_HARVEST_TIMEOUT", "120"))
+GENERATE_TIMEOUT = int(os.environ.get("VERUM_TEST_GENERATE_TIMEOUT", "90"))
 
 
 @pytest.mark.asyncio
@@ -39,7 +42,7 @@ async def test_harvest_pipeline(async_db, mock_control, pipeline_state):
             await async_db.rollback()
             return None
 
-    done_count = await wait_until(harvest_done, timeout=120, label="HARVEST sources done")
+    done_count = await wait_until(harvest_done, timeout=HARVEST_TIMEOUT, label="HARVEST sources done")
     assert done_count >= 1, "No harvest sources completed"
 
     # Verify chunks were stored with embeddings
@@ -83,7 +86,7 @@ async def test_generate_pipeline(async_db, pipeline_state):
             await async_db.rollback()
             return None
 
-    gen_row = await wait_until(generate_done, timeout=90, label="GENERATE completion")
+    gen_row = await wait_until(generate_done, timeout=GENERATE_TIMEOUT, label="GENERATE completion")
     pipeline_state["generation_id"] = str(gen_row[0])
 
     # Check eval pairs were generated

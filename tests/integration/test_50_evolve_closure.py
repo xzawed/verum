@@ -24,6 +24,7 @@ pytestmark = pytest.mark.integration
 
 STATE_DIR = Path(os.environ.get("INTEGRATION_STATE_DIR", "/integration-state"))
 ARTIFACTS_DIR = Path("artifacts/integration")
+EVOLVE_DONE_TIMEOUT = int(os.environ.get("VERUM_TEST_EVOLVE_DONE_TIMEOUT", "60"))
 
 
 @pytest.mark.asyncio
@@ -43,7 +44,7 @@ async def test_evolve_job_completes(async_db, pipeline_state):
         )).mappings().first()
         return row is not None and row["status"] == "done"
 
-    completed = await wait_until(evolve_done, timeout=60, interval=3, label="EVOLVE job done")
+    completed = await wait_until(evolve_done, timeout=EVOLVE_DONE_TIMEOUT, interval=3, label="EVOLVE job done")
     assert completed, "EVOLVE job did not complete within 60s"
 
     # Verify deployment experiment_status updated

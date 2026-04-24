@@ -23,7 +23,8 @@ pytestmark = pytest.mark.integration
 
 STATE_DIR = Path(os.environ.get("INTEGRATION_STATE_DIR", "/integration-state"))
 TRACES_TARGET = 200
-TRACES_TIMEOUT = 300  # seconds — fake-arcana needs to finish 210 calls @ 50ms each ≈ 11s
+TRACES_TIMEOUT = int(os.environ.get("VERUM_TEST_TRACES_TIMEOUT", "300"))
+DEPLOY_TIMEOUT = int(os.environ.get("VERUM_TEST_DEPLOY_TIMEOUT", "60"))
 
 
 @pytest.mark.asyncio
@@ -53,7 +54,7 @@ async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
         )).mappings().first()
         return result is not None and result["status"] == "done"
 
-    completed = await wait_until(deploy_done, timeout=60, label="DEPLOY job done")
+    completed = await wait_until(deploy_done, timeout=DEPLOY_TIMEOUT, label="DEPLOY job done")
     assert completed, "DEPLOY job did not complete within 60s"
 
     # Read deployment_id from job result
