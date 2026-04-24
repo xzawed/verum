@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { encode } from "@auth/core/jwt";
+import { db } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
+
+// Fixed IDs for the integration-test persona — must not change between runs.
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000099";
+const TEST_GITHUB_ID = 9999999;
 
 // This endpoint is ONLY available when VERUM_TEST_MODE=1 is set.
 // We use a separate env flag instead of NODE_ENV because `next dev` always
@@ -16,11 +22,23 @@ export async function POST() {
     return new Response("AUTH_SECRET not set", { status: 500 });
   }
 
+  // Ensure the test user row exists so repos.owner_user_id FK is satisfied.
+  await db
+    .insert(users)
+    .values({
+      id: TEST_USER_ID,
+      github_id: TEST_GITHUB_ID,
+      github_login: "verum-test",
+      email: "test@verum.dev",
+      avatar_url: null,
+    })
+    .onConflictDoNothing();
+
   // Encode a minimal JWT session that next-auth v5 can verify.
   // token.sub is the internal user UUID stored by auth.ts jwt callback.
   const token = await encode({
     token: {
-      sub: "00000000-0000-0000-0000-000000000099",
+      sub: TEST_USER_ID,
       name: "Verum Test User",
       email: "test@verum.dev",
       picture: null,

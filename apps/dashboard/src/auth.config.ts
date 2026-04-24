@@ -23,6 +23,12 @@ if (isOverridden) {
 }
 
 export default {
+  // trustHost: required when NODE_ENV=production but serving over plain HTTP
+  // (e.g. Docker / Railway behind a terminating proxy). Without it, Auth.js
+  // forces useSecureCookies=true regardless of the actual request protocol,
+  // meaning it looks for __Secure-authjs.session-token while the client sends
+  // authjs.session-token — causing auth() to return null on every request.
+  trustHost: true,
   providers: [
     GitHub(
       isOverridden
