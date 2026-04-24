@@ -17,6 +17,16 @@ export interface CreatePrResult {
   branch_name: string;
 }
 
+export class GitHubApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GitHubApiError";
+  }
+}
+
 export class GitHubPrCreator {
   private readonly token: string;
   private readonly owner: string;
@@ -101,8 +111,11 @@ export class GitHubPrCreator {
         return Buffer.from(data.content.replace(/\n/g, ""), "base64").toString("utf-8");
       }
       return data.content;
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof GitHubApiError && err.status === 404) {
+        return null; // File genuinely does not exist
+      }
+      throw err; // Rate limit (403), auth error (401), server error (5xx) — caller must handle
     }
   }
 
@@ -119,7 +132,7 @@ export class GitHubPrCreator {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (!res.ok) {
-      throw new Error(`GitHub API ${res.status}: ${method} ${path} — ${res.statusText}`);
+      throw new GitHubApiError(res.status, `GitHub API ${res.status}: ${method} ${path} — ${res.statusText}`);
     }
     return res.json() as Promise<T>;
   }
