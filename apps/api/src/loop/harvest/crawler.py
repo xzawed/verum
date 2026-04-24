@@ -50,7 +50,7 @@ async def _check_ssrf(url: str) -> None:
         raise CrawlError("network", f"DNS resolution failed for {hostname!r}: {exc}") from exc
 
     for _family, _type, _proto, _canonname, sockaddr in results:
-        raw_ip = sockaddr[0]
+        raw_ip = str(sockaddr[0])
         # Unwrap IPv4-mapped IPv6 addresses (e.g. "::ffff:127.0.0.1")
         if raw_ip.startswith("::ffff:"):
             raw_ip = raw_ip[7:]
