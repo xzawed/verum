@@ -17,13 +17,13 @@ import logging
 import re
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 import tree_sitter_typescript as ts_ts
 from tree_sitter import Language, Node, Parser
 
 import src.config as cfg
 from .models import LLMCallSite, PromptTemplate
+
+logger = logging.getLogger(__name__)
 
 _TS_LANGUAGE = Language(ts_ts.language_typescript())
 _TSX_LANGUAGE = Language(ts_ts.language_tsx())
