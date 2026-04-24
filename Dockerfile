@@ -31,9 +31,9 @@ RUN pip install --no-cache-dir --target /py-deps "hatchling" \
 # invert the base and install Node.js from NodeSource instead.
 FROM python:3.13-slim AS runtime
 
-# Install Node.js 20 from NodeSource + git (for ANALYZE repo cloning)
+# Install Node.js 20 from NodeSource + git (for ANALYZE repo cloning) + dumb-init (PID 1 signal handling)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates git \
+    curl ca-certificates git dumb-init \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -58,5 +58,11 @@ ENV PYTHON_BIN=python3
 
 ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
-# Node is PID 1; it spawns the Python worker via instrumentation.ts
-CMD ["node", "server.js"]
+
+# Non-root user for security; chown after all COPY ops complete
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app /py-deps
+USER appuser
+
+# dumb-init as PID 1 forwards signals to Node; Node spawns Python worker via instrumentation.ts
+CMD ["dumb-init", "node", "server.js"]
