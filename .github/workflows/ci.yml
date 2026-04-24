@@ -310,6 +310,14 @@ jobs:
           if [ -f coverage-artifacts/sdk-typescript/lcov.info ]; then
             sed -i 's|^SF:src/|SF:packages/sdk-typescript/src/|g' coverage-artifacts/sdk-typescript/lcov.info
           fi
+          # Fix Python coverage.xml: pytest generates <source>/abs/path/apps/api</source>
+          # SonarCloud needs a workspace-relative path to resolve src/... file entries.
+          if [ -f apps/api/coverage.xml ]; then
+            sed -i 's|<source>[^<]*</source>|<source>apps/api</source>|g' apps/api/coverage.xml
+          fi
+          if [ -f coverage-artifacts/sdk-python/coverage.xml ]; then
+            sed -i 's|<source>[^<]*</source>|<source>packages/sdk-python</source>|g' coverage-artifacts/sdk-python/coverage.xml
+          fi
 
       - name: SonarCloud scan
         # Skip on Dependabot PRs and fork PRs — SONAR_TOKEN is not available to those workflows
