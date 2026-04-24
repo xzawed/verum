@@ -19,6 +19,8 @@ async def create_pending_generation(
     db: AsyncSession,
     inference_id: uuid.UUID,
     generation_id: uuid.UUID,
+    *,
+    commit: bool = True,
 ) -> None:
     db.add(Generation(
         id=generation_id,
@@ -27,7 +29,8 @@ async def create_pending_generation(
         created_at=datetime.now(tz=timezone.utc),
     ))
     await db.flush()
-    await db.commit()
+    if commit:
+        await db.commit()
 
 
 async def save_generate_result(

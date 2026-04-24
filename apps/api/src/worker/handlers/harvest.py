@@ -62,7 +62,8 @@ async def handle_harvest(
         )
 
     # Quota enforcement (free tier)
-    quota = await get_or_create_quota(db, owner_user_id)  # commits quota upsert
+    # commit=False: defer to single commit at end of handler (P0-7 fix)
+    quota = await get_or_create_quota(db, owner_user_id, commit=False)
     if quota["plan"] == "free":
         if quota["chunks_stored"] + total_chunks > FREE_LIMITS["chunks"]:
             raise QuotaExceededError("chunks", quota["chunks_stored"], FREE_LIMITS["chunks"])
@@ -78,8 +79,8 @@ async def handle_harvest(
 
     # Chain HARVEST → GENERATE
     generation_id = uuid.uuid4()
-    # create_pending_generation flushes and commits the generation row
-    await create_pending_generation(db, inference_id, generation_id)
+    # commit=False: flush only — single commit covers quota+generation+job (P0-7 fix)
+    await create_pending_generation(db, inference_id, generation_id, commit=False)
     # enqueue_next inserts the job without committing (caller owns commit)
     await enqueue_next(
         db,

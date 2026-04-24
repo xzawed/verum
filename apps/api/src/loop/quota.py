@@ -31,7 +31,7 @@ class QuotaExceededError(Exception):
 
 
 async def get_or_create_quota(
-    session: AsyncSession, user_id: UUID, *, period: date | None = None
+    session: AsyncSession, user_id: UUID, *, period: date | None = None, commit: bool = True
 ) -> dict:
     if period is None:
         today = date.today()
@@ -47,7 +47,8 @@ async def get_or_create_quota(
         """),
         {"user_id": str(user_id), "period": period},
     )
-    await session.commit()
+    if commit:
+        await session.commit()
     result = row.mappings().first()
     if result is None:
         logger.warning("get_or_create_quota: INSERT returned no row for user %s", user_id)

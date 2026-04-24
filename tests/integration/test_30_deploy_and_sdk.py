@@ -55,7 +55,8 @@ async def test_deploy_job_completes(dashboard_client, async_db):
     completed = await wait_until(deploy_done, timeout=60, label="DEPLOY job done")
     assert completed, "DEPLOY job did not complete within 60s"
 
-    # Read deployment_id and api_key from job result
+    # Read deployment_id from job result (api_key is no longer stored in DB — P0-2 fix).
+    # The worker wrote api_key to deployment_info.json via VERUM_TEST_MODE path.
     row = (await async_db.execute(
         text(
             "SELECT result FROM verum_jobs"
@@ -67,17 +68,25 @@ async def test_deploy_job_completes(dashboard_client, async_db):
 
     result_data = json.loads(row["result"])
     deployment_id = result_data.get("deployment_id")
-    api_key = result_data.get("api_key")
     assert deployment_id, "deployment_id missing from job result"
-    assert api_key, "api_key missing from job result — VERUM_TEST_MODE must be '1'"
 
-    # Write deployment_info.json for fake-arcana to consume
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    # Security regression check: api_key must NOT be in the DB job result.
+    assert "api_key" not in result_data, (
+        "api_key leaked into verum_jobs.result — P0-2 regression: "
+        "deploy.py must write to /integration-state, not DB"
+    )
+
+    # Read deployment_info.json written atomically by the worker (_write_integration_state).
     state_file = STATE_DIR / "deployment_info.json"
-    state_file.write_text(json.dumps({
-        "deployment_id": deployment_id,
-        "api_key": api_key,
-    }))
+    deadline = time.time() + 30
+    while not state_file.exists():
+        if time.time() > deadline:
+            pytest.fail("deployment_info.json not written by worker within 30s")
+        time.sleep(0.5)
+
+    info = json.loads(state_file.read_text())
+    api_key = info.get("api_key")
+    assert api_key, "api_key missing from deployment_info.json — VERUM_TEST_MODE must be '1'"
 
     # Store in a shared fixture-accessible location for subsequent tests
     (STATE_DIR / "deployment_id.txt").write_text(deployment_id)
