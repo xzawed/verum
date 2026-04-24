@@ -29,6 +29,7 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional pre-fetch reset, state update is not in render phase
     setLoading(true);
     fetch(`/api/v1/traces/${traceId}`)
       .then((r) => r.json())
