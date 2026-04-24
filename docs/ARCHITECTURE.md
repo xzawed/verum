@@ -371,7 +371,7 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 | POST | `/v1/harvest/propose` | LLM proposes sources; returns list for user approval | ✅ |
 | POST | `/v1/harvest/start` | Start crawl with approved sources | ✅ |
 | GET | `/v1/harvest/{harvest_id}` | Get harvest status + result | ✅ |
-| POST | `/v1/retrieve` | Hybrid search over knowledge_chunks | ✅ |
+| POST | `/api/v1/retrieve-sdk` | Hybrid search over knowledge_chunks (SDK endpoint) | ✅ |
 
 ### [4] GENERATE
 
@@ -449,12 +449,12 @@ await client.feedback(trace_id="...", score=1)
 ### TypeScript SDK (`@verum/sdk`)
 
 ```typescript
-import { Verum } from "@verum/sdk";
+import { VerumClient } from "@verum/sdk";
 
-const verum = new Verum({ apiKey: "...", projectId: "..." });
+const verum = new VerumClient({ apiUrl: "https://verum.dev", apiKey: "..." });
 
 const response = await verum.chat({ model: "grok-2-1212", messages: [...], deploymentId: "..." });
-const chunks = await verum.retrieve({ query: "...", collection: "arcana-tarot-knowledge", topK: 5 });
+const chunks = await verum.retrieve({ query: "...", collectionName: "arcana-tarot-knowledge", topK: 5 });
 ```
 
 ---
