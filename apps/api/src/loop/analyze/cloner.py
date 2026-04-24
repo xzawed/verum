@@ -12,6 +12,7 @@ from typing import AsyncIterator
 from uuid import UUID
 
 _GITHUB_URL_RE = re.compile(r"^https://github\.com/[\w.\-]+/[\w.\-]+(\.git)?$")
+_BRANCH_RE = re.compile(r"^[a-zA-Z0-9._/\-]{1,200}$")
 _CLONE_BASE = Path(tempfile.gettempdir()) / "verum-clones"
 
 _CLONE_ERRORS = {
@@ -81,6 +82,11 @@ async def clone_repo(
                 f"Host {host!r} is not in VERUM_ALLOW_INSECURE_CLONE_HOSTS; "
                 f"allowed: {allowed_hosts}"
             )
+
+    if not _BRANCH_RE.match(branch):
+        raise ValueError(
+            f"Invalid branch name {branch!r}: must match ^[a-zA-Z0-9._/\\-]{{1,200}}$"
+        )
 
     target = _CLONE_BASE / str(analysis_id)
     target.parent.mkdir(parents=True, exist_ok=True)
