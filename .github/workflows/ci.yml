@@ -325,7 +325,7 @@ jobs:
       - name: SonarCloud scan
         # Skip on Dependabot PRs and fork PRs — SONAR_TOKEN is not available to those workflows
         if: always() && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: SonarSource/sonarcloud-github-action@v3
+        uses: SonarSource/sonarcloud-github-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
