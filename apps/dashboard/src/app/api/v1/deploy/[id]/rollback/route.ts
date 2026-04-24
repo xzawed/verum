@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { rollbackDeployment } from "@/lib/db/jobs";
 import { getDeployment } from "@/lib/db/queries";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function POST(
   _req: Request,
@@ -10,6 +11,8 @@ export async function POST(
   if (!session?.user) return new Response("unauthorized", { status: 401 });
   const uid = String((session.user as Record<string, unknown>).id ?? "");
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
 
   const { id } = await params;
   const deployment = await getDeployment(uid, id);

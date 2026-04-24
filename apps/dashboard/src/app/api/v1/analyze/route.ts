@@ -1,10 +1,13 @@
 import { enqueueAnalyze } from "@/lib/db/jobs";
 import { getRepo } from "@/lib/db/queries";
 import { getAuthUserId } from "@/lib/api/handlers";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
 
   const body = await req.json() as { repo_id: string; branch?: string };
   if (!body.repo_id) return new Response("repo_id required", { status: 400 });

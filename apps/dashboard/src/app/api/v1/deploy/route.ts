@@ -1,10 +1,13 @@
 import { enqueueDeployment } from "@/lib/db/jobs";
 import { getGeneration } from "@/lib/db/queries";
 import { getAuthUserId } from "@/lib/api/handlers";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
 
   const raw = await req.json() as unknown;
   const generationId =
