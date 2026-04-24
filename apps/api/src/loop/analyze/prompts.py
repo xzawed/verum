@@ -219,7 +219,7 @@ def _parse_tsconfig_paths(repo_root: Path) -> dict[str, str]:
                 target_clean = targets[0].rstrip("*").rstrip("/")
                 result[alias_clean] = target_clean
         return result
-    except Exception as exc:
+    except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Failed to parse tsconfig paths from %s: %s", tsconfig, exc)
         return {}
 

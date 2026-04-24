@@ -54,7 +54,7 @@ async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
             url,
         )
         return text
-    except Exception as exc:
+    except CrawlError as exc:
         logger.warning("playwright fetch failed for %s: %s — using httpx result", url, exc)
         return text
 
@@ -89,17 +89,22 @@ async def _fetch_playwright(url: str) -> str:
 
     Raises:
         ImportError: if playwright package is not installed.
+        CrawlError: on browser-level network or navigation failure.
     """
-    from playwright.async_api import async_playwright  # soft import
+    from playwright.async_api import Error as PlaywrightError  # soft import
+    from playwright.async_api import async_playwright
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        try:
-            page = await browser.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=30_000)
-            html = await page.content()
-        finally:
-            await browser.close()
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                await page.goto(url, wait_until="networkidle", timeout=30_000)
+                html = await page.content()
+            finally:
+                await browser.close()
+    except PlaywrightError as exc:
+        raise CrawlError("playwright", str(exc)) from exc
 
     loop = asyncio.get_event_loop()
     text = await loop.run_in_executor(None, lambda: _extract(html, url))
