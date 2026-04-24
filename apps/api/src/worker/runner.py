@@ -142,14 +142,34 @@ async def _update_heartbeat(db: AsyncSession) -> None:
     await db.commit()
 
 
+_heartbeat_failures: int = 0
+MAX_HEARTBEAT_FAILURES: int = int(os.environ.get("VERUM_MAX_HEARTBEAT_FAILURES", "5"))
+
+
 async def _heartbeat_loop() -> None:
-    """Update heartbeat row every HEARTBEAT_INTERVAL seconds."""
+    """Update heartbeat row every HEARTBEAT_INTERVAL seconds.
+
+    Exits the process after MAX_HEARTBEAT_FAILURES consecutive failures so the
+    container restarts instead of running as a silent zombie.
+    """
+    global _heartbeat_failures
     while True:
         try:
             async with AsyncSessionLocal() as db:
                 await _update_heartbeat(db)
+            _heartbeat_failures = 0
         except Exception as exc:
-            logger.warning("Heartbeat update failed: %s", exc)
+            _heartbeat_failures += 1
+            logger.warning(
+                "Heartbeat update failed (%d/%d): %s",
+                _heartbeat_failures, MAX_HEARTBEAT_FAILURES, exc,
+            )
+            if _heartbeat_failures >= MAX_HEARTBEAT_FAILURES:
+                logger.critical(
+                    "Heartbeat max failures reached (%d) — shutting down worker",
+                    MAX_HEARTBEAT_FAILURES,
+                )
+                os._exit(1)
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
