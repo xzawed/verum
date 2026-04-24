@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
+import socket
+from urllib.parse import urlparse, urljoin
 
 import httpx
 import trafilatura
@@ -17,12 +20,56 @@ _HEADERS = {
 _TIMEOUT = 30.0
 _MAX_CONTENT_BYTES = 2 * 1024 * 1024  # 2 MB cap
 _SPARSE_THRESHOLD = 200  # chars; below this, try playwright if requested
+_MAX_REDIRECTS = 5
 
 
 class CrawlError(Exception):
     def __init__(self, kind: str, detail: str) -> None:
         super().__init__(detail)
         self.kind = kind
+
+
+async def _check_ssrf(url: str) -> None:
+    """Resolve URL hostname and reject private/loopback/internal IPs.
+
+    Raises:
+        CrawlError: if the resolved address is non-routable or private.
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise CrawlError("ssrf", f"Cannot resolve empty hostname in {url!r}")
+
+    loop = asyncio.get_event_loop()
+    try:
+        results = await loop.run_in_executor(
+            None,
+            lambda: socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM),
+        )
+    except socket.gaierror as exc:
+        raise CrawlError("network", f"DNS resolution failed for {hostname!r}: {exc}") from exc
+
+    for _family, _type, _proto, _canonname, sockaddr in results:
+        raw_ip = sockaddr[0]
+        # Unwrap IPv4-mapped IPv6 addresses (e.g. "::ffff:127.0.0.1")
+        if raw_ip.startswith("::ffff:"):
+            raw_ip = raw_ip[7:]
+        try:
+            addr = ipaddress.ip_address(raw_ip)
+        except ValueError:
+            continue
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_multicast
+            or addr.is_reserved
+            or addr.is_unspecified
+        ):
+            raise CrawlError(
+                "ssrf",
+                f"Blocked request to non-public IP {addr!s} (resolved from {hostname!r})",
+            )
 
 
 async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
@@ -60,15 +107,37 @@ async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
 
 
 async def _fetch_httpx(url: str) -> str:
-    """Fetch with httpx and extract text via trafilatura."""
+    """Fetch with httpx and extract text via trafilatura.
+
+    Manually follows redirects with SSRF validation at each hop.
+    """
+    await _check_ssrf(url)
+    current_url = url
+    redirects = 0
+
     try:
         async with httpx.AsyncClient(
             headers=_HEADERS,
             timeout=_TIMEOUT,
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
-            response = await client.get(url)
-            response.raise_for_status()
+            while True:
+                response = await client.get(current_url)
+                if response.is_redirect:
+                    redirects += 1
+                    if redirects > _MAX_REDIRECTS:
+                        raise CrawlError(
+                            "redirect",
+                            f"Too many redirects (>{_MAX_REDIRECTS}) for {url}",
+                        )
+                    location = response.headers.get("location", "")
+                    next_url = urljoin(current_url, location)
+                    await _check_ssrf(next_url)
+                    current_url = next_url
+                    continue
+                response.raise_for_status()
+                break
+
             html = response.content[:_MAX_CONTENT_BYTES].decode(
                 response.encoding or "utf-8", errors="replace"
             )
@@ -80,7 +149,7 @@ async def _fetch_httpx(url: str) -> str:
         raise CrawlError("network", str(e)) from e
 
     loop = asyncio.get_event_loop()
-    text = await loop.run_in_executor(None, lambda: _extract(html, url))
+    text = await loop.run_in_executor(None, lambda: _extract(html, current_url))
     return text or ""
 
 
@@ -93,6 +162,8 @@ async def _fetch_playwright(url: str) -> str:
     """
     from playwright.async_api import Error as PlaywrightError  # soft import
     from playwright.async_api import async_playwright
+
+    await _check_ssrf(url)
 
     try:
         async with async_playwright() as p:
