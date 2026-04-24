@@ -57,11 +57,23 @@ export class VerumClient {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly cache: DeploymentConfigCache<DeploymentConfig>;
+  private readonly timeoutMs: number;
 
-  constructor(options?: { apiUrl?: string; apiKey?: string; cacheTtlMs?: number }) {
+  constructor(options?: { apiUrl?: string; apiKey?: string; cacheTtlMs?: number; timeoutMs?: number }) {
     this.apiUrl = (options?.apiUrl ?? process.env["VERUM_API_URL"] ?? "").replace(/\/$/, "");
     this.apiKey = options?.apiKey ?? process.env["VERUM_API_KEY"] ?? "";
     this.cache = new DeploymentConfigCache(options?.cacheTtlMs ?? 60_000);
+    this.timeoutMs = options?.timeoutMs ?? 10_000;
+  }
+
+  private async _fetch(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async chat(params: ChatParams): Promise<ChatResult> {
@@ -87,7 +99,7 @@ export class VerumClient {
   }
 
   async retrieve(params: RetrieveParams): Promise<Chunk[]> {
-    const res = await fetch(`${this.apiUrl}/api/v1/retrieve-sdk`, {
+    const res = await this._fetch(`${this.apiUrl}/api/v1/retrieve-sdk`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-verum-api-key": this.apiKey },
       body: JSON.stringify({
@@ -102,7 +114,7 @@ export class VerumClient {
   }
 
   async feedback(params: FeedbackParams): Promise<void> {
-    const res = await fetch(`${this.apiUrl}/api/v1/feedback`, {
+    const res = await this._fetch(`${this.apiUrl}/api/v1/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-verum-api-key": this.apiKey },
       body: JSON.stringify({ trace_id: params.traceId, score: params.score }),
@@ -111,7 +123,7 @@ export class VerumClient {
   }
 
   async record(params: RecordParams): Promise<string> {
-    const res = await fetch(`${this.apiUrl}/api/v1/traces`, {
+    const res = await this._fetch(`${this.apiUrl}/api/v1/traces`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-verum-api-key": this.apiKey },
       body: JSON.stringify({
@@ -133,7 +145,7 @@ export class VerumClient {
     const cached = this.cache.get(deploymentId);
     if (cached) return cached;
 
-    const res = await fetch(`${this.apiUrl}/api/v1/deploy/${deploymentId}/config`, {
+    const res = await this._fetch(`${this.apiUrl}/api/v1/deploy/${deploymentId}/config`, {
       headers: { "x-verum-api-key": this.apiKey },
     });
     if (!res.ok) throw new Error(`config fetch failed: ${res.status}`);
