@@ -56,6 +56,7 @@ last-updated: 2026-04-26
 | `0016_drop_chunks_embedding_jsonb` | `chunks.embedding` JSONB 컬럼 제거 (`embedding_vec`만 사용) |
 | `0017_add_missing_indexes` | `ix_inferences_repo_id`, `ix_inferences_analysis_id`, `ix_traces_deployment_created` |
 | `0018_chunks_inference_fk` | `chunks.inference_id → inferences.id CASCADE` FK |
+| `0019_lookup_indexes` | `ix_traces_deployment_variant_created`, `ix_verum_jobs_status_kind_created` |
 
 > **참고:** migration 0012는 존재하지 않음 (순서 정리 과정에서 스킵됨).
 
