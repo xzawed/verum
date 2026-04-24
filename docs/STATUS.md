@@ -31,8 +31,6 @@ last-updated: 2026-04-24
 
 **Integration test pipeline:** `make integration-up && make integration-test` — ANALYZE→EVOLVE full-loop via Docker Compose (prod image + mock-providers + fake-arcana). Nightly CI at 08:00 UTC. See [docs/INTEGRATION.md](INTEGRATION.md).
 
-**CI Failure Analyzer:** `feat/claude-ci-analyzer` PR (#24) 리뷰 중 — CI 실패 시 Claude가 자동 분석 후 PR/커밋에 한국어 리포트 코멘트를 게시하는 `workflow_run` 트리거 워크플로우.
-
 ---
 
 ## Database Tables
@@ -400,4 +398,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-24 (integration test pipeline 안정화 — SQLAlchemy CAST() 통일, LISTEN/NOTIFY DSN 수정, InFailedSQLTransactionError 복구 로직, E2E test/login DB best-effort, repos-flow strict-mode 헤딩 locator 수정; CI Failure Analyzer PR #24 생성) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-24 (integration test pipeline 안정화 — SQLAlchemy CAST() 통일, LISTEN/NOTIFY DSN 수정, InFailedSQLTransactionError 복구 로직, E2E test/login DB best-effort, repos-flow strict-mode 헤딩 locator 수정) | Maintained by: Claude at end of each implementation session_
