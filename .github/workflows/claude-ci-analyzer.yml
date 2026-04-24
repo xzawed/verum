@@ -1,0 +1,183 @@
+name: CI Failure Analyzer
+
+# Triggers when the main CI workflow completes with a failure.
+# Downloads job metadata, builds failure context, runs Claude analysis,
+# and posts a Korean-language comment on the associated PR or commit.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  analyze-ci-failure:
+    name: CI 실패 자동 분석
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Collect failure context ──────────────────────────────────────────────
+      - name: Collect CI failure context
+        id: ctx
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId   = context.payload.workflow_run.id;
+            const headSha = context.payload.workflow_run.head_sha;
+            const prs     = context.payload.workflow_run.pull_requests || [];
+            const prNum   = prs.length > 0 ? prs[0].number : null;
+
+            const { data: jobsData } = await github.rest.actions.listJobsForWorkflowRun({
+              owner:  context.repo.owner,
+              repo:   context.repo.repo,
+              run_id: runId,
+            });
+
+            const failedJobs = jobsData.jobs.filter(j => j.conclusion === 'failure');
+
+            const failedLines = failedJobs.map(j => {
+              const steps = j.steps
+                .filter(s => s.conclusion === 'failure')
+                .map(s => `    - ${s.name}`)
+                .join('\n');
+              return `  - **${j.name}**\n${steps}`;
+            });
+
+            const hasSonar = failedJobs.some(j =>
+              j.name.includes('Python tests') || j.name.includes('SonarCloud')
+            );
+            const hasE2E   = failedJobs.some(j =>
+              j.name.includes('E2E') || j.name.includes('Playwright')
+            );
+            const hasLint  = failedJobs.some(j =>
+              j.name.toLowerCase().includes('lint')
+            );
+            const hasCov   = failedJobs.some(j =>
+              j.steps.some(s => s.conclusion === 'failure' && s.name.toLowerCase().includes('coverage'))
+            );
+
+            core.setOutput('pr_number',      prNum ? String(prNum) : '');
+            core.setOutput('head_sha',       headSha);
+            core.setOutput('run_id',         String(runId));
+            core.setOutput('failed_summary', failedLines.join('\n') || '(정보 없음)');
+            core.setOutput('run_url',        context.payload.workflow_run.html_url);
+            core.setOutput('has_sonar',      String(hasSonar));
+            core.setOutput('has_e2e',        String(hasE2E));
+            core.setOutput('has_lint',       String(hasLint));
+            core.setOutput('has_cov',        String(hasCov));
+
+      # ── Write context to file so Claude reads it safely ──────────────────────
+      - name: Write failure context file
+        env:
+          FAILED_SUMMARY: ${{ steps.ctx.outputs.failed_summary }}
+          RUN_URL:        ${{ steps.ctx.outputs.run_url }}
+          HEAD_SHA:       ${{ steps.ctx.outputs.head_sha }}
+          HAS_SONAR:      ${{ steps.ctx.outputs.has_sonar }}
+          HAS_E2E:        ${{ steps.ctx.outputs.has_e2e }}
+          HAS_LINT:       ${{ steps.ctx.outputs.has_lint }}
+          HAS_COV:        ${{ steps.ctx.outputs.has_cov }}
+        run: |
+          {
+            echo "# CI 실패 컨텍스트"
+            echo ""
+            echo "- 실행 URL: $RUN_URL"
+            echo "- Commit SHA: $HEAD_SHA"
+            echo ""
+            echo "## 실패한 Jobs"
+            echo "$FAILED_SUMMARY"
+            echo ""
+            echo "## 실패 분류 힌트"
+            echo "- SonarCloud / API 테스트 관련: $HAS_SONAR"
+            echo "- E2E (Playwright) 관련: $HAS_E2E"
+            echo "- 린트 관련: $HAS_LINT"
+            echo "- 커버리지 관련: $HAS_COV"
+          } > /tmp/ci-failure-context.md
+
+      # ── Claude analysis ──────────────────────────────────────────────────────
+      - name: Analyze with Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token:      ${{ secrets.GITHUB_TOKEN }}
+          # Read-only tools only — no code modification.
+          allowed_tools: "Read,Glob,Grep"
+          direct_prompt: |
+            /tmp/ci-failure-context.md 파일을 읽어서 GitHub Actions CI 실패를 분석해주세요.
+
+            **중요: 코드를 절대 수정하지 마세요.** 분석과 수정 방향 제시만 합니다.
+
+            프로젝트 구조 참고:
+            - Python API 테스트: apps/api/tests/
+            - E2E 테스트: apps/dashboard/tests/e2e/
+            - Python 소스: apps/api/src/
+            - TypeScript 소스: apps/dashboard/src/, packages/sdk-typescript/src/
+            - CI 설정: .github/workflows/ci.yml
+            - SonarCloud 설정: sonar-project.properties (있으면)
+            - coverage 임계값: --cov-fail-under=58 (apps/api pytest)
+
+            관련 파일을 Read/Glob/Grep 도구로 직접 확인하며 분석해주세요.
+
+            분석 후 **아래 형식으로 정확히** 응답해주세요 (마크다운):
+
+            ---
+            ## 🔍 CI 실패 자동 분석 리포트
+
+            > 🤖 이 분석은 Claude가 자동으로 생성했습니다 — 수동으로 확인 후 적용하세요.
+
+            ### 실패 요약
+            <!-- 실패한 job과 step을 1-3줄로 요약 -->
+
+            ### 원인 분류
+            - ☑️/☐ SonarCloud Quality Gate 실패
+            - ☑️/☐ 테스트 커버리지 미달 (--cov-fail-under=58)
+            - ☑️/☐ E2E (Playwright) 테스트 실패
+            - ☑️/☐ 린트 / 타입 체크 실패
+            - ☑️/☐ 기타 (상세 명시)
+
+            ### 세부 원인 분석
+            <!-- 각 원인에 대한 기술적 분석, 파일/라인 근거 포함 -->
+
+            ### 수정 방향
+            <!-- 구체적이고 실행 가능한 단계별 수정 방향 -->
+
+            ### 참고 파일
+            <!-- 수정에 필요한 파일 목록 -->
+            ---
+
+      # ── Post comment on PR ───────────────────────────────────────────────────
+      - name: Post comment — PR
+        if: steps.ctx.outputs.pr_number != '' && steps.claude.outputs.output != ''
+        env:
+          CLAUDE_OUTPUT: ${{ steps.claude.outputs.output }}
+          PR_NUMBER:     ${{ steps.ctx.outputs.pr_number }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: parseInt(process.env.PR_NUMBER),
+              body:         process.env.CLAUDE_OUTPUT,
+            });
+
+      # ── Post comment on commit (direct push, no PR) ──────────────────────────
+      - name: Post comment — commit
+        if: steps.ctx.outputs.pr_number == '' && steps.claude.outputs.output != ''
+        env:
+          CLAUDE_OUTPUT: ${{ steps.claude.outputs.output }}
+          HEAD_SHA:      ${{ steps.ctx.outputs.head_sha }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitComment({
+              owner:      context.repo.owner,
+              repo:       context.repo.repo,
+              commit_sha: process.env.HEAD_SHA,
+              body:       process.env.CLAUDE_OUTPUT,
+            });
