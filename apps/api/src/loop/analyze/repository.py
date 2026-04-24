@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.enums import AnalysisStatus
 from src.db.models.analyses import Analysis
 from src.db.models.repos import Repo
 from .models import AnalysisResult
@@ -45,7 +46,7 @@ async def create_pending_analysis(
     analysis = Analysis(
         id=uuid.uuid4(),
         repo_id=repo_id,
-        status="pending",
+        status=AnalysisStatus.PENDING,
         started_at=datetime.now(tz=timezone.utc),
     )
     db.add(analysis)
@@ -61,7 +62,7 @@ async def save_analysis_result(
 ) -> None:
     stmt = select(Analysis).where(Analysis.id == analysis_id)
     row = (await db.execute(stmt)).scalar_one()
-    row.status = "done"
+    row.status = AnalysisStatus.DONE
     row.call_sites = [cs.model_dump() for cs in result.call_sites]
     row.prompt_templates = [pt.model_dump() for pt in result.prompt_templates]
     row.model_configs = [mc.model_dump() for mc in result.model_configs]

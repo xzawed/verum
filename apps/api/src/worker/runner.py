@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config as cfg
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
+from src.db.enums import JobStatus
 from src.db.session import AsyncSessionLocal
 from src.worker.payloads import (
     AnalyzePayload,
@@ -123,7 +124,7 @@ async def _mark_done(db: AsyncSession, job_id: uuid.UUID, result: Any) -> None:
 
 
 async def _mark_failed(db: AsyncSession, job_id: uuid.UUID, error: str, attempts: int) -> None:
-    next_status = "failed" if attempts >= MAX_ATTEMPTS else "queued"
+    next_status = JobStatus.FAILED if attempts >= MAX_ATTEMPTS else JobStatus.QUEUED
     await db.execute(
         text(
             "UPDATE verum_jobs SET status = :status, error = :error, finished_at = now()"

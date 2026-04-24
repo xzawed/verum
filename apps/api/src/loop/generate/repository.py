@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.enums import AnalysisStatus
 from src.db.models.generations import Generation
 from src.loop.generate.models import GenerateResult
 
@@ -25,7 +26,7 @@ async def create_pending_generation(
     db.add(Generation(
         id=generation_id,
         inference_id=inference_id,
-        status="pending",
+        status=AnalysisStatus.PENDING,
         created_at=datetime.now(tz=timezone.utc),
     ))
     await db.flush()
@@ -42,7 +43,7 @@ async def save_generate_result(
     row = (await db.execute(stmt)).scalar_one_or_none()
     if row is None:
         raise ValueError(f"Generation {generation_id} not found — cannot save result")
-    row.status = "done"
+    row.status = AnalysisStatus.DONE
     row.generated_at = datetime.now(tz=timezone.utc)
     if result.metric_profile is not None:
         row.metric_profile = result.metric_profile.model_dump()

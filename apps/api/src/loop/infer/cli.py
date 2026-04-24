@@ -17,6 +17,7 @@ from typing import Annotated
 import typer
 from sqlalchemy import select
 
+from src.db.enums import AnalysisStatus
 from src.db.models.analyses import Analysis
 from src.db.session import AsyncSessionLocal
 from src.loop.analyze.models import AnalysisResult
@@ -55,7 +56,7 @@ async def _run(analysis_id: uuid_mod.UUID) -> ServiceInference:
     if row is None:
         raise ValueError(f"analysis {analysis_id} not found in database")
 
-    if row.status != "done":
+    if row.status != AnalysisStatus.DONE:
         raise ValueError(f"analysis {analysis_id} has status '{row.status}', expected 'done'")
 
     ar = AnalysisResult(
