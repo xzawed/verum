@@ -21,7 +21,7 @@ export class GitHubPrCreator {
   private readonly token: string;
   private readonly owner: string;
   private readonly repo: string;
-  private readonly base = "https://api.github.com";
+  private readonly base = process.env.GITHUB_API_BASE ?? "https://api.github.com";
 
   constructor(opts: { accessToken: string; repoFullName: string }) {
     this.token = opts.accessToken;

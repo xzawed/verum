@@ -1,0 +1,100 @@
+"""Integration: HARVEST → GENERATE pipeline test.
+
+Picks up where test_10 left off (INFER completed). Waits for HARVEST and GENERATE
+to complete via automatic chaining (chain.enqueue_next).
+"""
+from __future__ import annotations
+import pytest
+from sqlalchemy import text
+from .utils.wait import wait_until
+from .utils.snapshot import dump
+from .utils.timeline import build as build_timeline
+from pathlib import Path
+
+pytestmark = pytest.mark.integration
+
+ARTIFACTS_DIR = Path(__file__).parent.parent.parent / "artifacts" / "integration"
+
+
+async def _latest_inference_id(async_db):
+    r = await async_db.execute(
+        text("SELECT id FROM inferences WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1")
+    )
+    row = r.fetchone()
+    return str(row[0]) if row else None
+
+
+@pytest.mark.asyncio
+async def test_harvest_pipeline(async_db, mock_control):
+    """HARVEST completes with > 10 chunks stored."""
+    inference_id = await _latest_inference_id(async_db)
+    assert inference_id, "No completed inference found — run test_10 first or check INFER stage."
+
+    async def harvest_done():
+        r = await async_db.execute(
+            text(
+                "SELECT COUNT(*) FROM harvest_sources "
+                "WHERE inference_id = :iid AND status = 'done'"
+            ),
+            {"iid": inference_id},
+        )
+        count = r.scalar_one()
+        return count if count > 0 else None
+
+    done_count = await wait_until(harvest_done, timeout=120, label="HARVEST sources done")
+    assert done_count >= 1, "No harvest sources completed"
+
+    # Verify chunks were stored with embeddings
+    r = await async_db.execute(
+        text(
+            "SELECT COUNT(*) FROM chunks "
+            "WHERE inference_id = :iid AND embedding_vec IS NOT NULL"
+        ),
+        {"iid": inference_id},
+    )
+    chunk_count = r.scalar_one()
+    assert chunk_count > 10, f"Expected > 10 embedded chunks, got {chunk_count}"
+
+    # Voyage embeddings should have been called
+    calls_resp = await mock_control.get("/calls")
+    calls = calls_resp.json()
+    voyage_calls = [c for c in calls if "voyage" in c.get("endpoint", "")]
+    assert len(voyage_calls) >= 1, "Expected Voyage embedding calls during HARVEST"
+
+    await dump(async_db, ARTIFACTS_DIR / "test_20_harvest" / "snapshot.jsonl")
+
+
+@pytest.mark.asyncio
+async def test_generate_pipeline(async_db):
+    """GENERATE completes with prompt variants and eval pairs."""
+    inference_id = await _latest_inference_id(async_db)
+    assert inference_id, "No completed inference found."
+
+    async def generate_done():
+        r = await async_db.execute(
+            text(
+                "SELECT status FROM generations "
+                "WHERE inference_id = :iid ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"iid": inference_id},
+        )
+        row = r.fetchone()
+        return row if (row and row[0] == "ready") else None
+
+    await wait_until(generate_done, timeout=90, label="GENERATE completion")
+
+    # Check eval pairs were generated
+    r = await async_db.execute(
+        text("SELECT COUNT(*) FROM eval_pairs WHERE inference_id = :iid"),
+        {"iid": inference_id},
+    )
+    pair_count = r.scalar_one()
+    assert pair_count >= 1, f"Expected >= 1 eval pairs, got {pair_count}"
+
+    await dump(async_db, ARTIFACTS_DIR / "test_20_generate" / "snapshot.jsonl")
+
+    # Build timeline after P0 pipeline completes
+    from .utils.timeline import build as build_timeline
+    timeline_path = ARTIFACTS_DIR / "timeline.md"
+    timeline_text = await build_timeline(async_db, timeline_path)
+    print(f"\n{timeline_text}\n")

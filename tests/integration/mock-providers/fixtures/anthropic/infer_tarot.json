@@ -1,0 +1,10 @@
+{
+  "_match_system_contains": "infer",
+  "id": "msg_infer_mock",
+  "type": "message",
+  "role": "assistant",
+  "content": [{"type": "text", "text": "{\"domain\": \"divination/tarot\", \"tone\": \"mystical\", \"language\": \"korean\", \"user_type\": \"consumer\", \"confidence\": 0.95, \"summary\": \"A tarot card reading service that interprets card meanings for users.\"}"}],
+  "model": "claude-sonnet-4-6",
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 300, "output_tokens": 80}
+}

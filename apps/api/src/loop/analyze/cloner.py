@@ -64,7 +64,14 @@ async def clone_repo(
         RepoCloneError: clone fails (auth, not found, network, branch mismatch).
     """
     if not _GITHUB_URL_RE.match(repo_url):
-        raise ValueError(f"Invalid GitHub URL: {repo_url!r}")
+        allowed = os.environ.get("VERUM_ALLOW_INSECURE_CLONE_HOSTS", "")
+        if allowed:
+            from urllib.parse import urlparse
+            host = urlparse(repo_url).hostname or ""
+            if host not in [h.strip() for h in allowed.split(",")]:
+                raise ValueError(f"Invalid GitHub URL: {repo_url!r}")
+        else:
+            raise ValueError(f"Invalid GitHub URL: {repo_url!r}")
 
     target = _CLONE_BASE / str(analysis_id)
     target.parent.mkdir(parents=True, exist_ok=True)

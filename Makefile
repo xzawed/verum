@@ -116,3 +116,25 @@ deploy-prod:
 	@echo "Production deploy — Railway auto-deploys on push to main."
 	@echo "To force a redeploy without a new commit: railway redeploy"
 	@echo "Run 'railway redeploy' manually if needed."
+
+# === 통합 테스트 (실운영 환경 모사) ===
+# 전제: Docker Desktop 실행 중. prod Dockerfile 그대로 사용.
+# 사용법: make integration-up && make integration-test && make integration-down
+
+integration-up:
+	docker compose -f docker-compose.integration.yml up -d --wait
+
+integration-smoke:
+	pytest tests/integration/test_00_bootstrap.py -m integration -v
+
+integration-test:
+	pytest tests/integration -m integration -v --maxfail=1
+
+integration-debug:
+	KEEP_INTEGRATION_UP=1 pytest tests/integration -m integration -v -s
+
+integration-logs:
+	docker compose -f docker-compose.integration.yml logs --tail=200 -f
+
+integration-down:
+	docker compose -f docker-compose.integration.yml down -v

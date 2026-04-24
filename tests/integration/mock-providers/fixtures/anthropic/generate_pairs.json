@@ -1,0 +1,10 @@
+{
+  "_match_system_contains": "eval",
+  "id": "msg_generate_pairs_mock",
+  "type": "message",
+  "role": "assistant",
+  "content": [{"type": "text", "text": "[{\"question\": \"오늘의 운세는?\", \"expected\": \"오늘은 새로운 시작의 에너지가 있습니다.\"}, {\"question\": \"사랑에 대해 타로로 봐주세요\", \"expected\": \"The Lovers 카드가 나타났습니다.\"}, {\"question\": \"직업 운세를 알고 싶어요\", \"expected\": \"The Chariot이 목표를 향한 전진을 나타냅니다.\"}]"}],
+  "model": "claude-sonnet-4-6",
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 300, "output_tokens": 150}
+}

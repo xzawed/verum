@@ -1,3 +1,5 @@
+import { GITHUB_API_BASE } from "./constants";
+
 export interface GithubRepoOption {
   html_url: string;
   full_name: string;
@@ -11,7 +13,7 @@ export interface GithubRepoOption {
 
 export async function listUserRepos(accessToken: string): Promise<GithubRepoOption[]> {
   const res = await fetch(
-    "https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator",
+    `${GITHUB_API_BASE}/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,

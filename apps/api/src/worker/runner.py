@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 STALE_AFTER_MINUTES = 10
 HEARTBEAT_INTERVAL = 30  # seconds
-EXPERIMENT_INTERVAL: int = 300  # 5 minutes
+EXPERIMENT_INTERVAL: int = int(os.environ.get("VERUM_EXPERIMENT_INTERVAL_SECONDS", "300"))
 
 _HANDLERS = {
     "analyze": handle_analyze,

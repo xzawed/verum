@@ -1,0 +1,10 @@
+{
+  "_match_system_contains": "judge",
+  "id": "msg_judge_mock",
+  "type": "message",
+  "role": "assistant",
+  "content": [{"type": "text", "text": "{\"score\": 0.6, \"reason\": \"Response is adequate but lacks depth.\"}"}],
+  "model": "claude-sonnet-4-6",
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 200, "output_tokens": 30}
+}
