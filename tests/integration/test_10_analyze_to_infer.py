@@ -22,7 +22,7 @@ ARTIFACTS_DIR = Path(__file__).parent.parent.parent / "artifacts" / "integration
 
 
 @pytest.mark.asyncio
-async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_control):
+async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_control, pipeline_state):
     """Full ANALYZE → INFER pipeline with fixture repo."""
     # Reset mock call log
     await mock_control.post("/control/reset")
@@ -93,5 +93,12 @@ async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_contro
     # 6. Dump snapshot for diagnostics
     await dump(async_db, ARTIFACTS_DIR / "test_10" / "snapshot.jsonl")
 
-    # Store repo_id for downstream tests via a known DB state
-    # (downstream tests re-query the DB)
+    # Store IDs in pipeline_state so downstream tests don't have to guess
+    r = await async_db.execute(
+        text("SELECT id FROM inferences WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
+        {"rid": repo_id},
+    )
+    infer_row = r.fetchone()
+    assert infer_row, "No inference row found after INFER completed"
+    pipeline_state["repo_id"] = repo_id
+    pipeline_state["inference_id"] = str(infer_row[0])

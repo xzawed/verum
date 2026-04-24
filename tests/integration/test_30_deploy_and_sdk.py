@@ -3,6 +3,9 @@
 Waits for GENERATE to complete (from test_20), approves the generation,
 triggers DEPLOY, then writes deployment_info.json so fake-arcana can start.
 Verifies 200+ traces are recorded within the timeout window.
+
+Uses pipeline_state["generation_id"] set by test_20 instead of querying for
+the "latest" generation, which breaks when DB contains prior data.
 """
 from __future__ import annotations
 
@@ -24,14 +27,10 @@ TRACES_TIMEOUT = 300  # seconds — fake-arcana needs to finish 210 calls @ 50ms
 
 
 @pytest.mark.asyncio
-async def test_deploy_job_completes(dashboard_client, async_db):
+async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
     """Approve the latest generation and wait for DEPLOY job to complete."""
-    # Find the latest completed generation
-    row = (await async_db.execute(
-        text("SELECT id FROM generations WHERE status = 'done' ORDER BY created_at DESC LIMIT 1")
-    )).mappings().first()
-    assert row is not None, "No done generation found — run test_20 first"
-    generation_id = str(row["id"])
+    generation_id = pipeline_state.get("generation_id")
+    assert generation_id, "pipeline_state missing generation_id — test_20 must run first"
 
     # Approve the generation
     resp = await dashboard_client.post(f"/api/v1/generate/{generation_id}/approve")
@@ -46,23 +45,26 @@ async def test_deploy_job_completes(dashboard_client, async_db):
         result = (await async_db.execute(
             text(
                 "SELECT status, result FROM verum_jobs"
-                " WHERE kind = 'deploy' AND status IN ('done', 'failed')"
+                " WHERE kind = 'deploy' AND payload::jsonb->>'generation_id' = :gid"
+                " AND status IN ('done', 'failed')"
                 " ORDER BY created_at DESC LIMIT 1"
-            )
+            ),
+            {"gid": generation_id},
         )).mappings().first()
         return result is not None and result["status"] == "done"
 
     completed = await wait_until(deploy_done, timeout=60, label="DEPLOY job done")
     assert completed, "DEPLOY job did not complete within 60s"
 
-    # Read deployment_id from job result (api_key is no longer stored in DB — P0-2 fix).
-    # The worker wrote api_key to deployment_info.json via VERUM_TEST_MODE path.
+    # Read deployment_id from job result
     row = (await async_db.execute(
         text(
             "SELECT result FROM verum_jobs"
-            " WHERE kind = 'deploy' AND status = 'done'"
+            " WHERE kind = 'deploy' AND payload::jsonb->>'generation_id' = :gid"
+            " AND status = 'done'"
             " ORDER BY created_at DESC LIMIT 1"
-        )
+        ),
+        {"gid": generation_id},
     )).mappings().first()
     assert row is not None
 
@@ -88,16 +90,16 @@ async def test_deploy_job_completes(dashboard_client, async_db):
     api_key = info.get("api_key")
     assert api_key, "api_key missing from deployment_info.json — VERUM_TEST_MODE must be '1'"
 
-    # Store in a shared fixture-accessible location for subsequent tests
+    # Store deployment_id in both pipeline_state and the file for backwards compat
+    pipeline_state["deployment_id"] = deployment_id
     (STATE_DIR / "deployment_id.txt").write_text(deployment_id)
 
 
 @pytest.mark.asyncio
-async def test_fake_arcana_records_traces(async_db):
+async def test_fake_arcana_records_traces(async_db, pipeline_state):
     """Verify fake-arcana recorded 200+ traces for the deployment."""
-    deployment_id_file = STATE_DIR / "deployment_id.txt"
-    assert deployment_id_file.exists(), "deployment_id.txt not found — run test_deploy_job_completes first"
-    deployment_id = deployment_id_file.read_text().strip()
+    deployment_id = pipeline_state.get("deployment_id")
+    assert deployment_id, "pipeline_state missing deployment_id — test_deploy_job_completes must run first"
 
     async def traces_sufficient():
         row = (await async_db.execute(

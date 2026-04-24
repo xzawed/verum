@@ -5,9 +5,12 @@ Waits for the EVOLVE job to finish, then asserts:
 - A new generation exists with status='promoted' (next challenger cycle started)
   OR deployment is marked 'full' (winner promoted fully)
 - The timeline artifact captures all 8 stages
+
+Uses pipeline_state["deployment_id"] set by test_30.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -23,16 +26,11 @@ STATE_DIR = Path(os.environ.get("INTEGRATION_STATE_DIR", "/integration-state"))
 ARTIFACTS_DIR = Path("artifacts/integration")
 
 
-def _get_deployment_id() -> str:
-    path = STATE_DIR / "deployment_id.txt"
-    assert path.exists(), "deployment_id.txt not found — run test_30 first"
-    return path.read_text().strip()
-
-
 @pytest.mark.asyncio
-async def test_evolve_job_completes(async_db):
+async def test_evolve_job_completes(async_db, pipeline_state):
     """EVOLVE job runs to completion after experiment converges."""
-    deployment_id = _get_deployment_id()
+    deployment_id = pipeline_state.get("deployment_id")
+    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
 
     async def evolve_done():
         row = (await async_db.execute(
@@ -60,9 +58,10 @@ async def test_evolve_job_completes(async_db):
 
 
 @pytest.mark.asyncio
-async def test_loop_closure_assertion(async_db):
+async def test_loop_closure_assertion(async_db, pipeline_state):
     """Assert the full loop: initial repo → EVOLVE winner promoted."""
-    deployment_id = _get_deployment_id()
+    deployment_id = pipeline_state.get("deployment_id")
+    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
 
     # Verify the EVOLVE result shows winner promoted
     row = (await async_db.execute(
@@ -76,7 +75,6 @@ async def test_loop_closure_assertion(async_db):
     )).mappings().first()
     assert row is not None
 
-    import json
     result = json.loads(row["result"])
     assert result.get("winner_variant") is not None, "EVOLVE result missing winner_variant"
 

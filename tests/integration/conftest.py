@@ -27,6 +27,24 @@ AUTH_SECRET = os.environ.get("AUTH_SECRET", "integration-test-secret-32chars!!")
 
 
 # ---------------------------------------------------------------------------
+# Shared pipeline state: each test stores IDs it creates so downstream tests
+# don't have to query "latest row" from DB (which breaks when DB has prior data).
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def pipeline_state() -> dict:
+    """Mutable dict shared across the entire test session.
+
+    Keys written by each numbered test file:
+      test_10 → repo_id, inference_id
+      test_20 → generation_id
+      test_30 → deployment_id
+    Tests read from this dict instead of guessing via ORDER BY created_at DESC.
+    """
+    return {}
+
+
+# ---------------------------------------------------------------------------
 # Session-scoped DB engine (no transaction wrap — tests need persistent data)
 # ---------------------------------------------------------------------------
 
