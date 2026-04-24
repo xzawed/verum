@@ -75,4 +75,20 @@ describe("GitHubPrCreator", () => {
       "Invalid repoFullName",
     );
   });
+
+  it("readFile re-throws non-404 GitHub errors", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden", json: async () => ({}) });
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    await expect(creator.readFile("secrets.txt")).rejects.toThrow("GitHub API 403");
+  });
+
+  it("readFile returns raw content when not base64-encoded", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ content: "plain text content", encoding: "utf-8" }),
+    });
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    const content = await creator.readFile("README.md");
+    expect(content).toBe("plain text content");
+  });
 });
