@@ -1,19 +1,24 @@
 import NextAuth from "next-auth";
 import authConfig from "@/auth.config";
 
-export const { auth: middleware } = NextAuth({
+const { auth } = NextAuth({
   ...authConfig,
   callbacks: {
-    authorized({ auth, request }) {
-      if (auth) return true;
+    authorized({ auth: session, request }) {
+      if (session) return true;
       // API routes return 401 JSON instead of redirecting to login
       if (request.nextUrl.pathname.startsWith("/api/")) {
-        return Response.json({ error: "Unauthorized" }, { status: 401 });
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return false; // UI routes redirect to signIn page
     },
   },
 });
+
+export default auth;
 
 export const config = {
   // Exclude: auth endpoints, public SDK config, test routes, static assets, health
