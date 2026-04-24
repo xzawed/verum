@@ -8,9 +8,12 @@ Tests cover:
 - _dispatch_job handler success → mark_done, handler exception → mark_failed
 - _dispatch_job payload schema validation
 - SKIP LOCKED: two concurrent _claim_one calls — only one gets the job
+- _heartbeat_loop success and failure paths
+- _stale_reset_loop iteration and exception swallowing
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -21,9 +24,12 @@ from src.worker.runner import (
     MAX_ATTEMPTS,
     _claim_one,
     _dispatch_job,
+    _heartbeat_loop,
     _mark_done,
     _mark_failed,
     _reset_stale,
+    _stale_reset_loop,
+    _update_heartbeat,
 )
 
 
@@ -409,3 +415,350 @@ async def test_dispatch_job_valid_payload_passes_schema_and_calls_handler() -> N
     mock_handler.assert_awaited_once()
     mock_done.assert_awaited_once()
     mock_failed.assert_not_awaited()
+
+
+# ── _reset_stale logging ──────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_reset_stale_logs_when_stale_jobs_found(mock_db: AsyncMock, caplog) -> None:
+    """_reset_stale logs the count when stale rows are actually reset."""
+    import logging
+    mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[(1,), (2,)]))
+
+    with caplog.at_level(logging.INFO, logger="src.worker.runner"):
+        await _reset_stale(mock_db)
+
+    assert "2" in caplog.text
+    assert "stale" in caplog.text.lower()
+
+
+# ── _update_heartbeat ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_update_heartbeat_executes_and_commits(mock_db: AsyncMock) -> None:
+    """_update_heartbeat runs an UPDATE and commits."""
+    await _update_heartbeat(mock_db)
+    mock_db.execute.assert_awaited_once()
+    mock_db.commit.assert_awaited_once()
+    sql = str(mock_db.execute.await_args.args[0])
+    assert "worker_heartbeat" in sql
+
+
+# ── _heartbeat_loop ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_loop_success_resets_failure_counter() -> None:
+    """A successful heartbeat update resets the failure counter to 0."""
+    import src.worker.runner as runner_mod
+
+    runner_mod._heartbeat_failures = 2  # pre-seed with failures
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock()
+    mock_session.commit = AsyncMock()
+
+    async def fake_sleep(n):
+        raise asyncio.CancelledError  # exit after one iteration
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _heartbeat_loop()
+
+    assert runner_mod._heartbeat_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_loop_failure_increments_counter() -> None:
+    """A failed heartbeat update increments _heartbeat_failures."""
+    import src.worker.runner as runner_mod
+
+    runner_mod._heartbeat_failures = 0
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(side_effect=RuntimeError("DB down"))
+    mock_session.commit = AsyncMock()
+
+    async def fake_sleep(n):
+        raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _heartbeat_loop()
+
+    assert runner_mod._heartbeat_failures == 1
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_loop_max_failures_calls_exit() -> None:
+    """When failures reach MAX_HEARTBEAT_FAILURES, os._exit(1) is called."""
+    import src.worker.runner as runner_mod
+
+    runner_mod._heartbeat_failures = runner_mod.MAX_HEARTBEAT_FAILURES - 1
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(side_effect=RuntimeError("DB down"))
+    mock_session.commit = AsyncMock()
+
+    async def fake_sleep(n):
+        raise asyncio.CancelledError  # unreachable but safe
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+        patch("src.worker.runner.os._exit") as mock_exit,
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _heartbeat_loop()
+
+    mock_exit.assert_called_once_with(1)
+
+
+# ── _stale_reset_loop ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stale_reset_loop_calls_reset_stale() -> None:
+    """_stale_reset_loop calls _reset_stale once per iteration.
+
+    The loop body is: sleep → reset_stale. We allow the first sleep through
+    so _reset_stale runs, then cancel on the second sleep.
+    """
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(
+        return_value=MagicMock(fetchall=MagicMock(return_value=[]))
+    )
+    mock_session.commit = AsyncMock()
+
+    sleep_count = 0
+
+    async def fake_sleep(n):
+        nonlocal sleep_count
+        sleep_count += 1
+        if sleep_count >= 2:
+            raise asyncio.CancelledError  # exit after one full iteration
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _stale_reset_loop()
+
+    mock_session.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_stale_reset_loop_swallows_exception() -> None:
+    """Exceptions inside the loop body are swallowed; the loop continues."""
+    call_count = 0
+
+    async def fake_sleep(n):
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            raise asyncio.CancelledError  # exit after second sleep
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(side_effect=RuntimeError("DB error"))
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _stale_reset_loop()
+
+    assert call_count == 2  # loop continued after exception
+
+
+# ── _experiment_loop ──────────────────────────────────────────────────────────
+
+
+def _make_exp_result(converged: bool, winner_variant: str | None, confidence: float = 0.97):
+    r = MagicMock()
+    r.converged = converged
+    r.winner_variant = winner_variant
+    r.confidence = confidence
+    return r
+
+
+@pytest.mark.asyncio
+async def test_experiment_loop_no_experiments_does_nothing() -> None:
+    """When there are no running experiments, the loop body does nothing."""
+    from src.worker.runner import _experiment_loop
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+
+    async def fake_sleep(n):
+        raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+        patch("src.loop.experiment.repository.get_all_running_experiments", new=AsyncMock(return_value=[])),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _experiment_loop()
+
+    mock_session.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_experiment_loop_not_converged_updates_stats_no_evolve() -> None:
+    """Running experiment that hasn't converged: stats updated, no EVOLVE job enqueued."""
+    from src.worker.runner import _experiment_loop
+
+    exp = {
+        "id": uuid.uuid4(),
+        "deployment_id": uuid.uuid4(),
+        "baseline_variant": "baseline",
+        "challenger_variant": "cot",
+        "win_threshold": 0.1,
+    }
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock()
+    mock_session.commit = AsyncMock()
+
+    sleep_count = 0
+
+    async def fake_sleep(n):
+        nonlocal sleep_count
+        sleep_count += 1
+        if sleep_count >= 2:
+            raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+        patch("src.loop.experiment.repository.get_all_running_experiments", new=AsyncMock(return_value=[exp])),
+        patch("src.loop.experiment.repository.aggregate_variant_wins", new=AsyncMock(return_value=(3, 10, 4, 10, 0))),
+        patch("src.loop.experiment.repository.update_experiment_stats", new=AsyncMock()),
+        patch("src.loop.experiment.engine.check_experiment", return_value=_make_exp_result(False, None)),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _experiment_loop()
+
+    # No INSERT should have been called since experiment didn't converge
+    mock_session.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_experiment_loop_converged_enqueues_evolve_job() -> None:
+    """Converged experiment: EVOLVE job is INSERT-ed into verum_jobs."""
+    from src.worker.runner import _experiment_loop
+
+    owner_uid = uuid.uuid4()
+    deployment_id = uuid.uuid4()
+    exp = {
+        "id": uuid.uuid4(),
+        "deployment_id": deployment_id,
+        "baseline_variant": "baseline",
+        "challenger_variant": "cot",
+        "win_threshold": 0.1,
+    }
+
+    owner_row_mock = MagicMock()
+    owner_row_mock.__getitem__ = MagicMock(return_value=owner_uid)
+
+    execute_result = MagicMock()
+    execute_result.mappings.return_value.first.return_value = {"owner_user_id": owner_uid}
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(return_value=execute_result)
+    mock_session.commit = AsyncMock()
+
+    sleep_count = 0
+
+    async def fake_sleep(n):
+        nonlocal sleep_count
+        sleep_count += 1
+        if sleep_count >= 2:
+            raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+        patch("src.loop.experiment.repository.get_all_running_experiments", new=AsyncMock(return_value=[exp])),
+        patch("src.loop.experiment.repository.aggregate_variant_wins", new=AsyncMock(return_value=(8, 10, 2, 10, 0))),
+        patch("src.loop.experiment.repository.update_experiment_stats", new=AsyncMock()),
+        patch("src.loop.experiment.engine.check_experiment", return_value=_make_exp_result(True, "baseline", 0.97)),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await _experiment_loop()
+
+    # The INSERT into verum_jobs should have been called
+    mock_session.execute.assert_awaited()
+    insert_call_sql = str(mock_session.execute.await_args_list[-1].args[0])
+    assert "verum_jobs" in insert_call_sql
+
+
+@pytest.mark.asyncio
+async def test_experiment_loop_converged_no_owner_logs_warning() -> None:
+    """Converged experiment with no owner_user_id: inner error is swallowed (logged as warning)."""
+    from src.worker.runner import _experiment_loop
+
+    exp = {
+        "id": uuid.uuid4(),
+        "deployment_id": uuid.uuid4(),
+        "baseline_variant": "baseline",
+        "challenger_variant": "cot",
+        "win_threshold": 0.1,
+    }
+
+    execute_result = MagicMock()
+    execute_result.mappings.return_value.first.return_value = None  # no owner row
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    mock_session.execute = AsyncMock(return_value=execute_result)
+    mock_session.commit = AsyncMock()
+
+    sleep_count = 0
+
+    async def fake_sleep(n):
+        nonlocal sleep_count
+        sleep_count += 1
+        if sleep_count >= 2:
+            raise asyncio.CancelledError
+
+    with (
+        patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.asyncio.sleep", side_effect=fake_sleep),
+        patch("src.loop.experiment.repository.get_all_running_experiments", new=AsyncMock(return_value=[exp])),
+        patch("src.loop.experiment.repository.aggregate_variant_wins", new=AsyncMock(return_value=(8, 10, 2, 10, 0))),
+        patch("src.loop.experiment.repository.update_experiment_stats", new=AsyncMock()),
+        patch("src.loop.experiment.engine.check_experiment", return_value=_make_exp_result(True, "baseline", 0.97)),
+    ):
+        # Should not raise — inner exception is swallowed
+        with pytest.raises(asyncio.CancelledError):
+            await _experiment_loop()
+
+    # commit should NOT be called since the RuntimeError aborts before INSERT
+    mock_session.commit.assert_not_awaited()

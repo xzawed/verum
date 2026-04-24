@@ -216,6 +216,163 @@ async def test_check_ssrf_rejects_empty_hostname():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# _fetch_httpx error paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_too_many_redirects():
+    """Exceeding _MAX_REDIRECTS raises CrawlError with kind='redirect'."""
+    import src.loop.harvest.crawler as crawler_mod
+    from src.loop.harvest.crawler import _fetch_httpx
+
+    original_check = crawler_mod._check_ssrf
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            # Every response is a redirect — creates an infinite chain
+            for i in range(10):
+                respx.get(f"https://example.com/hop{i}").mock(
+                    return_value=httpx.Response(
+                        302,
+                        headers={"location": f"https://example.com/hop{i + 1}"},
+                        text="",
+                    )
+                )
+            # Seed the first hop
+            respx.get("https://example.com/start").mock(
+                return_value=httpx.Response(
+                    302,
+                    headers={"location": "https://example.com/hop0"},
+                    text="",
+                )
+            )
+            with pytest.raises(CrawlError) as exc_info:
+                await _fetch_httpx("https://example.com/start")
+        assert exc_info.value.kind == "redirect"
+    finally:
+        crawler_mod._check_ssrf = original_check
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_timeout_raises_crawl_error():
+    """httpx.TimeoutException surfaces as CrawlError with kind='timeout'."""
+    import src.loop.harvest.crawler as crawler_mod
+    from src.loop.harvest.crawler import _fetch_httpx
+
+    original_check = crawler_mod._check_ssrf
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            respx.get("https://example.com/slow").mock(
+                side_effect=httpx.TimeoutException("timed out")
+            )
+            with pytest.raises(CrawlError) as exc_info:
+                await _fetch_httpx("https://example.com/slow")
+        assert exc_info.value.kind == "timeout"
+    finally:
+        crawler_mod._check_ssrf = original_check
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_http_status_error_raises_crawl_error():
+    """A 404 response raises CrawlError with kind='http_error'."""
+    import src.loop.harvest.crawler as crawler_mod
+    from src.loop.harvest.crawler import _fetch_httpx
+
+    original_check = crawler_mod._check_ssrf
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            respx.get("https://example.com/missing").mock(
+                return_value=httpx.Response(404, text="Not Found")
+            )
+            with pytest.raises(CrawlError) as exc_info:
+                await _fetch_httpx("https://example.com/missing")
+        assert exc_info.value.kind == "http_error"
+        assert "404" in str(exc_info.value)
+    finally:
+        crawler_mod._check_ssrf = original_check
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_request_error_raises_crawl_error():
+    """httpx.RequestError (e.g. connection refused) surfaces as CrawlError with kind='network'."""
+    import src.loop.harvest.crawler as crawler_mod
+    from src.loop.harvest.crawler import _fetch_httpx
+
+    original_check = crawler_mod._check_ssrf
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            respx.get("https://example.com/offline").mock(
+                side_effect=httpx.ConnectError("connection refused")
+            )
+            with pytest.raises(CrawlError) as exc_info:
+                await _fetch_httpx("https://example.com/offline")
+        assert exc_info.value.kind == "network"
+    finally:
+        crawler_mod._check_ssrf = original_check
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_extract_playwright_success():
+    """When playwright returns non-empty text, that result is used over httpx."""
+    import src.loop.harvest.crawler as crawler_mod
+
+    original_playwright = crawler_mod._fetch_playwright
+    original_check = crawler_mod._check_ssrf
+
+    async def rich_playwright(url: str) -> str:
+        return "detailed content from playwright rendering"
+
+    crawler_mod._fetch_playwright = rich_playwright
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            respx.get("https://example.com/spa").mock(
+                return_value=httpx.Response(200, text="<html><body><p>sparse</p></body></html>")
+            )
+            result = await fetch_and_extract("https://example.com/spa", use_playwright=True)
+        # playwright result wins over sparse httpx result
+        assert "playwright" in result
+    finally:
+        crawler_mod._fetch_playwright = original_playwright
+        crawler_mod._check_ssrf = original_check
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_extract_playwright_crawl_error_fallback():
+    """When playwright raises CrawlError, httpx result is returned instead."""
+    import src.loop.harvest.crawler as crawler_mod
+
+    original_playwright = crawler_mod._fetch_playwright
+    original_check = crawler_mod._check_ssrf
+
+    async def failing_playwright(url: str) -> str:
+        raise CrawlError("playwright", "browser crashed")
+
+    crawler_mod._fetch_playwright = failing_playwright
+    crawler_mod._check_ssrf = AsyncMock(return_value=None)
+
+    try:
+        with respx.mock:
+            respx.get("https://example.com/broken-spa").mock(
+                return_value=httpx.Response(200, text="<html><body><p>small</p></body></html>")
+            )
+            result = await fetch_and_extract("https://example.com/broken-spa", use_playwright=True)
+        assert isinstance(result, str)  # graceful fallback, no exception
+    finally:
+        crawler_mod._fetch_playwright = original_playwright
+        crawler_mod._check_ssrf = original_check
+
+
 @pytest.mark.asyncio
 async def test_fetch_httpx_blocks_ssrf_redirect(monkeypatch):
     """A redirect to a private IP must be blocked before following."""
