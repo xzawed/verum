@@ -34,7 +34,7 @@ describe("POST /api/v1/analyze", () => {
   it("returns 401 when not authenticated", async () => {
     mockGetAuthUserId.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ repo_id: "repo-1" }));
+    const res = await POST(makeRequest({ repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
 
     expect(res.status).toBe(401);
   });
@@ -51,7 +51,7 @@ describe("POST /api/v1/analyze", () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
     mockGetRepo.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ repo_id: "repo-missing" }));
+    const res = await POST(makeRequest({ repo_id: "aaaaaaaa-0000-0000-0000-000000000099" }));
 
     expect(res.status).toBe(404);
   });
@@ -65,7 +65,7 @@ describe("POST /api/v1/analyze", () => {
     } as any);
     mockEnqueueAnalyze.mockResolvedValue({ id: "job-abc" } as any);
 
-    const res = await POST(makeRequest({ repo_id: "repo-1" }));
+    const res = await POST(makeRequest({ repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
 
     expect(res.status).toBe(202);
     const json = await res.json();
