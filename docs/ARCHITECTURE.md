@@ -51,7 +51,7 @@ status: active
               │   • worker_heartbeat        │
               │   • users / repos           │
               │   • analyses / inferences   │
-              │   • knowledge_chunks        │
+              │   • chunks                  │
               └────────────────────────────┘
 
   External connections:
@@ -113,7 +113,7 @@ verum/
 │           ├── app/            # App Router pages + /api/v1/... SDK routes
 │           ├── worker/         # spawn.ts — Python worker lifecycle management
 │           ├── lib/
-│           │   └── db/         # Drizzle ORM client + introspected schema
+│           │   └── db/         # Drizzle ORM client + hand-written schema
 │           └── middleware.ts   # Auth.js v5 route protection
 ├── packages/
 │   ├── sdk-python/             # pip install verum
@@ -206,7 +206,7 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | `embedding_dim` | `INT` | persisted here; never hardcoded downstream |
 | `harvested_at` | `TIMESTAMPTZ` | |
 
-### `knowledge_chunks`
+### `chunks`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -318,16 +318,9 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | `started_at` | `TIMESTAMPTZ` | |
 | `concluded_at` | `TIMESTAMPTZ` | nullable |
 
-### `evolutions`
+### EVOLVE — deployment updates (no separate table)
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `UUID` PK | |
-| `experiment_id` | `UUID` FK → experiments | |
-| `promoted_deployment_id` | `UUID` | |
-| `archived_deployment_ids` | `UUID[]` | |
-| `next_cycle_triggered` | `BOOL` | |
-| `evolved_at` | `TIMESTAMPTZ` | |
+The EVOLVE stage does not use a dedicated table. Winner promotion and traffic updates are written back to the `deployments` table via `current_baseline_variant`, `traffic_split`, and `experiment_status` columns. The `experiments` table records the concluded experiment and winner.
 
 ---
 
@@ -352,66 +345,67 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/analyze` | Start analysis job for a repo | ✅ |
-| GET | `/v1/analyze/{analysis_id}` | Get analysis result | ✅ |
-| GET | `/v1/repos/{repo_id}/analyses` | List analyses for a repo | ✅ |
+| POST | `/api/v1/analyze` | Start analysis job for a repo | ✅ |
+| GET | `/api/v1/analyze/{analysis_id}` | Get analysis result | ✅ |
+| GET | `/api/v1/repos/{repo_id}/analyses` | List analyses for a repo | ✅ |
 
 ### [2] INFER
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/infer` | Run inference on an analysis | ✅ |
-| GET | `/v1/infer/{inference_id}` | Get inference result | ✅ |
-| PATCH | `/v1/infer/{inference_id}/confirm` | User confirms or overrides inference | ✅ |
+| POST | `/api/v1/infer` | Run inference on an analysis | ✅ |
+| GET | `/api/v1/infer/{inference_id}` | Get inference result | ✅ |
+| PATCH | `/api/v1/infer/{inference_id}/confirm` | User confirms or overrides inference | ✅ |
 
 ### [3] HARVEST
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/harvest/propose` | LLM proposes sources; returns list for user approval | ✅ |
-| POST | `/v1/harvest/start` | Start crawl with approved sources | ✅ |
-| GET | `/v1/harvest/{harvest_id}` | Get harvest status + result | ✅ |
-| POST | `/api/v1/retrieve-sdk` | Hybrid search over knowledge_chunks (SDK endpoint) | ✅ |
+| POST | `/api/v1/harvest/propose` | LLM proposes sources; returns list for user approval | ✅ |
+| POST | `/api/v1/harvest/start` | Start crawl with approved sources | ✅ |
+| GET | `/api/v1/harvest/{harvest_id}` | Get harvest status + result | ✅ |
+| POST | `/api/v1/retrieve-sdk` | Hybrid search over chunks (SDK endpoint) | ✅ |
 
 ### [4] GENERATE
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/generate` | Generate assets from harvest | ✅ |
-| GET | `/v1/generate/{asset_id}` | Get generated assets | ✅ |
-| PATCH | `/v1/generate/{asset_id}/approve` | User approves generated assets | ✅ |
+| POST | `/api/v1/generate` | Generate assets from harvest | ✅ |
+| GET | `/api/v1/generate/{asset_id}` | Get generated assets | ✅ |
+| PATCH | `/api/v1/generate/{asset_id}/approve` | User approves generated assets | ✅ |
 
 ### [5] DEPLOY
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/deploy` | Deploy approved assets | ✅ |
-| GET | `/v1/deployments/{deployment_id}` | Get deployment status | ✅ |
-| PATCH | `/v1/deployments/{deployment_id}/traffic` | Adjust traffic split | ✅ |
-| POST | `/v1/deployments/{deployment_id}/rollback` | Rollback to baseline | ✅ |
+| POST | `/api/v1/deploy` | Deploy approved assets | ✅ |
+| GET | `/api/v1/deployments/{deployment_id}` | Get deployment status | ✅ |
+| PATCH | `/api/v1/deployments/{deployment_id}/traffic` | Adjust traffic split | ✅ |
+| POST | `/api/v1/deployments/{deployment_id}/rollback` | Rollback to baseline | ✅ |
 
 ### [6] OBSERVE
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/traces` | Ingest trace (SDK → API) | 🔲 |
-| GET | `/v1/traces` | List traces (paginated, filterable) | 🔲 |
-| GET | `/v1/traces/{trace_id}` | Get trace + spans | 🔲 |
-| GET | `/v1/metrics` | Aggregated cost/latency/quality metrics | 🔲 |
+| POST | `/api/v1/traces` | Ingest trace (SDK → API) | ✅ |
+| GET | `/api/v1/traces` | List traces (paginated, filterable) | ✅ |
+| GET | `/api/v1/traces/{trace_id}` | Get trace + spans | ✅ |
+| GET | `/api/v1/metrics` | Aggregated cost/latency/quality metrics | ✅ |
 
 ### [7] EXPERIMENT
 
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/experiments` | Create experiment across deployments | 🔲 |
-| GET | `/v1/experiments/{experiment_id}` | Get experiment result | 🔲 |
+| POST | `/api/v1/experiments` | Create experiment across deployments | ✅ |
+| GET | `/api/v1/experiments/{experiment_id}` | Get experiment result | ✅ |
 
 ### [8] EVOLVE
 
+EVOLVE is triggered automatically as a `verum_jobs` worker job when an experiment converges (no direct HTTP trigger endpoint). Winner promotion, traffic update, and experiment archive are written back to `deployments` and `experiments` tables by the Python worker.
+
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/v1/evolve` | Trigger evolution from concluded experiment | 🔲 |
-| GET | `/v1/evolutions/{evolution_id}` | Get evolution result | 🔲 |
+| GET | `/api/v1/experiments/{experiment_id}` | Check experiment status + winner (shared with [7]) | ✅ |
 
 ---
 
@@ -537,7 +531,7 @@ Full ADR text lives here. The index and product-scope decisions are in [DECISION
 
 **Decision:** Embedding dimensions are always read from `harvest_sources.embedding_dim` at runtime. No numeric dimension constant may appear in application code.
 
-**Why:** Verum supports multiple embedding models (OpenAI = 1536, BGE-M3 = 1024). Hardcoding breaks when the user switches models. Dimension is persisted at collection creation and propagated from `harvest_sources`.
+**Why:** Verum supports multiple embedding models (Voyage AI voyage-3.5 = 1024). Hardcoding breaks when the user switches models. Dimension is persisted at collection creation and propagated from `harvest_sources`.
 
 **Trade-off accepted:** Requires a DB read before vector operations. Cached per-collection in memory after first load.
 

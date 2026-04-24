@@ -39,7 +39,7 @@ GitHub Repo를 한 번 등록하면 루프가 자동으로 시작됩니다.
 
 | 단계 | 상태 | 설명 |
 |---|---|---|
-| 🔬 ANALYZE | ✅ 완료 | Python·JS/TS AST 기반 LLM 호출 자동 탐지 |
+| 🔬 ANALYZE | ✅ 완료 | JS/TS tree-sitter 기반 LLM 호출 자동 탐지 (Python AST는 Phase 1.5에서 구현 예정) |
 | 🧠 INFER | ✅ 완료 | Claude Sonnet 4.6으로 도메인·톤·사용자 유형 추론 |
 | 🌾 HARVEST | ✅ 완료 | 도메인 맞춤 크롤링 → 청킹 → pgvector 임베딩 저장 |
 | 🔍 RETRIEVE | ✅ 완료 | 벡터 + 전문 검색 하이브리드로 수집 지식 검색 |
