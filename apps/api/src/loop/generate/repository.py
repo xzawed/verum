@@ -69,6 +69,7 @@ async def save_generate_result(
             "INSERT INTO rag_configs (id, generation_id, chunking_strategy, chunk_size,"
             " chunk_overlap, top_k, hybrid_alpha)"
             " VALUES (:id, :gid, :strategy, :csize, :coverlap, :topk, :alpha)"
+            " ON CONFLICT (generation_id) DO NOTHING"
         ),
         {
             "id": str(uuid.uuid4()),
