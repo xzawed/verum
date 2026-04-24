@@ -51,7 +51,7 @@ async def save_generate_result(
         await db.execute(
             text(
                 "INSERT INTO prompt_variants (id, generation_id, variant_type, content, variables)"
-                " VALUES (:id, :gid, :vtype, :content, :vars::jsonb)"
+                " VALUES (:id, :gid, :vtype, :content, CAST(:vars AS jsonb))"
             ),
             {
                 "id": str(uuid.uuid4()),

@@ -30,7 +30,7 @@ async def update_traffic_split(
 ) -> None:
     await db.execute(
         text(
-            "UPDATE deployments SET traffic_split = :split::jsonb, updated_at = now()"
+            "UPDATE deployments SET traffic_split = CAST(:split AS jsonb), updated_at = now()"
             " WHERE id = :did"
         ),
         {"split": json.dumps(split), "did": str(deployment_id)},

@@ -39,7 +39,7 @@ async def create_deployment(
     row = (await db.execute(
         text(
             "INSERT INTO deployments (generation_id, status, traffic_split, api_key_hash)"
-            " VALUES (:gid, 'canary', :split::jsonb, :key_hash)"
+            " VALUES (:gid, 'canary', CAST(:split AS jsonb), :key_hash)"
             " RETURNING id, generation_id, status, traffic_split, error_count, total_calls, created_at, updated_at"
         ),
         {"gid": str(generation_id), "split": json.dumps(split), "key_hash": key_hash},
@@ -67,7 +67,7 @@ async def update_traffic(
     split = compute_traffic_split(variant_fraction)
     row = (await db.execute(
         text(
-            "UPDATE deployments SET traffic_split = :split::jsonb, updated_at = now()"
+            "UPDATE deployments SET traffic_split = CAST(:split AS jsonb), updated_at = now()"
             " WHERE id = :id RETURNING *"
         ),
         {"split": json.dumps(split), "id": str(deployment_id)},
@@ -80,7 +80,7 @@ async def rollback_deployment(db: AsyncSession, deployment_id: uuid.UUID) -> Dep
     split = json.dumps({"baseline": 1.0, "variant": 0.0})
     row = (await db.execute(
         text(
-            "UPDATE deployments SET status = 'rolled_back', traffic_split = :split::jsonb, updated_at = now()"
+            "UPDATE deployments SET status = 'rolled_back', traffic_split = CAST(:split AS jsonb), updated_at = now()"
             " WHERE id = :id RETURNING *"
         ),
         {"split": split, "id": str(deployment_id)},

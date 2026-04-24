@@ -41,7 +41,7 @@ async def deploy_and_start_experiment(
         text(
             "INSERT INTO deployments"
             " (generation_id, status, traffic_split, api_key_hash, experiment_status)"
-            " VALUES (:gid, 'canary', :split::jsonb, :key_hash, 'running')"
+            " VALUES (:gid, 'canary', CAST(:split AS jsonb), :key_hash, 'running')"
             " RETURNING id, generation_id, status, traffic_split, error_count,"
             "   total_calls, created_at, updated_at"
         ),
