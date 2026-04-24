@@ -1,13 +1,13 @@
 """Add lookup indexes for traces and verum_jobs hot query paths.
 
 Revision ID: 0019_lookup_indexes
-Revises: 0018_chunks_inference_fk
+Revises: 0019_sdk_pr_requests
 Create Date: 2026-04-27
 """
 from alembic import op
 
 revision = "0019_lookup_indexes"
-down_revision = "0018_chunks_inference_fk"
+down_revision = "0019_sdk_pr_requests"
 branch_labels = None
 depends_on = None
 

@@ -32,7 +32,7 @@ jobs:
         run: mkdir -p artifacts/integration
 
       - name: Install integration test dependencies
-        run: pip install pytest pytest-asyncio httpx sqlalchemy asyncpg
+        run: pip install pytest pytest-asyncio httpx sqlalchemy asyncpg alembic
 
       - name: Build and start integration stack
         run: make integration-up
@@ -41,6 +41,13 @@ jobs:
         run: |
           echo "Services status:"
           docker compose -f docker-compose.integration.yml ps
+
+      - name: Run Alembic migrations
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5433/verum
+          PYTHONPATH: .
+        run: python -m alembic upgrade head
 
       - name: Run smoke tests
         run: make integration-smoke
