@@ -75,7 +75,7 @@ async def handle_harvest(
             )
             user = user_row.mappings().first()
             if user and user["email"]:
-                send_quota_warning_email(user["email"], "chunks", pct)
+                await send_quota_warning_email(user["email"], "chunks", pct)
 
     # Chain HARVEST → GENERATE
     generation_id = uuid.uuid4()

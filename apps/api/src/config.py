@@ -66,6 +66,15 @@ JUDGE_TEMPERATURE: float = float(os.environ.get("JUDGE_TEMPERATURE", "0.0"))
 JUDGE_RETRY_COUNT: int = int(os.environ.get("JUDGE_RETRY_COUNT", "2"))
 JUDGE_EVAL_PAIRS_LIMIT: int = int(os.environ.get("JUDGE_EVAL_PAIRS_LIMIT", "3"))
 
+# ── Email delivery (SMTP) ─────────────────────────────────────────────────────
+# Leave SMTP_HOST unset (or empty) to disable real delivery — log-only fallback.
+SMTP_HOST: str = os.environ.get("SMTP_HOST", "")
+SMTP_PORT: int = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_FROM: str = os.environ.get("SMTP_FROM", "noreply@verum.dev")
+SMTP_USER: str = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD: str = os.environ.get("SMTP_PASSWORD", "")
+SMTP_USE_TLS: bool = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
+
 # ── FREEMIUM plan limits ──────────────────────────────────────────────────────
 from pydantic import BaseModel  # noqa: E402
 
