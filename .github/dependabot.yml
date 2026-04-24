@@ -31,6 +31,16 @@ updates:
       - "sdk"
     open-pull-requests-limit: 3
 
+  - package-ecosystem: "pip"
+    directory: "/packages/sdk-python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "sdk"
+    open-pull-requests-limit: 3
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
