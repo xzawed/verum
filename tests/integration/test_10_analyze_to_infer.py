@@ -49,7 +49,7 @@ async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_contro
     async def analyze_done():
         try:
             r = await async_db.execute(
-                text("SELECT status, jsonb_array_length(call_sites) FROM analyses WHERE repo_id = :rid ORDER BY created_at DESC LIMIT 1"),
+                text("SELECT status, jsonb_array_length(call_sites) FROM analyses WHERE repo_id = :rid ORDER BY started_at DESC LIMIT 1"),
                 {"rid": repo_id},
             )
             row = r.fetchone()
