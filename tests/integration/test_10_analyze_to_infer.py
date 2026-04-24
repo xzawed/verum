@@ -77,7 +77,7 @@ async def test_analyze_to_infer_pipeline(dashboard_client, async_db, mock_contro
     )
 
     # 5. Verify mock was called
-    calls_resp = await mock_control.get("/calls")
+    calls_resp = await mock_control.get("/control/calls")
     calls = calls_resp.json()
     anthropic_calls = [c for c in calls if "anthropic" in c.get("endpoint", "")]
     assert len(anthropic_calls) >= 1, f"Expected >= 1 Anthropic call for INFER, got {calls}"
