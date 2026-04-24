@@ -1,6 +1,7 @@
 # Integration test stack — mirrors Railway production topology.
 # Uses the same Dockerfile as prod; all external APIs redirected to mock-providers.
 # Usage: make integration-up && make integration-test && make integration-down
+# Trigger: bump to re-run CI after workflow path additions
 
 networks:
   verum-int:
