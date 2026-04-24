@@ -57,6 +57,7 @@ EMBED_HTTP_TIMEOUT_SECS: float = float(os.environ.get("EMBED_HTTP_TIMEOUT_SECS",
 JOB_MAX_ATTEMPTS: int = int(os.environ.get("VERUM_JOB_MAX_ATTEMPTS", "3"))
 JOB_STALE_AFTER_MINUTES: int = int(os.environ.get("VERUM_JOB_STALE_AFTER_MINUTES", "10"))
 HEARTBEAT_INTERVAL_SECS: int = int(os.environ.get("VERUM_HEARTBEAT_INTERVAL_SECS", "30"))
+WORKER_POLL_TIMEOUT_SECS: float = float(os.environ.get("VERUM_WORKER_POLL_TIMEOUT_SECS", "1.0"))
 
 # ── JUDGE handler ─────────────────────────────────────────────────────────────
 JUDGE_MODEL: str = os.environ.get("JUDGE_MODEL", "claude-sonnet-4-6")

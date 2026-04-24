@@ -324,7 +324,7 @@ async def run_loop() -> None:
             if job is None:
                 # Wait for NOTIFY wake or fall back to 1s timeout.
                 try:
-                    await asyncio.wait_for(_wake_event.wait(), timeout=1.0)
+                    await asyncio.wait_for(_wake_event.wait(), timeout=cfg.WORKER_POLL_TIMEOUT_SECS)
                 except asyncio.TimeoutError:
                     pass
                 _wake_event.clear()
