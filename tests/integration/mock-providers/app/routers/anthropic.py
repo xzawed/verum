@@ -33,10 +33,13 @@ async def messages(request: Request):
     fixture_path = _FIXTURES / f"{key}.json"
     if fixture_path.exists():
         return JSONResponse(json.loads(fixture_path.read_text()))
-    # Try named fixtures
+    # Try named fixtures — match on system prompt or last user message
     for f in _FIXTURES.glob("*.json"):
         data = json.loads(f.read_text())
         if data.get("_match_system_contains") and data["_match_system_contains"] in system:
+            resp = {k: v for k, v in data.items() if not k.startswith("_")}
+            return JSONResponse(resp)
+        if data.get("_match_user_contains") and data["_match_user_contains"] in last_user:
             resp = {k: v for k, v in data.items() if not k.startswith("_")}
             return JSONResponse(resp)
     if request.app.state.strict:

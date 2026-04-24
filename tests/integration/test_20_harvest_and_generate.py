@@ -18,7 +18,7 @@ ARTIFACTS_DIR = Path(__file__).parent.parent.parent / "artifacts" / "integration
 
 async def _latest_inference_id(async_db):
     r = await async_db.execute(
-        text("SELECT id FROM inferences WHERE status = 'completed' ORDER BY created_at DESC LIMIT 1")
+        text("SELECT id FROM inferences WHERE status = 'done' ORDER BY created_at DESC LIMIT 1")
     )
     row = r.fetchone()
     return str(row[0]) if row else None
@@ -56,7 +56,7 @@ async def test_harvest_pipeline(async_db, mock_control):
     assert chunk_count > 10, f"Expected > 10 embedded chunks, got {chunk_count}"
 
     # Voyage embeddings should have been called
-    calls_resp = await mock_control.get("/calls")
+    calls_resp = await mock_control.get("/control/calls")
     calls = calls_resp.json()
     voyage_calls = [c for c in calls if "voyage" in c.get("endpoint", "")]
     assert len(voyage_calls) >= 1, "Expected Voyage embedding calls during HARVEST"
@@ -79,13 +79,17 @@ async def test_generate_pipeline(async_db):
             {"iid": inference_id},
         )
         row = r.fetchone()
-        return row if (row and row[0] == "ready") else None
+        return row if (row and row[0] == "done") else None
 
     await wait_until(generate_done, timeout=90, label="GENERATE completion")
 
     # Check eval pairs were generated
     r = await async_db.execute(
-        text("SELECT COUNT(*) FROM eval_pairs WHERE inference_id = :iid"),
+        text(
+            "SELECT COUNT(*) FROM eval_pairs ep"
+            " JOIN generations g ON g.id = ep.generation_id"
+            " WHERE g.inference_id = :iid"
+        ),
         {"iid": inference_id},
     )
     pair_count = r.scalar_one()

@@ -56,4 +56,7 @@ async def start_listener() -> None:
     if not dsn:
         logger.warning("LISTEN/NOTIFY: DATABASE_URL not set, skipping listener startup")
         return
+    # asyncpg.connect() requires "postgresql://" or "postgres://".
+    # SQLAlchemy dialect URLs use "postgresql+asyncpg://" — strip the driver suffix.
+    dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
     _listener_task = asyncio.create_task(_listen_loop(dsn))

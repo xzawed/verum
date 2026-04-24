@@ -28,9 +28,9 @@ async def test_deploy_job_completes(dashboard_client, async_db):
     """Approve the latest generation and wait for DEPLOY job to complete."""
     # Find the latest completed generation
     row = (await async_db.execute(
-        text("SELECT id FROM generations WHERE status = 'ready' ORDER BY created_at DESC LIMIT 1")
+        text("SELECT id FROM generations WHERE status = 'done' ORDER BY created_at DESC LIMIT 1")
     )).mappings().first()
-    assert row is not None, "No ready generation found — run test_20 first"
+    assert row is not None, "No done generation found — run test_20 first"
     generation_id = str(row["id"])
 
     # Approve the generation

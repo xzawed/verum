@@ -1,9 +1,9 @@
 {
-  "_match_system_contains": "rag",
+  "_match_user_contains": "RAG retrieval config",
   "id": "msg_generate_rag_mock",
   "type": "message",
   "role": "assistant",
-  "content": [{"type": "text", "text": "{\"chunk_size\": 512, \"overlap\": 64, \"strategy\": \"recursive\", \"top_k\": 5, \"hybrid_weight\": 0.7, \"rerank\": false}"}],
+  "content": [{"type": "text", "text": "{\"chunking_strategy\": \"recursive\", \"chunk_size\": 512, \"chunk_overlap\": 64, \"top_k\": 5, \"hybrid_alpha\": 0.7}"}],
   "model": "claude-sonnet-4-6",
   "stop_reason": "end_turn",
   "usage": {"input_tokens": 200, "output_tokens": 50}

@@ -1,9 +1,9 @@
 {
-  "_match_system_contains": "prompt variant",
+  "_match_user_contains": "optimized variants",
   "id": "msg_generate_variants_mock",
   "type": "message",
   "role": "assistant",
-  "content": [{"type": "text", "text": "[{\"name\": \"original\", \"system_prompt\": \"당신은 타로 카드 전문가입니다.\", \"technique\": \"baseline\"}, {\"name\": \"cot\", \"system_prompt\": \"당신은 타로 카드 전문가입니다. 단계적으로 생각하세요. 1) 카드의 기본 의미 2) 현재 상황과의 연관성 3) 조언을 도출하세요.\", \"technique\": \"chain_of_thought\"}, {\"name\": \"few_shot\", \"system_prompt\": \"당신은 타로 카드 전문가입니다. 예시: 질문=사랑, 카드=The Lovers -> 관계의 조화와 선택에 대해...\", \"technique\": \"few_shot\"}]"}],
+  "content": [{"type": "text", "text": "{\"variants\": [{\"variant_type\": \"original\", \"content\": \"당신은 타로 카드 전문가입니다.\", \"variables\": []}, {\"variant_type\": \"cot\", \"content\": \"당신은 타로 카드 전문가입니다. 단계적으로 생각하세요.\", \"variables\": []}, {\"variant_type\": \"few_shot\", \"content\": \"당신은 타로 카드 전문가입니다. 예시를 참고하세요.\", \"variables\": []}, {\"variant_type\": \"role_play\", \"content\": \"신비로운 타로 리더로서 답변하세요.\", \"variables\": []}, {\"variant_type\": \"concise\", \"content\": \"타로 전문가. 간결하게 답변하세요.\", \"variables\": []}]}"}],
   "model": "claude-sonnet-4-6",
   "stop_reason": "end_turn",
   "usage": {"input_tokens": 400, "output_tokens": 200}

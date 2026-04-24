@@ -1,9 +1,9 @@
 {
-  "_match_system_contains": "eval",
+  "_match_user_contains": "diverse test Q&A pairs",
   "id": "msg_generate_pairs_mock",
   "type": "message",
   "role": "assistant",
-  "content": [{"type": "text", "text": "[{\"question\": \"오늘의 운세는?\", \"expected\": \"오늘은 새로운 시작의 에너지가 있습니다.\"}, {\"question\": \"사랑에 대해 타로로 봐주세요\", \"expected\": \"The Lovers 카드가 나타났습니다.\"}, {\"question\": \"직업 운세를 알고 싶어요\", \"expected\": \"The Chariot이 목표를 향한 전진을 나타냅니다.\"}]"}],
+  "content": [{"type": "text", "text": "{\"pairs\": [{\"query\": \"오늘의 운세는?\", \"expected_answer\": \"오늘은 새로운 시작의 에너지가 있습니다.\", \"context_needed\": true}, {\"query\": \"사랑에 대해 타로로 봐주세요\", \"expected_answer\": \"The Lovers 카드가 나타났습니다.\", \"context_needed\": true}, {\"query\": \"직업 운세를 알고 싶어요\", \"expected_answer\": \"The Chariot이 목표를 향한 전진을 나타냅니다.\", \"context_needed\": true}]}"}],
   "model": "claude-sonnet-4-6",
   "stop_reason": "end_turn",
   "usage": {"input_tokens": 300, "output_tokens": 150}
