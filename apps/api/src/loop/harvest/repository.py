@@ -87,7 +87,8 @@ async def save_chunks(
             row_params,
         )
 
-    await db.commit()
+    # Do not commit here — the caller (harvest handler) owns the transaction
+    # and commits chunks + quota update + next-job enqueue atomically.
     return len(texts)
 
 
