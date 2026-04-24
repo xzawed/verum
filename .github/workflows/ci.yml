@@ -73,7 +73,8 @@ jobs:
           pytest tests -v \
             --cov=src \
             --cov-report=xml:coverage.xml \
-            --cov-report=term-missing
+            --cov-report=term-missing \
+            --cov-fail-under=70
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
