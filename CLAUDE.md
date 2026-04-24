@@ -339,12 +339,12 @@ verum/
 **목표**: 루프 1단계 — Repo를 받아서 LLM 호출 패턴을 추출.
 
 - [x] GitHub OAuth 통합 (사용자가 Repo 접근 권한 부여) — public_repo scope, 스크롤 picker UI
-- [ ] Repo 클론 & 격리된 임시 환경
-- [ ] Python AST 기반 LLM 호출 탐지 (openai, anthropic, google.generativeai 등)
-- [ ] TypeScript/JavaScript tree-sitter 기반 동일 기능
-- [ ] 프롬프트 문자열 추출 (f-string, template literal 등 포함)
-- [ ] 모델·파라미터 설정 추출
-- [ ] 분석 결과를 구조화된 JSON으로 저장
+- [x] Repo 클론 & 격리된 임시 환경
+- [ ] Python AST 기반 LLM 호출 탐지 (openai, anthropic, google.generativeai 등) — **deferred to Phase 1.5** (F-1.3)
+- [x] TypeScript/JavaScript tree-sitter 기반 동일 기능
+- [x] 프롬프트 문자열 추출 (f-string, template literal 등 포함)
+- [x] 모델·파라미터 설정 추출
+- [x] 분석 결과를 구조화된 JSON으로 저장
 
 **완료 기준**: ArcanaInsight의 Grok 호출 지점을 모두 자동 탐지하고, 프롬프트와 파라미터를 정확히 추출
 
@@ -354,13 +354,13 @@ verum/
 
 **목표**: 루프 2-3단계 — 서비스 의도를 이해하고 지식을 수집.
 
-- [ ] INFER 엔진: 프롬프트 + 문서 → 도메인 JSON
-- [ ] 도메인 분류 체계 정의 (초기 20개 도메인 카테고리)
-- [ ] HARVEST 엔진: 도메인별 크롤링 전략
-- [ ] 크롤링 소스 제안 + 사용자 승인 플로우
-- [ ] 크롤링 결과 청킹 (Recursive + Semantic 비교)
-- [ ] pgvector에 임베딩 저장
-- [ ] 대시보드: INFER 결과 시각화, HARVEST 진행 상황
+- [x] INFER 엔진: 프롬프트 + 문서 → 도메인 JSON
+- [x] 도메인 분류 체계 정의 (초기 20개 도메인 카테고리)
+- [x] HARVEST 엔진: 도메인별 크롤링 전략
+- [x] 크롤링 소스 제안 + 사용자 승인 플로우
+- [x] 크롤링 결과 청킹 (Recursive + Semantic 비교)
+- [x] pgvector에 임베딩 저장
+- [x] 대시보드: INFER 결과 시각화, HARVEST 진행 상황
 
 **완료 기준**: ArcanaInsight → `{"domain": "divination/tarot"}` 추론 성공, 타로 관련 지식 1,000 청크 이상 자동 수집
 
@@ -370,13 +370,13 @@ verum/
 
 **목표**: 루프 4-5단계 — 자동으로 만들고 자동으로 주입.
 
-- [ ] 프롬프트 변형 생성기 (Chain-of-Thought, Few-shot, Role-play 등 5가지 패턴)
-- [ ] RAG 인덱스 자동 구성 (수집한 청크를 서비스 맞춤 청킹으로 재구성)
-- [ ] 평가셋 자동 생성 (예상 질의 + 정답 쌍 30-50개)
-- [ ] 대시보드 설정 자동 구성 (서비스 타입별 메트릭 선택)
-- [ ] Python SDK: `verum.chat()`, `verum.retrieve()` 고수준 API
-- [ ] TypeScript SDK: 동일 API
-- [ ] **ArcanaInsight에 SDK 적용** (첫 완전 dogfood)
+- [x] 프롬프트 변형 생성기 (Chain-of-Thought, Few-shot, Role-play 등 5가지 패턴)
+- [x] RAG 인덱스 자동 구성 (수집한 청크를 서비스 맞춤 청킹으로 재구성)
+- [x] 평가셋 자동 생성 (예상 질의 + 정답 쌍 30-50개)
+- [x] 대시보드 설정 자동 구성 (서비스 타입별 메트릭 선택)
+- [x] Python SDK: `verum.chat()`, `verum.retrieve()` 고수준 API
+- [x] TypeScript SDK: 동일 API
+- [x] **ArcanaInsight에 SDK 적용** (첫 완전 dogfood)
 
 **완료 기준**: ArcanaInsight의 타로 상담이 Verum이 생성한 프롬프트와 RAG로 작동
 
@@ -386,13 +386,13 @@ verum/
 
 **목표**: 루프 6-8단계 — 닫힌 루프 완성. 자동 진화.
 
-- [ ] OpenTelemetry 호환 trace/span 수집
-- [ ] 비용·지연·품질 메트릭 대시보드
-- [ ] A/B 테스트 엔진: 트래픽 분할, 통계적 유의성 검정
-- [ ] 평가 지표 통합 (RAGAS + LLM-as-Judge + 사용자 피드백)
-- [ ] 자동 승자 선택 로직 (가중 평균 + 신뢰구간)
-- [ ] 승자 승격 + 패배자 아카이브
-- [ ] **ArcanaInsight에서 프롬프트 자동 진화 시연**
+- [x] OpenTelemetry 호환 trace/span 수집
+- [x] 비용·지연·품질 메트릭 대시보드
+- [x] A/B 테스트 엔진: 트래픽 분할, 통계적 유의성 검정
+- [x] 평가 지표 통합 (RAGAS + LLM-as-Judge + 사용자 피드백)
+- [x] 자동 승자 선택 로직 (가중 평균 + 신뢰구간)
+- [x] 승자 승격 + 패배자 아카이브
+- [ ] **ArcanaInsight에서 프롬프트 자동 진화 시연** (F-4.11 — 프로덕션 데이터 누적 필요)
 
 **완료 기준**: ArcanaInsight 프롬프트가 사람 개입 없이 1회 이상 자동 개선되어 메트릭 향상 측정됨
 

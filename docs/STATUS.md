@@ -29,6 +29,8 @@ last-updated: 2026-04-26
 
 **Next:** F-4.11 — ArcanaInsight 자동 진화 1회 달성 (프로덕션 데이터 누적 필요, xzawed 담당)
 
+**Integration test pipeline:** `make integration-up && make integration-test` — ANALYZE→EVOLVE full-loop via Docker Compose (prod image + mock-providers + fake-arcana). Nightly CI at 08:00 UTC. See [docs/INTEGRATION.md](INTEGRATION.md).
+
 ---
 
 ## Database Tables

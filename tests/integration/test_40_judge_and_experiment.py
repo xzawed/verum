@@ -58,6 +58,20 @@ async def test_judge_jobs_drain(async_db):
     judge_done = int(row["n"])
     assert judge_done >= 100, f"Expected 100+ done JUDGE jobs, got {judge_done}"
 
+    # Verify traces actually have judge_score populated (not just job status)
+    scored = (await async_db.execute(
+        text(
+            "SELECT COUNT(*) AS n FROM traces"
+            " WHERE deployment_id = :dep AND judge_score IS NOT NULL"
+        ),
+        {"dep": deployment_id},
+    )).mappings().first()
+    scored_count = int(scored["n"])
+    assert scored_count >= 100, (
+        f"Expected 100+ traces with judge_score, got {scored_count}. "
+        "JUDGE jobs finished but scores may not have been written back."
+    )
+
 
 @pytest.mark.asyncio
 async def test_inject_biased_scores_and_converge(async_db):

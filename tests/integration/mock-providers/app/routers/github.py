@@ -60,6 +60,13 @@ async def create_tree(owner: str, repo: str, request: Request):
     return JSONResponse({"sha": secrets.token_hex(20), "url": "", "tree": []})
 
 
+@router.get("/repos/{owner}/{repo}/git/commits/{sha}")
+async def get_commit(owner: str, repo: str, sha: str, request: Request):
+    log_call(request, f"github/git/commits/{sha}", {})
+    tree_sha = f"{sha[:8]}-tree"
+    return JSONResponse({"sha": sha, "tree": {"sha": tree_sha, "url": ""}, "parents": []})
+
+
 @router.post("/repos/{owner}/{repo}/git/commits")
 async def create_commit(owner: str, repo: str, request: Request):
     log_call(request, "github/git/commits", {})
