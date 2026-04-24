@@ -1,0 +1,70 @@
+name: integration
+
+on:
+  schedule:
+    - cron: "0 8 * * *"  # 08:00 UTC daily (17:00 KST)
+  workflow_dispatch:
+  push:
+    paths:
+      - "apps/api/src/loop/**"
+      - "apps/api/src/worker/**"
+      - "Dockerfile"
+      - "tests/integration/**"
+      - "tests/fixtures/**"
+      - "docker-compose.integration.yml"
+
+jobs:
+  integration:
+    name: Integration Test (ANALYZE → EVOLVE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts/integration
+
+      - name: Build and start integration stack
+        run: make integration-up
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Services status:"
+          docker compose -f docker-compose.integration.yml ps
+
+      - name: Run smoke tests
+        run: make integration-smoke
+
+      - name: Run full integration suite
+        run: make integration-test
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-artifacts-${{ github.run_number }}
+          path: artifacts/integration/
+          retention-days: 14
+
+      - name: Collect service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.integration.yml logs --tail=500 > artifacts/integration/service-logs.txt 2>&1
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-logs-${{ github.run_number }}
+          path: artifacts/integration/service-logs.txt
+          retention-days: 7
+
+      - name: Tear down integration stack
+        if: always()
+        run: make integration-down

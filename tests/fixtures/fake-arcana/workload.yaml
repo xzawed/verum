@@ -1,0 +1,17 @@
+# Fake ArcanaInsight SDK workload for integration testing.
+# Simulates 210 production LLM calls with variant-skewed distribution.
+
+total_calls: 210
+model: gpt-4o-mini
+provider: openai
+
+# variant="variant" on odd iterations (1, 3, 5, ...) → 105 challenger calls
+# variant="original" on even iterations (0, 2, 4, ...) → 105 baseline calls
+# (overrides SDK routing to ensure deterministic 50/50 split)
+force_split: true
+
+messages:
+  - role: system
+    content: "당신은 타로 카드 전문 리더입니다. Celtic Cross 스프레드로 인생의 중요한 결정을 안내해 드립니다."
+  - role: user
+    content: "오늘의 타로 카드를 뽑아주세요."

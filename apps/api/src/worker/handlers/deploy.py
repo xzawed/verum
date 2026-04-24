@@ -6,6 +6,7 @@ Payload schema:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -15,6 +16,9 @@ from src.loop.deploy.orchestrator import deploy_and_start_experiment
 
 logger = logging.getLogger(__name__)
 
+_VARIANT_FRACTION: float = float(os.environ.get("VERUM_DEPLOY_VARIANT_FRACTION", "0.10"))
+_TEST_MODE: bool = os.environ.get("VERUM_TEST_MODE", "") == "1"
+
 
 async def handle_deploy(
     db: AsyncSession,
@@ -23,7 +27,7 @@ async def handle_deploy(
 ) -> dict[str, Any]:
     generation_id = uuid.UUID(payload["generation_id"])
     deployment, experiment_id = await deploy_and_start_experiment(
-        db, generation_id, variant_fraction=0.10
+        db, generation_id, variant_fraction=_VARIANT_FRACTION
     )
     await db.commit()
 
@@ -34,8 +38,11 @@ async def handle_deploy(
         deployment.status,
     )
 
-    return {
+    result: dict[str, Any] = {
         "deployment_id": str(deployment.deployment_id),
         "status": deployment.status,
         "traffic_split": deployment.traffic_split,
     }
+    if _TEST_MODE:
+        result["api_key"] = deployment.api_key
+    return result
