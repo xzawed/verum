@@ -9,7 +9,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, profile, account }) {
       if (account?.access_token) {
-        (token as Record<string, unknown>).github_access_token = account.access_token;
+        token.github_access_token = account.access_token;
       }
       if (profile) {
         // Initial sign-in: upsert user and store internal UUID
@@ -20,15 +20,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           avatarUrl: (profile as { avatar_url?: string }).avatar_url ?? null,
         });
         token.sub = user.id;
-        (token as Record<string, unknown>).github_login =
-          (profile as { login?: string }).login ?? null;
+        token.github_login = (profile as { login?: string }).login ?? null;
       } else if (token.sub && !UUID_RE.test(token.sub)) {
         // Legacy session: token.sub is GitHub numeric ID — migrate to internal UUID
         const githubId = parseInt(token.sub, 10);
         if (!isNaN(githubId)) {
           const user = await upsertUser({
             githubId,
-            githubLogin: String((token as Record<string, unknown>).github_login ?? ""),
+            githubLogin: String(token.github_login ?? ""),
             email: null,
             avatarUrl: null,
           });
@@ -39,11 +38,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        const t = token as Record<string, unknown>;
-        (session.user as unknown as Record<string, unknown>).id = token.sub;
-        (session.user as unknown as Record<string, unknown>).github_login = t.github_login ?? null;
-        (session.user as unknown as Record<string, unknown>).github_access_token =
-          t.github_access_token ?? null;
+        session.user.id = token.sub ?? "";
+        session.user.github_login = (token.github_login as string | null) ?? null;
+        session.user.github_access_token = (token.github_access_token as string | null) ?? null;
       }
       return session;
     },

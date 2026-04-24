@@ -32,7 +32,8 @@ export async function register() {
       console.log("[alembic] migrations complete");
     } catch (err) {
       console.error("[alembic] migration failed:", err);
-      // Don't crash the server — the worker will fail on its own if the schema is wrong.
+      console.error("[alembic] Cannot start server with a broken schema — exiting");
+      process.exit(1);
     }
 
     const { startPythonWorker, stopPythonWorker } = await import("./worker/spawn");

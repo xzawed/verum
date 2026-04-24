@@ -1,13 +1,25 @@
+import { z } from "zod";
 import { enqueueAnalyze } from "@/lib/db/jobs";
 import { getRepo } from "@/lib/db/queries";
 import { getAuthUserId } from "@/lib/api/handlers";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+const AnalyzeSchema = z.object({
+  repo_id: z.string().uuid("repo_id must be a valid UUID"),
+  branch: z.string().optional(),
+});
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
 
-  const body = await req.json() as { repo_id: string; branch?: string };
-  if (!body.repo_id) return new Response("repo_id required", { status: 400 });
+  const parsed = AnalyzeSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+  const body = parsed.data;
 
   const repo = await getRepo(uid, body.repo_id);
   if (!repo) return new Response("not found", { status: 404 });

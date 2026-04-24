@@ -1,20 +1,24 @@
+import { z } from "zod";
 import { enqueueDeployment } from "@/lib/db/jobs";
 import { getGeneration } from "@/lib/db/queries";
 import { getAuthUserId } from "@/lib/api/handlers";
+import { checkRateLimit } from "@/lib/rateLimit";
+
+const DeploySchema = z.object({
+  generation_id: z.string().uuid("generation_id must be a valid UUID"),
+});
 
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
 
-  const raw = await req.json() as unknown;
-  const generationId =
-    raw !== null &&
-    typeof raw === "object" &&
-    "generation_id" in raw &&
-    typeof (raw as Record<string, unknown>).generation_id === "string"
-      ? (raw as Record<string, unknown>).generation_id as string
-      : "";
-  if (!generationId) return new Response("generation_id required", { status: 400 });
+  const parsed = DeploySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+  const { generation_id: generationId } = parsed.data;
 
   const gen = await getGeneration(uid, generationId);
   if (!gen) return new Response("not found", { status: 404 });

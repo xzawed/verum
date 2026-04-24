@@ -398,4 +398,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-24 (integration test pipeline 안정화 — SQLAlchemy CAST() 통일, LISTEN/NOTIFY DSN 수정, InFailedSQLTransactionError 복구 로직, E2E test/login DB best-effort, repos-flow strict-mode 헤딩 locator 수정) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-24 (6-agent codebase audit — 19 security/CI/data-integrity/docs fixes: SSRF defense, branch validation, auth middleware, rate limiting, .dockerignore, security headers, SonarCloud gate, ESLint/Codecov masking removed, DB rollbacks, judge error propagation, harvest atomicity, Alembic startup guard, Zod validation, next-auth types, error boundaries) | Maintained by: Claude at end of each implementation session_

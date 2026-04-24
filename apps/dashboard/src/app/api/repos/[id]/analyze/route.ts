@@ -1,4 +1,5 @@
 import { getAuthUserId } from "@/lib/api/handlers";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { enqueueAnalyze } from "@/lib/db/jobs";
 import { getRepo } from "@/lib/db/queries";
 
@@ -8,6 +9,8 @@ export async function POST(
 ) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
+  const rateLimitResponse = checkRateLimit(uid, 20);
+  if (rateLimitResponse) return rateLimitResponse;
   const { id } = await params;
   const repo = await getRepo(uid, id);
   if (!repo) return new Response("not found", { status: 404 });

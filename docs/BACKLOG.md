@@ -15,7 +15,7 @@ generated-by: 6-agent codebase audit
 
 ## P0 — 즉시 처리 (보안·정확성)
 
-### B-001: Dockerfile — 비루트 사용자 실행
+### ✅ B-001: Dockerfile — 비루트 사용자 실행
 **발견 위치:** `Dockerfile` (USER 설정 없음)  
 **문제:** 컨테이너가 루트 권한으로 실행됨. 컨테이너 탈출 시 호스트 권한 확보 가능.  
 **수정:**
@@ -23,11 +23,12 @@ generated-by: 6-agent codebase audit
 RUN useradd -m -u 1000 appuser
 USER appuser
 ```
-**예상 공수:** 30분
+**예상 공수:** 30분  
+**처리 완료:** `Dockerfile:63-65` — `useradd -m -u 1000 appuser` + `USER appuser` 적용됨
 
 ---
 
-### B-002: Dockerfile — PID 1 신호 처리 (dumb-init)
+### ✅ B-002: Dockerfile — PID 1 신호 처리 (dumb-init)
 **발견 위치:** `Dockerfile:31`  
 **문제:** Node.js가 PID 1로 실행되어 SIGTERM/SIGINT 신호를 제대로 전파하지 않음. `docker stop` 시 정상 종료 보장 안됨.  
 **수정:** `CMD` 앞에 `dumb-init` 추가
@@ -36,7 +37,8 @@ RUN apt-get install -y dumb-init
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "server.js"]
 ```
-**예상 공수:** 30분
+**예상 공수:** 30분  
+**처리 완료:** `Dockerfile:36,68` — `dumb-init` 설치 및 `CMD ["dumb-init", "node", "server.js"]` 적용됨
 
 ---
 
@@ -51,11 +53,12 @@ CMD ["node", "server.js"]
 
 ---
 
-### B-004: 문서 오류 — CLAUDE.md Last Updated 갱신
+### ✅ B-004: 문서 오류 — CLAUDE.md Last Updated 갱신
 **발견 위치:** `CLAUDE.md` 최하단 `Last updated: 2026-04-19`  
 **문제:** 현재 날짜(2026-04-24)와 35일 차이. 실제 내용과 불일치.  
 **수정:** 날짜를 `2026-04-24`로 변경.  
-**예상 공수:** 5분
+**예상 공수:** 5분  
+**처리 완료:** `CLAUDE.md` 말미 — `_Last updated: 2026-04-24_`로 갱신됨
 
 ---
 
@@ -149,7 +152,7 @@ await asyncio.sleep(backoff)
 
 ---
 
-### B-010: TypeScript SDK — fetch() 타임아웃 구현
+### ✅ B-010: TypeScript SDK — fetch() 타임아웃 구현
 **발견 위치:** `packages/sdk-typescript/src/client.ts:99,110,127,139` — `fetch()` 호출 전부 타임아웃 없음  
 **문제:** 서버 무응답 시 영원히 대기. 프로덕션 통합 시 hang 가능.  
 **수정:**
@@ -167,11 +170,12 @@ try {
   throw e;
 }
 ```
-**예상 공수:** 1-2시간
+**예상 공수:** 1-2시간  
+**처리 완료:** `packages/sdk-typescript/src/client.ts:60-71` — `timeoutMs` 옵션 및 AbortController 기반 타임아웃 구현됨
 
 ---
 
-### B-011: Heartbeat 연속 실패 처리 강화
+### ✅ B-011: Heartbeat 연속 실패 처리 강화
 **발견 위치:** `apps/api/src/worker/runner.py:143-151` — heartbeat 실패를 warning 로그만 하고 계속 진행  
 **문제:** heartbeat 연속 실패 시 worker가 "살아있는 좀비" 상태 — healthcheck는 실패로 표시하지만 job은 계속 처리.  
 **수정:**
@@ -194,7 +198,8 @@ async def _heartbeat_loop():
                 os._exit(1)
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 ```
-**예상 공수:** 2시간
+**예상 공수:** 2시간  
+**처리 완료:** `apps/api/src/worker/runner.py:145-172` — `_heartbeat_failures` 카운터, `MAX_HEARTBEAT_FAILURES` env-var 설정, `os._exit(1)` 강제 종료 구현됨
 
 ---
 
@@ -210,14 +215,15 @@ async def _heartbeat_loop():
 
 ## P2 — 중간 우선순위 (품질 개선)
 
-### B-013: Python SDK 재시도 로직 추가
+### ✅ B-013: Python SDK 재시도 로직 추가
 **발견 위치:** `packages/sdk-python/src/verum/client.py:37-75` — `httpx.AsyncClient` 재시도 없음  
 **수정:**
 ```python
 transport = httpx.AsyncHTTPTransport(retries=3)
 self._client = httpx.AsyncClient(transport=transport, timeout=self.timeout)
 ```
-**예상 공수:** 1시간
+**예상 공수:** 1시간  
+**처리 완료:** `packages/sdk-python/src/verum/client.py:36,42` — `retries` 파라미터 및 `AsyncHTTPTransport(retries=retries)` 구현됨
 
 ---
 
@@ -318,21 +324,23 @@ with freeze_time("2026-01-01 00:01:00"):  # 1분 후
 
 ---
 
-### B-023: 통합 테스트 타임아웃 환경변수화
+### ✅ B-023: 통합 테스트 타임아웃 환경변수화
 **발견 위치:** `tests/integration/test_10*.py:61` (`timeout=90`), `test_20*.py:48` (`timeout=120`) 하드코딩  
 **수정:**
 ```python
 ANALYZE_TIMEOUT = int(os.getenv("VERUM_TEST_ANALYZE_TIMEOUT", "120"))
 HARVEST_TIMEOUT = int(os.getenv("VERUM_TEST_HARVEST_TIMEOUT", "180"))
 ```
-**예상 공수:** 30분
+**예상 공수:** 30분  
+**처리 완료:** `tests/integration/test_10_*.py:21-22`, `test_20_*.py:20-21`, `test_30_*.py:26-27`, `test_40_*.py:27-28` — 모든 타임아웃이 `VERUM_TEST_*_TIMEOUT` env var로 환경변수화됨
 
 ---
 
-### B-024: CI — npm 보안 감사 단계 추가
+### ✅ B-024: CI — npm 보안 감사 단계 추가
 **발견 위치:** `ci.yml` 내 `--no-audit` 플래그로 보안 감사 건너뜀  
 **수정:** 별도 `npm audit --audit-level=high` 스텝 추가 (lint 잡에 포함)  
-**예상 공수:** 30분
+**예상 공수:** 30분  
+**처리 완료:** `.github/workflows/ci.yml:53-56` — `npm audit --audit-level=high` 스텝이 sdk-typescript와 dashboard 모두에 추가됨
 
 ---
 
@@ -449,13 +457,17 @@ updates:
 
 ## 요약 대시보드
 
-| 우선순위 | 항목 수 | 총 예상 공수 |
-|---------|--------|-----------|
-| **P0** (즉시) | 4개 | ~3시간 |
-| **P1** (높음) | 8개 | ~17시간 |
-| **P2** (중간) | 14개 | ~20시간 |
-| **P3** (낮음) | 7개 | ~22시간 |
-| **합계** | **33개** | **~62시간** |
+> ✅ 항목은 코드에서 처리 완료됨. 미완료 항목만 작업 단위로 처리.
+
+| 우선순위 | 전체 | 미완료 | 완료 |
+|---------|------|--------|------|
+| **P0** (즉시) | 4개 | 2개 (B-003) | 2개 (✅B-001, ✅B-002) + ✅B-004 |
+| **P1** (높음) | 8개 | 6개 | 2개 (✅B-010, ✅B-011) |
+| **P2** (중간) | 14개 | 12개 | 2개 (✅B-013, ✅B-023) |
+| **P3** (낮음) | 7개 | 6개 | 1개 (✅B-024) |
+| **합계** | **33개** | **25개 미완료** | **8개 완료** |
+
+> 참고: B-004(CLAUDE.md 날짜 갱신)는 2026-04-24 기준 이미 반영되어 있음.
 
 ---
 

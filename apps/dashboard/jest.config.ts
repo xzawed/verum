@@ -33,6 +33,14 @@ const config: Config = {
   ],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "json-summary"],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 55,
+      lines: 60,
+      statements: 60,
+    },
+  },
 };
 
 export default config;

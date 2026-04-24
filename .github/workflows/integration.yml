@@ -15,6 +15,18 @@ on:
       - "tests/integration/**"
       - "tests/fixtures/**"
       - "docker-compose.integration.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/src/loop/**"
+      - "apps/api/src/worker/**"
+      - "apps/dashboard/src/app/api/**"
+      - "apps/dashboard/src/auth*"
+      - "apps/dashboard/src/lib/db/**"
+      - "Dockerfile"
+      - "tests/integration/**"
+      - "tests/fixtures/**"
+      - "docker-compose.integration.yml"
 
 jobs:
   integration:
