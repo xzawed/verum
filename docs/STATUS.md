@@ -2,7 +2,7 @@
 type: status
 authority: tier-1
 canonical-for: [current-implementation-state, file-map, api-index, db-schema]
-last-updated: 2026-04-24
+last-updated: 2026-04-25
 ---
 
 # Verum — Current Implementation Status
@@ -356,9 +356,9 @@ function getClient() {
 
 | 구분 | 테스트 파일 수 | 테스트 수 | 최근 갱신 |
 |------|--------------|---------|----------|
-| Python API (loop + worker) | 38 | 265 non-DB passing, 1 skip | 2026-04-26 |
-| Dashboard Jest | 22 suites | 104 | 2026-04-26 |
-| E2E Playwright | 3 spec | ~16 | 2026-04-24 |
+| Python API (loop + worker) | 38 | 265 non-DB passing, 1 skip | 2026-04-25 |
+| Dashboard Jest | 22 suites | 104 | 2026-04-25 |
+| E2E Playwright | 3 spec | ~16 | 2026-04-25 |
 
 > `requires_db` 마커가 붙은 1개 테스트는 로컬 Postgres 미기동 시 자동 skip. CI `test-api` 잡에서는 Postgres service가 기동되므로 전체 실행됨.
 
@@ -398,4 +398,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-24 (6-agent codebase audit — 19 security/CI/data-integrity/docs fixes: SSRF defense, branch validation, auth middleware, rate limiting, .dockerignore, security headers, SonarCloud gate, ESLint/Codecov masking removed, DB rollbacks, judge error propagation, harvest atomicity, Alembic startup guard, Zod validation, next-auth types, error boundaries) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-25 (CI green restoration — TypeScript lint useEffect violations fixed, E2E proxy.ts auth hardening + not-found page, SonarCloud new_coverage gate raised to 82.5% via test additions + coverage exclusions, Dependabot PR guard in ci.yml, all 16 Dependabot PRs merged) | Maintained by: Claude at end of each implementation session_
