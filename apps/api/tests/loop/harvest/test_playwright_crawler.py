@@ -288,3 +288,60 @@ async def test_fetch_httpx_blocks_ssrf_redirect():
         assert exc_info.value.kind == "ssrf"
     finally:
         crawler_mod._check_ssrf = original_check
+
+
+# ---------------------------------------------------------------------------
+# _fetch_httpx — success path, charset, no-Location redirect
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_success_returns_extracted_text():
+    """A 200 response is decoded via charset and returned as extracted text."""
+    body = b"<html><body><p>Hello world</p></body></html>"
+
+    with patch("src.loop.harvest.crawler._check_ssrf", new_callable=AsyncMock, return_value="1.2.3.4"), \
+         patch("src.loop.harvest.crawler._check_robots_allowed", new_callable=AsyncMock), \
+         patch(
+             "src.loop.harvest.crawler._http_get_pinned",
+             new_callable=AsyncMock,
+             return_value=(200, {"content-type": "text/html; charset=utf-8"}, body),
+         ), \
+         patch("src.loop.harvest.crawler._extract", return_value="Hello world"):
+        text = await _fetch_httpx("http://example.com/page")
+
+    assert text == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_returns_empty_string_when_extract_returns_none():
+    """When _extract returns None, _fetch_httpx returns empty string."""
+    body = b"<html></html>"
+
+    with patch("src.loop.harvest.crawler._check_ssrf", new_callable=AsyncMock, return_value="1.2.3.4"), \
+         patch("src.loop.harvest.crawler._check_robots_allowed", new_callable=AsyncMock), \
+         patch(
+             "src.loop.harvest.crawler._http_get_pinned",
+             new_callable=AsyncMock,
+             return_value=(200, {}, body),
+         ), \
+         patch("src.loop.harvest.crawler._extract", return_value=None):
+        text = await _fetch_httpx("http://example.com/empty")
+
+    assert text == ""
+
+
+@pytest.mark.asyncio
+async def test_fetch_httpx_redirect_no_location_raises():
+    """A redirect with no Location header raises CrawlError kind='redirect'."""
+    with patch("src.loop.harvest.crawler._check_ssrf", new_callable=AsyncMock, return_value="1.2.3.4"), \
+         patch("src.loop.harvest.crawler._check_robots_allowed", new_callable=AsyncMock), \
+         patch(
+             "src.loop.harvest.crawler._http_get_pinned",
+             new_callable=AsyncMock,
+             return_value=(302, {}, b""),
+         ):
+        with pytest.raises(CrawlError) as exc_info:
+            await _fetch_httpx("http://example.com/redirect")
+
+    assert exc_info.value.kind == "redirect"

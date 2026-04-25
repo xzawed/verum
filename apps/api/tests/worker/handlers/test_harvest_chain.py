@@ -206,3 +206,72 @@ async def test_generate_handler_calls_mark_error_when_save_fails() -> None:
 
     mock_mge.assert_awaited_once()
     assert mock_mge.await_args.args[1] == generation_id
+
+
+# ---------------------------------------------------------------------------
+# Quota enforcement paths (free tier)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_harvest_handler_raises_when_quota_exceeded() -> None:
+    """QuotaExceededError is raised when total_chunks would exceed the free-tier limit."""
+    from src.loop.quota import FREE_LIMITS, QuotaExceededError
+
+    db = AsyncMock()
+    over_limit = FREE_LIMITS["chunks"] + 1
+
+    with patch("src.worker.handlers.harvest.harvest_source", new=AsyncMock(return_value=over_limit)), \
+         patch("src.worker.handlers.harvest.get_or_create_quota", new=AsyncMock(
+             return_value={"plan": "free", "chunks_stored": 0}
+         )), \
+         patch("src.worker.handlers.harvest.create_pending_generation", new=AsyncMock()), \
+         patch("src.worker.handlers.harvest.enqueue_next", new=AsyncMock()), \
+         patch("src.worker.handlers.harvest.increment_quota", new=AsyncMock()):
+
+        with pytest.raises(QuotaExceededError):
+            await handle_harvest(
+                db=db,
+                owner_user_id=uuid.uuid4(),
+                payload={
+                    "inference_id": str(uuid.uuid4()),
+                    "source_ids": [[str(uuid.uuid4()), "https://example.com/"]],
+                },
+            )
+
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_harvest_handler_sends_quota_warning_near_limit() -> None:
+    """Warning email is sent when usage reaches ≥80% of the free-tier chunk limit."""
+    from src.loop.quota import FREE_LIMITS
+
+    db = AsyncMock()
+    limit = FREE_LIMITS["chunks"]
+    stored = int(limit * 0.75)
+    new_chunks = int(limit * 0.10)  # stored + new = 0.85 → triggers warning
+
+    user_row_mock = MagicMock()
+    user_row_mock.mappings.return_value.first.return_value = {"email": "user@example.com"}
+    db.execute = AsyncMock(return_value=user_row_mock)
+
+    with patch("src.worker.handlers.harvest.harvest_source", new=AsyncMock(return_value=new_chunks)), \
+         patch("src.worker.handlers.harvest.get_or_create_quota", new=AsyncMock(
+             return_value={"plan": "free", "chunks_stored": stored}
+         )), \
+         patch("src.worker.handlers.harvest.create_pending_generation", new=AsyncMock()), \
+         patch("src.worker.handlers.harvest.enqueue_next", new=AsyncMock()), \
+         patch("src.worker.handlers.harvest.increment_quota", new=AsyncMock()), \
+         patch("src.worker.handlers.harvest.send_quota_warning_email", new=AsyncMock()) as mock_email:
+
+        await handle_harvest(
+            db=db,
+            owner_user_id=uuid.uuid4(),
+            payload={
+                "inference_id": str(uuid.uuid4()),
+                "source_ids": [[str(uuid.uuid4()), "https://example.com/"]],
+            },
+        )
+
+    mock_email.assert_awaited_once()

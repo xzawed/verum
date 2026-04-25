@@ -15,6 +15,25 @@ from tests.conftest import requires_db
 
 
 @pytest.mark.asyncio
+async def test_get_db_yields_a_session():
+    """get_db yields the session provided by AsyncSessionLocal."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_factory = MagicMock(return_value=mock_session)
+
+    with patch("src.db.session.AsyncSessionLocal", mock_factory):
+        from src.db.session import get_db
+        collected: list = []
+        async for db in get_db():
+            collected.append(db)
+
+    assert collected == [mock_session]
+
+
+@pytest.mark.asyncio
 async def test_get_db_for_user_sets_config_and_yields():
     """get_db_for_user sets app.current_user_id and yields an AsyncSession."""
     from unittest.mock import AsyncMock, MagicMock, patch

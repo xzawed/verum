@@ -369,3 +369,196 @@ async def test_check_robots_allowed_permits_when_parser_is_none():
     """If _get_robots_parser returns None, all URLs are allowed."""
     with patch("src.loop.harvest.crawler._get_robots_parser", new_callable=AsyncMock, return_value=None):
         await _check_robots_allowed("http://example.com/any/path")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _check_ssrf — ValueError / empty-results edge cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_check_ssrf_skips_malformed_ip_and_uses_next_valid():
+    """Addresses that fail ipaddress.ip_address() parsing are skipped silently."""
+    with patch("socket.getaddrinfo") as mock_gai:
+        mock_gai.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("not-an-ip", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("8.8.8.8", 0)),
+        ]
+        result = await _check_ssrf("http://example.com/")
+    assert result == "8.8.8.8"
+
+
+@pytest.mark.asyncio
+async def test_check_ssrf_empty_results_raises_ssrf_error():
+    """Empty getaddrinfo results raise CrawlError kind='ssrf'."""
+    with patch("socket.getaddrinfo") as mock_gai:
+        mock_gai.return_value = []
+        with pytest.raises(CrawlError) as exc_info:
+            await _check_ssrf("http://example.com/")
+    assert exc_info.value.kind == "ssrf"
+
+
+# ---------------------------------------------------------------------------
+# _http_get_pinned — query string, raw deflate, incomplete reads, size cap,
+#                    response-phase exceptions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_includes_query_string_in_request():
+    """A URL with a query string appends it to the GET request path."""
+    body = b"query result"
+    raw = _http_response(200, {}, body)
+    reader = _make_stream_reader(raw)
+    writer = _make_writer()
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        status, _, got_body = await _http_get_pinned(
+            "http://example.com/search?q=test&page=1", "1.2.3.4"
+        )
+
+    assert status == 200
+    assert got_body == body
+    written = b"".join(call[0][0] for call in writer.write.call_args_list)
+    assert b"/search?q=test&page=1" in written
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_decompresses_raw_deflate():
+    """Raw deflate (no zlib wrapper) falls through to -MAX_WBITS decompression."""
+    import zlib as _zlib
+
+    original = b"raw deflate test data"
+    comp = _zlib.compressobj(wbits=-_zlib.MAX_WBITS)
+    raw_deflate = comp.compress(original) + comp.flush()
+
+    raw = _http_response(200, {"content-encoding": "deflate"}, raw_deflate)
+    reader = _make_stream_reader(raw)
+    writer = _make_writer()
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        status, _, got_body = await _http_get_pinned("http://example.com/", "1.2.3.4")
+
+    assert status == 200
+    assert got_body == original
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_chunked_handles_incomplete_read():
+    """IncompleteReadError during a chunk read stores the partial bytes."""
+    raw = (
+        b"HTTP/1.1 200 OK\r\n"
+        b"transfer-encoding: chunked\r\n"
+        b"\r\n"
+        b"64\r\n"   # chunk size 100
+        b"hello"   # only 5 bytes before EOF
+    )
+    reader = asyncio.StreamReader()
+    reader.feed_data(raw)
+    reader.feed_eof()
+    writer = _make_writer()
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        status, _, got_body = await _http_get_pinned("http://example.com/", "1.2.3.4")
+
+    assert status == 200
+    assert b"hello" in got_body
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_content_length_handles_incomplete_read():
+    """IncompleteReadError when body is shorter than content-length stores partial bytes."""
+    raw = (
+        b"HTTP/1.1 200 OK\r\n"
+        b"content-length: 100\r\n"
+        b"\r\n"
+        b"hello"   # only 5 bytes, content-length claims 100
+    )
+    reader = asyncio.StreamReader()
+    reader.feed_data(raw)
+    reader.feed_eof()
+    writer = _make_writer()
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        status, _, got_body = await _http_get_pinned("http://example.com/", "1.2.3.4")
+
+    assert status == 200
+    assert got_body == b"hello"
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_chunked_size_cap_truncates_body():
+    """Body is truncated when total bytes exceed _MAX_CONTENT_BYTES in chunked mode."""
+    import src.loop.harvest.crawler as crawler_mod
+
+    original = crawler_mod._MAX_CONTENT_BYTES
+    crawler_mod._MAX_CONTENT_BYTES = 5
+    try:
+        body = b"0123456789"  # 10 bytes > 5-byte cap
+        raw = _http_response(200, {}, body, chunked=True)
+        reader = _make_stream_reader(raw)
+        writer = _make_writer()
+        with patch(
+            "src.loop.harvest.crawler.asyncio.open_connection",
+            _mock_open_connection(reader, writer),
+        ):
+            status, _, _ = await _http_get_pinned("http://example.com/", "1.2.3.4")
+    finally:
+        crawler_mod._MAX_CONTENT_BYTES = original
+
+    assert status == 200
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_connection_close_size_cap_truncates_body():
+    """Body is truncated at _MAX_CONTENT_BYTES in connection-close (no header) mode."""
+    import src.loop.harvest.crawler as crawler_mod
+
+    original = crawler_mod._MAX_CONTENT_BYTES
+    crawler_mod._MAX_CONTENT_BYTES = 5
+    try:
+        body = b"0123456789"  # 10 bytes > 5-byte cap
+        raw = b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\n\r\n" + body
+        reader = _make_stream_reader(raw)
+        writer = _make_writer()
+        with patch(
+            "src.loop.harvest.crawler.asyncio.open_connection",
+            _mock_open_connection(reader, writer),
+        ):
+            status, _, _ = await _http_get_pinned("http://example.com/", "1.2.3.4")
+    finally:
+        crawler_mod._MAX_CONTENT_BYTES = original
+
+    assert status == 200
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_response_oserror_raises_crawl_error():
+    """OSError during writer.drain() surfaces as CrawlError kind='network'."""
+    body = b"ignored"
+    raw = _http_response(200, {}, body)
+    reader = _make_stream_reader(raw)
+    writer = _make_writer()
+    writer.drain = AsyncMock(side_effect=OSError("connection reset by peer"))
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        with pytest.raises(CrawlError) as exc_info:
+            await _http_get_pinned("http://example.com/", "1.2.3.4")
+
+    assert exc_info.value.kind == "network"
+
+
+@pytest.mark.asyncio
+async def test_http_get_pinned_response_read_timeout_raises_crawl_error():
+    """asyncio.TimeoutError raised during response reading surfaces as CrawlError kind='timeout'."""
+    from unittest.mock import MagicMock as MM
+
+    reader = MM()
+    reader.readline = AsyncMock(side_effect=asyncio.TimeoutError())
+    writer = _make_writer()
+
+    with patch("src.loop.harvest.crawler.asyncio.open_connection", _mock_open_connection(reader, writer)):
+        with pytest.raises(CrawlError) as exc_info:
+            await _http_get_pinned("http://example.com/", "1.2.3.4")
+
+    assert exc_info.value.kind == "timeout"
