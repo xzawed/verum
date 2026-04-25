@@ -9,7 +9,7 @@ export async function POST(
 ) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
-  const rateLimitResponse = checkRateLimit(uid, 20);
+  const rateLimitResponse = await checkRateLimit(uid, 20);
   if (rateLimitResponse) return rateLimitResponse;
   const { id } = await params;
   const repo = await getRepo(uid, id);

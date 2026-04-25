@@ -12,7 +12,7 @@ const AnalyzeSchema = z.object({
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
-  const rateLimitResponse = checkRateLimit(uid, 20);
+  const rateLimitResponse = await checkRateLimit(uid, 20);
   if (rateLimitResponse) return rateLimitResponse;
 
   const parsed = AnalyzeSchema.safeParse(await req.json());

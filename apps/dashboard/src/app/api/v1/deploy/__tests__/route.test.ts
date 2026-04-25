@@ -1,3 +1,6 @@
+jest.mock("@/lib/rateLimit", () => ({
+  checkRateLimit: jest.fn().mockResolvedValue(null),
+}));
 jest.mock("@/lib/api/handlers", () => ({
   getAuthUserId: jest.fn(),
   createGetByIdHandler: jest.fn(),

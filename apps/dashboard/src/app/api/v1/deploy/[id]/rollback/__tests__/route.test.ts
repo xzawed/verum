@@ -1,3 +1,6 @@
+jest.mock("@/lib/rateLimit", () => ({
+  checkRateLimit: jest.fn().mockResolvedValue(null),
+}));
 jest.mock("@/auth", () => ({ auth: jest.fn() }));
 jest.mock("@/lib/db/jobs", () => ({
   rollbackDeployment: jest.fn(),
