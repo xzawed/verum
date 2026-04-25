@@ -434,3 +434,351 @@ class TestAsyncFailOpen(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(response)
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0]["content"], "async fail-open test")
+
+
+class TestAsyncWithDeploymentId(unittest.IsolatedAsyncioTestCase):
+    """Async wrapper forwards resolved messages when deployment_id is set."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-async-001"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_async_resolved_messages_forwarded(self) -> None:
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        received_messages: list[Any] = []
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            received_messages.extend(kwargs.get("messages", []))
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=10, completion_tokens=5),
+            )
+
+        comp_mod.AsyncCompletions.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        variant_messages = [{"role": "user", "content": "variant content"}]
+        mock_resolver = AsyncMock()
+        mock_resolver.resolve.return_value = (variant_messages, "variant")
+
+        with patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            instance = comp_mod.AsyncCompletions()
+            response = await instance.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "original content"}],
+            )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(len(received_messages), 1)
+        self.assertEqual(received_messages[0]["content"], "variant content")
+
+
+class TestAsyncWithDeploymentIdNoResolver(unittest.IsolatedAsyncioTestCase):
+    """Async wrapper calls original unchanged when resolver returns None."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-async-no-resolver"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_async_no_resolver_passes_original_messages(self) -> None:
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        received_messages: list[Any] = []
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            received_messages.extend(kwargs.get("messages", []))
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=5, completion_tokens=3),
+            )
+
+        comp_mod.AsyncCompletions.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        # When resolver is None, variant stays "no_resolver" and original messages pass through.
+        with patch.object(mod, "_get_resolver", return_value=None):
+            instance = comp_mod.AsyncCompletions()
+            response = await instance.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "no resolver path"}],
+            )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(len(received_messages), 1)
+        self.assertEqual(received_messages[0]["content"], "no resolver path")
+
+
+class TestAsyncTraceBackground(unittest.IsolatedAsyncioTestCase):
+    """_record_trace_bg_async silently skips when api_url/http are absent."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        for v in ("VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    async def test_no_api_url_returns_without_error(self) -> None:
+        mod = _fresh_import_verum_openai()
+        await mod._record_trace_bg_async(
+            deployment_id="dep-trace",
+            variant="baseline",
+            model="gpt-4",
+            input_tokens=5,
+            output_tokens=3,
+            latency_ms=120,
+        )
+
+    async def test_async_http_none_returns_without_error(self) -> None:
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        mod = _fresh_import_verum_openai()
+        original_async_http = mod._async_http
+        mod._async_http = None
+        try:
+            await mod._record_trace_bg_async(
+                deployment_id="dep-trace",
+                variant="baseline",
+                model="gpt-4",
+                input_tokens=5,
+                output_tokens=3,
+                latency_ms=120,
+            )
+        finally:
+            mod._async_http = original_async_http
+            os.environ.pop("VERUM_API_URL", None)
+
+    async def test_exception_in_post_is_swallowed(self) -> None:
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        mod = _fresh_import_verum_openai()
+
+        mock_http = AsyncMock()
+        mock_http.post.side_effect = RuntimeError("connection refused")
+        original_async_http = mod._async_http
+        mod._async_http = mock_http
+        try:
+            await mod._record_trace_bg_async(
+                deployment_id="dep-trace",
+                variant="variant",
+                model="gpt-4",
+                input_tokens=10,
+                output_tokens=5,
+                latency_ms=200,
+            )
+        finally:
+            mod._async_http = original_async_http
+            os.environ.pop("VERUM_API_URL", None)
+
+
+class TestSyncTraceBackgroundOpenAI(unittest.TestCase):
+    """_record_trace_bg daemon thread swallows all exceptions."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        for v in ("VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_no_api_url_does_not_raise(self) -> None:
+        mod = _fresh_import_verum_openai()
+        mod._record_trace_bg(
+            deployment_id="dep-trace",
+            variant="baseline",
+            model="gpt-4",
+            input_tokens=5,
+            output_tokens=3,
+            latency_ms=100,
+        )
+
+    def test_sync_http_none_does_not_raise(self) -> None:
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        mod = _fresh_import_verum_openai()
+        original_sync_http = mod._sync_http
+        mod._sync_http = None
+        try:
+            mod._record_trace_bg(
+                deployment_id="dep-trace",
+                variant="baseline",
+                model="gpt-4",
+                input_tokens=5,
+                output_tokens=3,
+                latency_ms=100,
+            )
+        finally:
+            mod._sync_http = original_sync_http
+            os.environ.pop("VERUM_API_URL", None)
+
+    def test_http_exception_is_swallowed(self) -> None:
+        import threading
+
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        mod = _fresh_import_verum_openai()
+
+        mock_http = MagicMock()
+        mock_http.post.side_effect = RuntimeError("connection refused")
+        original_sync_http = mod._sync_http
+        mod._sync_http = mock_http
+
+        done = threading.Event()
+        original_start = threading.Thread.start
+
+        def patched_start(thread_self: threading.Thread) -> None:
+            original_start(thread_self)
+            done.set()
+
+        try:
+            with patch.object(threading.Thread, "start", patched_start):
+                mod._record_trace_bg(
+                    deployment_id="dep-trace",
+                    variant="variant",
+                    model="gpt-4",
+                    input_tokens=10,
+                    output_tokens=5,
+                    latency_ms=200,
+                )
+            done.wait(timeout=2.0)
+        finally:
+            mod._sync_http = original_sync_http
+            os.environ.pop("VERUM_API_URL", None)
+
+
+class TestExtractUsageExceptions(unittest.TestCase):
+    """_extract_usage handles broken response attributes gracefully."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_usage_attribute_raises(self) -> None:
+        mod = _fresh_import_verum_openai()
+
+        class BadResponse:
+            @property
+            def usage(self) -> None:
+                raise AttributeError("no usage")
+
+            model = "gpt-4"
+
+        inp, out, model = mod._extract_usage(BadResponse())
+        self.assertEqual(inp, 0)
+        self.assertEqual(out, 0)
+        self.assertEqual(model, "gpt-4")
+
+    def test_model_attribute_raises(self) -> None:
+        mod = _fresh_import_verum_openai()
+
+        class BadResponse:
+            usage = MagicMock(prompt_tokens=7, completion_tokens=3)
+
+            @property
+            def model(self) -> None:
+                raise AttributeError("no model")
+
+        inp, out, model = mod._extract_usage(BadResponse())
+        self.assertEqual(inp, 7)
+        self.assertEqual(out, 3)
+        self.assertEqual(model, "")
+
+
+class TestGetResolverCreationFailureOpenAI(unittest.TestCase):
+    """_get_resolver returns None when httpx or internal imports fail."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        os.environ.pop("VERUM_API_URL", None)
+        os.environ.pop("VERUM_API_KEY", None)
+
+    def test_resolver_creation_exception_returns_none(self) -> None:
+        mod = _fresh_import_verum_openai()
+        mod._resolver = None
+        mod._sync_http = None
+        mod._async_http = None
+
+        with patch("builtins.__import__", side_effect=ImportError("no httpx")):
+            result = mod._get_resolver()
+
+        self.assertIsNone(result)
+
+
+class TestResolveSyncPathsOpenAI(unittest.TestCase):
+    """_resolve_sync returns original messages when resolver is None."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        for v in ("VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_no_resolver_returns_original_messages(self) -> None:
+        mod = _fresh_import_verum_openai()
+        mod._resolver = None
+
+        messages = [{"role": "user", "content": "hello"}]
+        with patch.object(mod, "_get_resolver", return_value=None):
+            result_messages, reason = mod._resolve_sync("dep-001", messages)
+
+        self.assertIs(result_messages, messages)
+        self.assertEqual(reason, "no_resolver")
+
+
+class TestSyncWrappedCreateExceptionHandler(unittest.TestCase):
+    """_wrapped_create swallows exceptions from _record_trace_bg."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-trace-except"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def test_trace_exception_does_not_surface(self) -> None:
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        messages = [{"role": "user", "content": "test trace exception"}]
+
+        def spy_create(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=5, completion_tokens=3),
+            )
+
+        comp_mod.Completions.create = spy_create  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        with patch.object(
+            mod, "_resolve_sync", return_value=(messages, "baseline")
+        ), patch.object(mod, "_record_trace_bg", side_effect=RuntimeError("trace boom")):
+            instance = comp_mod.Completions()
+            response = instance.create(model="gpt-4", messages=messages)
+
+        self.assertIsNotNone(response)
