@@ -51,7 +51,7 @@ Register a GitHub repo once. The loop runs automatically.
 | 🔬 ANALYZE | ✅ Done | AST-based LLM call detection (JS/TS); Python deferred to Phase 1.5 |
 | 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
 | 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
-| 🔍 RETRIEVE | ✅ Done | Hybrid vector + full-text search over harvested knowledge *(support stage — invoked by DEPLOY/SDK, not a loop step)* |
+| 🔍 RETRIEVE | ✅ Done | Vector similarity search (cosine) over harvested knowledge *(support stage — invoked by DEPLOY/SDK, not a loop step)* |
 | ✨ GENERATE | ✅ Done | Prompt variants, RAG config, eval dataset — auto-chained after HARVEST |
 | 🚀 DEPLOY | ✅ Done | SDK-based canary deployment with traffic splitting + rollback |
 | 👁️ OBSERVE | ✅ Done | Trace + span ingestion, cost/latency metrics, LLM-as-Judge scoring |
@@ -91,11 +91,12 @@ On the `/repos/<id>` page, inspect the 5 prompt variants, RAG config, and eval d
 
 ### Step 5 — Deploy → SDK integration
 
-Approving issues an API key alongside a `deployments` row. Add the SDK to your service:
+Click "Approve" to unlock deployment, then click "Deploy" to issue an API key and activate a `deployments` row. Add the SDK to your service:
 
 ```bash
-pip install verum            # Python SDK
-npm install @verum/sdk       # TypeScript SDK
+# Install from the monorepo (SDKs not yet published to PyPI/npm)
+pip install -e ./packages/sdk-python       # Python SDK
+npm install ./packages/sdk-typescript      # TypeScript SDK
 ```
 
 ```python
@@ -118,7 +119,7 @@ result = await client.chat(
 ### Step 6 — Auto-evolution begins
 
 From here it's automatic:
-- Traffic splits across 5 variants (EXPERIMENT)
+- Sequential Bayesian A/B testing across prompt variants (EXPERIMENT)
 - Bayesian winner auto-promoted once confidence threshold is reached (EVOLVE)
 - Scoring combines user feedback, cost, latency, and LLM-as-Judge
 
@@ -155,7 +156,7 @@ Problems:
 - No observability (latency, cost, satisfaction untracked)
 - A/B testing infrastructure requires separate implementation
 
-### After — one-line swap to Verum
+### After — SDK integration
 
 ```python
 # examples/arcana-integration/after.py
@@ -198,7 +199,7 @@ Full code: [examples/arcana-integration/after.py](examples/arcana-integration/af
 **No.** Verum never changes your code.
 
 - The ANALYZE stage does a `git clone --depth 1` into a temp directory, performs *read-only* static analysis, and deletes the clone on exit ([cloner.py](apps/api/src/loop/analyze/cloner.py)).
-- There is **no** `git push`, PR creation, or write-scoped GitHub token anywhere in the codebase.
+- Verum never performs any write operations — no `git push`, no PR creation, no file changes to your repository.
 - You add the SDK to your own service yourself (one-line import + Client instantiation).
 
 ### Q2. Does "DEPLOY" automatically deploy my service to production?
@@ -253,9 +254,9 @@ Yes. The INFER stage classifies the domain automatically, and HARVEST applies a 
 
 | Tool | What it does | What Verum adds |
 |---|---|---|
-| Langfuse / LangSmith | Observe LLM calls | Auto-generates and evolves prompts + RAG from observations |
-| RAGAS | Evaluate RAG | Auto-builds the eval dataset and runs it in CI |
-| PromptLayer | Version prompts | AI writes the prompts and picks winners via A/B |
+| Langfuse / LangSmith | Observe, evaluate, and version LLM calls | Auto-generates prompts + RAG from static code analysis; evolves them from live data |
+| RAGAS | Evaluate RAG | Auto-builds the eval dataset (domain-specific Q&A pairs) |
+| PromptLayer | Version and A/B-test prompts | AI writes the prompts from your codebase and auto-promotes winners |
 | CodeRabbit / SCAManager | Code review | Uses code analysis to optimize the AI service itself |
 
 **In one sentence**: Other tools help humans operate LLM systems. Verum helps LLM systems operate themselves.
