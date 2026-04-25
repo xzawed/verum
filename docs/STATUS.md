@@ -57,6 +57,9 @@ last-updated: 2026-04-25
 | `0017_add_missing_indexes` | `ix_inferences_repo_id`, `ix_inferences_analysis_id`, `ix_traces_deployment_created` |
 | `0018_chunks_inference_fk` | `chunks.inference_id → inferences.id CASCADE` FK |
 | `0019_lookup_indexes` | `ix_traces_deployment_variant_created`, `ix_verum_jobs_status_kind_created` |
+| `0020_row_level_security` | RLS ENABLE + 정책 (repos: 4개, usage_quotas: 3개) — SSRF GUC 기반. NOT FORCED (owner 우회). |
+| `0021_rls_roles` | `verum_app` 로그인 역할 생성 + DML GRANT + default privileges |
+| `0022_force_row_level_security` | `FORCE ROW LEVEL SECURITY` on repos + usage_quotas. **⚠️ DATABASE_URL을 verum_app으로 변경한 후에만 실행할 것.** |
 
 > **참고:** migration 0012는 존재하지 않음 (순서 정리 과정에서 스킵됨).
 
@@ -205,7 +208,7 @@ trace_id = await client.record(
 | `apps/api/src/worker/payloads.py` | 8개 job kind별 Pydantic payload 모델 |
 | `apps/api/src/worker/listener.py` | asyncpg 전용 연결로 LISTEN/NOTIFY wake event 관리. DSN에서 `+asyncpg` dialect prefix를 제거해야 asyncpg.connect()가 수락함 |
 | `apps/api/src/worker/chain.py` | `enqueue_next()` — 핸들러가 다음 잡을 큐에 등록하는 공통 헬퍼 |
-| `apps/api/src/db/session.py` | SQLAlchemy async engine + `AsyncSessionLocal` (pool_size=20, max_overflow=40) |
+| `apps/api/src/db/session.py` | SQLAlchemy async engine + `AsyncSessionLocal` + `get_db_for_user(user_id)` RLS context manager |
 | `apps/api/src/db/error_helpers.py` | `mark_error(db, model, row_id, msg)` — 4개 단계 공통 에러 마킹 헬퍼 |
 | `apps/api/src/loop/llm_client.py` | `call_claude(model, max_tokens, system, user, temperature)` — Anthropic 클라이언트 공통 래퍼 |
 | `apps/api/src/loop/utils.py` | `parse_json_response(text)` — markdown fence 파싱 + `json.loads` 예외 처리 |
@@ -233,6 +236,8 @@ trace_id = await client.record(
 | `apps/dashboard/src/lib/db/quota.ts` | `getQuota(userId)` — 대시보드용 쿼터 조회 |
 | `apps/dashboard/src/lib/api/handlers.ts` | `createGetByIdHandler<T>()`, `getAuthUserId()` — 라우트 보일러플레이트 제거 |
 | `apps/dashboard/src/lib/api/validateApiKey.ts` | `validateApiKey(rawKey)` → SHA-256 해시 → `findDeploymentByApiKey` |
+| `apps/dashboard/src/lib/rateLimit.ts` | 슬라이딩 윈도우 레이트 리미터 — Redis 우선(ioredis), in-memory 폴백. `checkRateLimitDual(userKey, userLimit, ip, ipLimit)` |
+| `apps/dashboard/src/lib/rateLimitRedis.ts` | Lua 원자 슬라이딩 윈도우 Redis 구현. `checkRateLimitRedis(key, limit, windowMs)` — null 반환 시 호출자가 in-memory로 폴백 |
 | `apps/dashboard/src/lib/i18n.ts` | en/ko 이중 언어 UI 문자열 맵; `t(group, key, locale?)` 함수 |
 | `apps/dashboard/src/lib/docs.ts` | Markdown 렌더링 파이프라인 (remark → rehype-sanitize, XSS 방지) |
 | `apps/dashboard/src/app/api/v1/retrieve-sdk/route.ts` | SDK `retrieve()` 처리 — OpenAI 임베딩 생성 + pgvector 검색 (lazy-init 패턴) |
@@ -320,8 +325,9 @@ function getClient() {
 ```
 
 현재 적용 파일:
-- `apps/dashboard/src/lib/db/client.ts` — `getDb()` lazy getter (DATABASE_URL)
+- `apps/dashboard/src/lib/db/client.ts` — `getDb()` lazy getter (DATABASE_URL); `withUserId(userId, fn)` RLS transaction helper
 - `apps/dashboard/src/app/api/v1/retrieve-sdk/route.ts` — `getOpenAI()` lazy getter (OPENAI_API_KEY)
+- `apps/dashboard/src/lib/rateLimitRedis.ts` — `getRedis()` lazy getter (REDIS_URL); 연결 전 첫 호출은 null 반환 → in-memory 폴백
 
 새 라우트에서 외부 클라이언트(OpenAI, Anthropic, Redis 등)를 사용할 때는 반드시 이 패턴을 적용한다.
 
@@ -398,4 +404,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-25 (HARVEST 3중 버그 수정 — harvest.py 독립 세션(ADR-014), runner.py _reset_stale harvest_sources CRAWLING 복구, queries.ts harvestJobStatus 직접 조회, PostToolUse proxy hook; 이전: CI green restoration — TypeScript lint, E2E proxy.ts, SonarCloud new_coverage 82.5%, all 16 Dependabot PRs merged) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-25 (보안 강화 — Redis 레이트 리미터(ioredis + Lua 슬라이딩 윈도우 + in-memory 폴백), RLS 완전 적용 기반(verum_app 역할 + get_db_for_user + withUserId + 0022 FORCE 마이그레이션), DNS 리바인딩 완전 수정(crawler.py IP-pinned asyncio 트랜스포트); 이전: HARVEST 3중 버그 수정 — harvest.py 독립 세션(ADR-014), runner.py _reset_stale harvest_sources CRAWLING 복구, queries.ts harvestJobStatus 직접 조회) | Maintained by: Claude at end of each implementation session_

@@ -42,14 +42,15 @@ CMD ["node", "server.js"]
 
 ---
 
-### B-003: 문서 오류 — SDK 메서드 시그니처 불일치 (3건)
+### ✅ B-003: 문서 오류 — SDK 메서드 시그니처 불일치 (3건)
 **발견 위치:**  
 - `docs/STATUS.md:166` — Python SDK `retrieve(query, deployment_id, top_k, hybrid)` → 실제는 `retrieve(query, *, collection_name, top_k=5)` (`deployment_id` 없음)
 - `docs/ARCHITECTURE.md:374` — `/v1/retrieve` → 실제 경로는 `/api/v1/retrieve-sdk`
 - `docs/ARCHITECTURE.md:454` — TypeScript SDK `new Verum({apiKey, projectId})` → 실제는 `new VerumClient({apiUrl?, apiKey?})` (`projectId` 없음)
 
 **수정:** 각 문서에서 해당 섹션 수정. 사용자가 SDK 문서를 보고 실제 구현과 달라 혼동 가능.  
-**예상 공수:** 1시간
+**예상 공수:** 1시간  
+**처리 완료:** 감사 생성 시점과 현재 사이에 이미 수정됨 — STATUS.md, ARCHITECTURE.md 모두 실제 시그니처와 일치 확인
 
 ---
 
@@ -203,13 +204,14 @@ async def _heartbeat_loop():
 
 ---
 
-### B-012: 문서 — Worker Job Types에 retrieve 핸들러 추가
+### ✅ B-012: 문서 — Worker Job Types에 retrieve 핸들러 추가
 **발견 위치:** `docs/STATUS.md:92-103` — 8개 핸들러만 나열, `retrieve` 미포함  
 **수정:** STATUS.md 표에 `retrieve` 행 추가:
 ```
 | `retrieve` | `handle_retrieve` | `apps/api/src/worker/handlers/retrieve.py` |
 ```
-**예상 공수:** 10분
+**예상 공수:** 10분  
+**처리 완료:** `docs/STATUS.md` 현재 버전에 `retrieve` 행 포함됨
 
 ---
 
@@ -344,23 +346,26 @@ HARVEST_TIMEOUT = int(os.getenv("VERUM_TEST_HARVEST_TIMEOUT", "180"))
 
 ---
 
-### B-025: CI — integration.yml checkout 버전 통일
+### ✅ B-025: CI — integration.yml checkout 버전 통일
 **발견 위치:** `integration.yml:27` — `actions/checkout@v4`, `ci.yml`은 `@v6`  
 **수정:** `integration.yml`도 `actions/checkout@v6`으로 통일  
-**예상 공수:** 5분
+**예상 공수:** 5분  
+**처리 완료:** `integration.yml:39` — `actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6` (SHA 고정 포함)
 
 ---
 
-### B-026: 중복 import 제거 (infer/engine.py)
+### ✅ B-026: 중복 import 제거 (infer/engine.py)
 **발견 위치:** `apps/api/src/loop/infer/engine.py:116` — `from .models import DOMAIN_TAXONOMY` 중복 (라인 10에서 이미 import)  
-**예상 공수:** 5분
+**예상 공수:** 5분  
+**처리 완료:** 현재 `engine.py:116`은 import 문이 아닌 `if domain not in DOMAIN_TAXONOMY:` 사용문. 감사 이후 이미 제거됨
 
 ---
 
-### B-027: rollback_deployment에서 compute_traffic_split() 재사용
+### ✅ B-027: rollback_deployment에서 compute_traffic_split() 재사용
 **발견 위치:** `apps/api/src/loop/deploy/repository.py:80` — `{"baseline": 1.0, "variant": 0.0}` 직접 dict 생성  
 **수정:** `compute_traffic_split(variant_fraction=0.0)` 호출로 통일  
-**예상 공수:** 15분
+**예상 공수:** 15분  
+**처리 완료:** `repository.py` 현재 `rollback_deployment`에서 `compute_traffic_split(variant_fraction=0.0)` 이미 사용 중
 
 ---
 
@@ -461,11 +466,11 @@ updates:
 
 | 우선순위 | 전체 | 미완료 | 완료 |
 |---------|------|--------|------|
-| **P0** (즉시) | 4개 | 2개 (B-003) | 2개 (✅B-001, ✅B-002) + ✅B-004 |
-| **P1** (높음) | 8개 | 6개 | 2개 (✅B-010, ✅B-011) |
-| **P2** (중간) | 14개 | 12개 | 2개 (✅B-013, ✅B-023) |
-| **P3** (낮음) | 7개 | 6개 | 1개 (✅B-024) |
-| **합계** | **33개** | **25개 미완료** | **8개 완료** |
+| **P0** (즉시) | 4개 | 0개 | ✅B-001, ✅B-002, ✅B-003, ✅B-004 |
+| **P1** (높음) | 8개 | 5개 (B-005~B-009) | ✅B-010, ✅B-011, ✅B-012 |
+| **P2** (중간) | 14개 | 10개 | ✅B-013, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027 |
+| **P3** (낮음) | 7개 | 7개 | — |
+| **합계** | **33개** | **22개 미완료** | **13개 완료** |
 
 > 참고: B-004(CLAUDE.md 날짜 갱신)는 2026-04-24 기준 이미 반영되어 있음.
 
@@ -485,4 +490,4 @@ updates:
 
 ---
 
-_Last updated: 2026-04-24 | Generated from 6-agent codebase audit | Maintained by: Claude at end of audit sessions_
+_Last updated: 2026-04-25 | Generated from 6-agent codebase audit | Maintained by: Claude at end of audit sessions_
