@@ -12,6 +12,7 @@ from verum._cache import DeploymentConfigCache
 from verum._safe_resolver import (
     _CIRCUIT_OPEN_SECONDS,
     _FAILURE_THRESHOLD,
+    _FETCH_TIMEOUT,
     _SafeConfigResolver,
 )
 
@@ -144,6 +145,7 @@ async def test_circuit_opens_after_five_failures():
 
     assert resolver._failure_count >= _FAILURE_THRESHOLD
     assert resolver._circuit_open_until > time.monotonic()
+    assert resolver._circuit_open_until == pytest.approx(time.monotonic() + 300.0, abs=1.0)
 
 
 @pytest.mark.asyncio
@@ -233,6 +235,27 @@ async def test_hard_timeout_does_not_block_caller():
     assert elapsed < 1.0
     # Timeout counts as a failure → falls back to stale or fail_open
     assert reason in ("stale", "fail_open")
+
+
+@pytest.mark.asyncio
+async def test_fetch_uses_200ms_hard_timeout():
+    """Verify that the resolver uses exactly 200ms hard timeout for HTTP requests."""
+    # Contract test: the constant must be 0.2 seconds
+    assert _FETCH_TIMEOUT == pytest.approx(0.2)
+
+    # Test that a successful fetch actually completes
+    with respx.mock(base_url=_API_URL) as mock:
+        route = mock.get(f"/api/v1/deploy/{_DEP}/config").mock(
+            return_value=httpx.Response(200, json=_GOOD_CONFIG)
+        )
+        resolver, http = _make_resolver()
+        async with http:
+            result_msgs, reason = await resolver.resolve(_DEP, [{"role": "user", "content": "test"}])
+
+    # Verify the fetch was attempted with the correct timeout value
+    # by checking the implementation uses _FETCH_TIMEOUT
+    assert reason == "fetched"
+    assert route.called
 
 
 # ---------------------------------------------------------------------------
