@@ -25,6 +25,10 @@ COPY apps/api/src/ ./src/
 COPY apps/api/alembic/ ./alembic/
 COPY apps/api/alembic.ini ./alembic.ini
 
+# Run as non-root to limit blast radius if the container is compromised.
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 # Migrations are applied via Supabase MCP or Railway Pre-Deploy command.
 # Alembic upgrade is NOT run here to avoid startup failures on DB connectivity issues.

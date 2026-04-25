@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api/validateApiKey";
+import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import OpenAI from "openai";
@@ -12,6 +13,12 @@ function getOpenAI() {
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
+
+  // IP-level gate before expensive DB look-up: 60 retrievals/min per key, 100 per IP.
+  const ip = getClientIp(req);
+  const ipGate = checkRateLimitDual(apiKey.slice(0, 16), 60, ip, 100);
+  if (ipGate) return ipGate;
+
   const keyResult = await validateApiKey(apiKey);
   if (!keyResult) return new Response("unauthorized", { status: 401 });
 

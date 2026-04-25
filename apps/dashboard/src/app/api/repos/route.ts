@@ -1,12 +1,23 @@
 import { z } from "zod";
 import { getAuthUserId } from "@/lib/api/handlers";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 import { createRepo } from "@/lib/db/jobs";
 import { getRepos } from "@/lib/db/queries";
 
+// Only GitHub HTTPS URLs are accepted — mirrors cloner.py _GITHUB_URL_RE.
+const GITHUB_URL_RE = /^https:\/\/github\.com\/[\w.\-]+\/[\w.\-]+(\.git)?$/;
+
 const CreateRepoSchema = z.object({
-  repo_url: z.string().url("repo_url must be a valid URL"),
-  branch: z.string().optional(),
+  repo_url: z
+    .string()
+    .url("repo_url must be a valid URL")
+    .refine((v) => GITHUB_URL_RE.test(v), {
+      message: "repo_url must be a github.com HTTPS URL",
+    }),
+  branch: z
+    .string()
+    .regex(/^[a-zA-Z0-9._/\-]{1,200}$/, "branch contains invalid characters")
+    .optional(),
 });
 
 export async function GET() {
@@ -19,8 +30,13 @@ export async function GET() {
 export async function POST(req: Request) {
   const uid = await getAuthUserId();
   if (!uid) return new Response("unauthorized", { status: 401 });
-  const rateLimitResponse = checkRateLimit(uid, 20);
+
+  // 5 registrations per user per minute; 20 per IP per minute.
+  // Bots registering many repos from the same IP hit the IP tier first.
+  const ip = getClientIp(req);
+  const rateLimitResponse = checkRateLimitDual(uid, 5, ip, 20);
   if (rateLimitResponse) return rateLimitResponse;
+
   const parsed = CreateRepoSchema.safeParse(await req.json());
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten() }, { status: 400 });

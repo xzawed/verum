@@ -1,9 +1,15 @@
 import { updateFeedback } from "@/lib/db/jobs";
 import { validateApiKey } from "@/lib/api/validateApiKey";
+import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
   if (!apiKey) return new Response("unauthorized", { status: 401 });
+
+  // 30 feedback events/min per key; 60 per IP.
+  const ip = getClientIp(req);
+  const ipGate = checkRateLimitDual(apiKey.slice(0, 16), 30, ip, 60);
+  if (ipGate) return ipGate;
 
   const body = await req.json() as { trace_id: string; score: number };
 

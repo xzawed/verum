@@ -3,11 +3,18 @@ import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkAndIncrementTraceQuota, FREE_LIMITS } from "@/lib/db/quota";
+import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 
 // POST — SDK-facing: API key auth via X-Verum-API-Key header
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
   if (!apiKey) return new Response("unauthorized", { status: 401 });
+
+  // IP-level gate before expensive DB look-up: 200 traces/min per IP, 120 per key.
+  // Quota enforcement below provides a secondary per-user bound.
+  const ip = getClientIp(req);
+  const ipGate = checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
+  if (ipGate) return ipGate;
 
   const body = await req.json() as {
     deployment_id: string;
