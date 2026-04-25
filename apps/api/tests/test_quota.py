@@ -7,6 +7,7 @@ from src.loop.quota import (
     QuotaExceededError,
     FREE_LIMITS,
     check_quota,
+    get_or_create_quota,
     increment_quota,
 )
 
@@ -49,3 +50,26 @@ async def test_check_quota_chunks_over_limit():
     with pytest.raises(QuotaExceededError) as exc_info:
         await check_quota(session, uuid4(), chunks=200)
     assert exc_info.value.resource == "chunks"
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_quota_returns_default_when_no_row():
+    """If the INSERT returns no row, a safe default dict is returned (covers lines 54-55)."""
+    result_mock = MagicMock()
+    result_mock.mappings.return_value.first.return_value = None
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=result_mock)
+
+    quota = await get_or_create_quota(session, uuid4())
+
+    assert quota["plan"] == "free"
+    assert quota["chunks_stored"] == 0
+    assert quota["traces_used"] == 0
+
+
+@pytest.mark.asyncio
+async def test_increment_quota_executes_upsert():
+    """increment_quota calls session.execute with the upsert SQL (covers lines 76-78)."""
+    session = AsyncMock()
+    await increment_quota(session, uuid4(), traces=5, chunks=10)
+    session.execute.assert_awaited_once()

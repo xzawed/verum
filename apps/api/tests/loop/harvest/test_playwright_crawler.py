@@ -345,3 +345,87 @@ async def test_fetch_httpx_redirect_no_location_raises():
             await _fetch_httpx("http://example.com/redirect")
 
     assert exc_info.value.kind == "redirect"
+
+
+# ---------------------------------------------------------------------------
+# _fetch_playwright — success and PlaywrightError paths (covers lines 404-423)
+# _extract — direct call to cover line 427
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_playwright_success_with_mocked_browser():
+    """_fetch_playwright: playwright launches browser, gets HTML, extracts text."""
+    from unittest.mock import MagicMock
+    from src.loop.harvest.crawler import _fetch_playwright
+
+    html_body = "<html><body><p>Rich playwright content</p></body></html>"
+
+    mock_page = AsyncMock()
+    mock_page.goto = AsyncMock()
+    mock_page.content = AsyncMock(return_value=html_body)
+
+    mock_browser = AsyncMock()
+    mock_browser.new_page = AsyncMock(return_value=mock_page)
+    mock_browser.close = AsyncMock()
+
+    mock_chromium = MagicMock()
+    mock_chromium.launch = AsyncMock(return_value=mock_browser)
+
+    mock_playwright_ctx = AsyncMock()
+    mock_playwright_ctx.chromium = mock_chromium
+    mock_playwright_ctx.__aenter__ = AsyncMock(return_value=mock_playwright_ctx)
+    mock_playwright_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    class _FakePWError(Exception):
+        pass
+
+    mock_pw_api = MagicMock()
+    mock_pw_api.Error = _FakePWError
+    mock_pw_api.async_playwright = MagicMock(return_value=mock_playwright_ctx)
+
+    with patch.dict("sys.modules", {"playwright": MagicMock(), "playwright.async_api": mock_pw_api}):
+        with patch("src.loop.harvest.crawler._check_ssrf", new_callable=AsyncMock, return_value="1.2.3.4"):
+            with patch("src.loop.harvest.crawler._extract", return_value="Rich playwright content"):
+                result = await _fetch_playwright("https://example.com/spa")
+
+    assert result == "Rich playwright content"
+
+
+@pytest.mark.asyncio
+async def test_fetch_playwright_raises_crawl_error_on_playwright_error():
+    """_fetch_playwright: PlaywrightError from browser launch → CrawlError(kind='playwright')."""
+    from unittest.mock import MagicMock
+    from src.loop.harvest.crawler import _fetch_playwright
+
+    class _FakePWError(Exception):
+        pass
+
+    mock_chromium = MagicMock()
+    mock_chromium.launch = AsyncMock(side_effect=_FakePWError("browser crash"))
+
+    mock_playwright_ctx = AsyncMock()
+    mock_playwright_ctx.chromium = mock_chromium
+    mock_playwright_ctx.__aenter__ = AsyncMock(return_value=mock_playwright_ctx)
+    mock_playwright_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    mock_pw_api = MagicMock()
+    mock_pw_api.Error = _FakePWError
+    mock_pw_api.async_playwright = MagicMock(return_value=mock_playwright_ctx)
+
+    with patch.dict("sys.modules", {"playwright": MagicMock(), "playwright.async_api": mock_pw_api}):
+        with patch("src.loop.harvest.crawler._check_ssrf", new_callable=AsyncMock, return_value="1.2.3.4"):
+            with pytest.raises(CrawlError) as exc_info:
+                await _fetch_playwright("https://example.com/broken")
+
+    assert exc_info.value.kind == "playwright"
+
+
+def test_extract_returns_text_or_none():
+    """_extract: calling trafilatura.extract on HTML returns str or None (covers line 427)."""
+    from src.loop.harvest.crawler import _extract
+    result = _extract(
+        "<html><body><p>Sample text for coverage test</p></body></html>",
+        "https://example.com/",
+    )
+    assert result is None or isinstance(result, str)

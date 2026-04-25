@@ -345,3 +345,81 @@ async def test_clone_repo_oversized_clone_raises_quota_error():
                         with patch("src.loop.analyze.cloner._rmtree"):
                             with pytest.raises(CloneQuotaError, match="exceeding the"):
                                 await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+
+
+# ---------------------------------------------------------------------------
+# _rmtree — direct coverage (lines 39-43) and onerror callback (lines 40-41)
+# ---------------------------------------------------------------------------
+
+
+def test_rmtree_calls_shutil_rmtree(tmp_path):
+    """Calling _rmtree on a real path removes it — covers def _on_error and shutil.rmtree call."""
+    from src.loop.analyze.cloner import _rmtree
+    (tmp_path / "file.txt").write_text("test content")
+    assert tmp_path.exists()
+    _rmtree(tmp_path)
+    assert not tmp_path.exists()
+
+
+def test_rmtree_onerror_callback_chmod_and_retry(tmp_path):
+    """When shutil.rmtree calls onerror, the callback calls os.chmod then retries func."""
+    import sys
+    from src.loop.analyze.cloner import _rmtree
+
+    chmod_calls: list = []
+    retry_calls: list = []
+
+    def fake_rmtree(path, onerror=None, **kwargs):
+        if onerror is not None:
+            def retry_fn(p: str) -> None:
+                retry_calls.append(p)
+            onerror(retry_fn, str(tmp_path / "locked.file"), (None, None, None))
+
+    with patch("src.loop.analyze.cloner.shutil.rmtree", side_effect=fake_rmtree):
+        with patch("src.loop.analyze.cloner.os.chmod", side_effect=lambda p, m: chmod_calls.append(p)):
+            _rmtree(tmp_path)
+
+    assert len(chmod_calls) == 1
+    assert len(retry_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# clone_repo — pre-existing target cleanup (line 159) and exception cleanup (201-204)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_clone_repo_timeout_cleanup_when_target_exists():
+    """On TimeoutError with existing target, _rmtree is called before re-raising (line 191)."""
+    mock_proc = AsyncMock()
+    mock_proc.kill = MagicMock()
+    mock_proc.wait = AsyncMock()
+
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch("pathlib.Path.mkdir"):
+                with patch("pathlib.Path.exists", return_value=True):
+                    with patch("src.loop.analyze.cloner._rmtree") as mock_rmtree:
+                        with patch(
+                            "src.loop.analyze.cloner.asyncio.wait_for",
+                            side_effect=asyncio.TimeoutError(),
+                        ):
+                            with pytest.raises(asyncio.TimeoutError):
+                                await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+
+    mock_rmtree.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_clone_repo_general_exception_cleanup():
+    """OSError from create_subprocess_exec → except Exception catches it, cleans up, re-raises."""
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", side_effect=OSError("exec failed")):
+            with patch("pathlib.Path.mkdir"):
+                with patch("pathlib.Path.exists", return_value=True):
+                    with patch("src.loop.analyze.cloner._rmtree") as mock_rmtree:
+                        with pytest.raises(OSError, match="exec failed"):
+                            await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+
+    # _rmtree called at line 159 (pre-existing target) and line 203 (exception cleanup)
+    assert mock_rmtree.call_count == 2
