@@ -3,6 +3,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# Explicit start command overrides any Railway dashboard setting or
+# package.json "start" script detection.  The standalone build does not
+# have `next` in PATH; it must be started via `node server.js`.
+startCommand = "dumb-init node server.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
