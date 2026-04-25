@@ -1,176 +1,112 @@
-# Integration Test Environment
+# Integrating Verum Into Your Service
 
-This document describes the Verum integration test environment — a local Docker Compose stack that runs the full 8-stage Verum Loop (ANALYZE → EVOLVE) without touching any live services.
+This guide walks you from zero to a fully connected Verum integration. There are two phases — start with whichever fits your timeline.
 
-## Quick Start
+> **Fail-open guarantee**: Both phases ensure your LLM calls are never blocked or delayed by Verum. If Verum is unreachable, your service continues 100% normally.
 
-```bash
-# Start all services and run full test suite
-make integration-up && make integration-test && make integration-down
+---
 
-# Smoke test only (30s)
-make integration-smoke
+## Phase 0 — Observe Only (zero code changes)
 
-# Keep stack running after tests for debugging
-make integration-debug
-
-# Stream service logs
-make integration-logs
-
-# Tear down everything (removes volumes)
-make integration-down
-```
-
-## Architecture
-
-The integration stack is defined in `docker-compose.integration.yml` and consists of 6 services:
-
-```
-test-runner ──▶ verum-app :8080 ◀──▶ db (pgvector) :5432
-                     │
-                     ▼
-              mock-providers :9000
-              (/anthropic, /voyage, /openai, /github, /wiki)
-              (/control/calls, /control/fault, /control/reset)
-
-git-http :80   (nginx + git-http-backend serving fixture bare repo)
-
-fake-arcana    (SDK workload runner — 210 simulated LLM traces)
-               ← waits for /integration-state/deployment_info.json
-```
-
-**Key design constraints:**
-- `Dockerfile` is identical to Railway production — no test-only image
-- `apps/api/src/loop/**` business logic is not modified
-- All external API calls are intercepted by `mock-providers`
-- Git clone uses the local `git-http` service (not GitHub)
-
-## Env-Gated Hooks
-
-Five (+ two P1) production hooks activated only when integration env vars are set:
-
-| File | Variable | Default | Integration value |
-|------|----------|---------|-------------------|
-| `apps/api/src/loop/analyze/cloner.py` | `VERUM_ALLOW_INSECURE_CLONE_HOSTS` | `""` (github.com only) | `"git-http"` |
-| `apps/api/src/worker/runner.py` | `VERUM_EXPERIMENT_INTERVAL_SECONDS` | `300` | `10` |
-| `apps/dashboard/src/lib/github/repos.ts` | `GITHUB_API_BASE` | `api.github.com` | `mock-providers:9000/github` |
-| `apps/dashboard/src/lib/github/pr-creator.ts` | `GITHUB_API_BASE` | `api.github.com` | `mock-providers:9000/github` |
-| `apps/dashboard/src/auth.config.ts` | `GITHUB_OAUTH_BASE` | `github.com` | `mock-providers:9000/github` |
-| `apps/api/src/worker/handlers/deploy.py` | `VERUM_DEPLOY_VARIANT_FRACTION` | `0.10` | `0.5` |
-| `apps/api/src/worker/handlers/deploy.py` | `VERUM_TEST_MODE` | `""` | `"1"` (exposes `api_key` in job result) |
-
-**None of these vars are set in Railway.** They only activate in the integration stack.
-
-## Fixture Repo
-
-`tests/fixtures/sample-repo/` is a minimal "ArcanaInsight" tarot service:
-
-| File | LLM calls | Purpose |
-|------|-----------|---------|
-| `src/reading.ts` | 2 × OpenAI SDK | TypeScript SDK detection |
-| `src/journal.ts` | 1 × raw fetch | URL pattern matching |
-| `app/daily.py` | 1 × Anthropic SDK | Python SDK detection |
-
-Expected ANALYZE output: `call_sites_count >= 4`, INFER `domain = "divination/tarot"`.
-
-## Mock Provider API
-
-The mock server at `:9000` supports:
-
-### Anthropic (`/anthropic/v1/messages`)
-- Matches requests by `sha256(system[:400] + last_user[:800] + model)[:16]` key
-- Falls back to `_match_system_contains` field in fixture JSON
-- Fixtures: `tests/integration/mock-providers/fixtures/anthropic/`
-
-### Voyage (`/voyage/v1/embeddings`)
-- Returns deterministic 1024-dim L2-normalized vectors seeded by text hash
-- No fixture file needed
-
-### OpenAI (`/openai/v1/embeddings`, `/openai/v1/chat/completions`)
-- Embeddings: 1536-dim deterministic vectors
-- Chat: returns fixed tarot response
-
-### GitHub (`/github/...`)
-- OAuth token, user info, repo list, Git Trees API (for SDK PR creation)
-- Configured to serve `verum-test/arcana-mini` as the test repo
-
-### Control endpoints
-- `GET /control/calls` — returns all intercepted API calls
-- `POST /control/fault` — inject faults: `{"endpoint": "anthropic", "kind": "http500", "count": 2}`
-- `POST /control/reset` — clear fault state and call log
-
-## Test Stages
-
-| File | Timeout | What it tests |
-|------|---------|--------------|
-| `test_00_bootstrap.py` | 30s | Health, DB, auth bypass, empty call log |
-| `test_10_analyze_to_infer.py` | 90s | Repo register → ANALYZE → INFER |
-| `test_20_harvest_and_generate.py` | 120s | HARVEST chunks → GENERATE variants |
-| `test_30_deploy_and_sdk.py` | 300s | DEPLOY + fake-arcana 210 traces |
-| `test_40_judge_and_experiment.py` | 240s | JUDGE drain + experiment convergence |
-| `test_50_evolve_closure.py` | 60s | EVOLVE + timeline artifact |
-
-## Artifacts
-
-After a run, `artifacts/integration/` contains:
-
-- `timeline.md` — per-stage timing table from `verum_jobs`
-- `snapshot/` — JSONL snapshots of 10 key tables (from failed tests)
-- `service-logs.txt` — Docker Compose logs (CI only, on failure)
-
-## CI
-
-The integration suite runs:
-- **Nightly** at 08:00 UTC (17:00 KST) via cron
-- **On demand** via `workflow_dispatch`
-- **On push** to `apps/api/src/loop/**`, `Dockerfile`, `tests/integration/**`
-
-Status: informational only (not blocking PRs). Will be promoted to PR-blocking after 2 weeks of stable nightly runs.
-
-## Troubleshooting
-
-### `make integration-up` hangs
-
-Check that Docker has enough resources. The stack needs ≥2 GB RAM.
+Set two environment variables and restart your service. That's it.
 
 ```bash
-docker compose -f docker-compose.integration.yml ps
-docker compose -f docker-compose.integration.yml logs verum-app --tail=50
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://verum-production.up.railway.app/api/v1/otlp"
+export OTEL_EXPORTER_OTLP_HEADERS="x-verum-api-key=<your-api-key>"
 ```
 
-### `test_10` fails with "ANALYZE job timed out"
+Verum receives OpenTelemetry spans emitted by any OpenInference-compatible library
+(e.g. `openinference-instrumentation-openai`). No SDK install required; no code changes.
 
-The git-http service may not have initialized the bare repo. Check:
+**What you get:**
+- LLM call traces in the Verum dashboard (latency, token usage, cost)
+- Domain inference (INFER stage runs automatically once enough traces are collected)
+- Knowledge harvest triggered after INFER completes (HARVEST stage)
+
+---
+
+## Phase 1 — Bidirectional (A/B routing + prompt injection)
+
+Add one import. Verum patches the OpenAI client so routing and prompt injection happen transparently on every call that carries the `x-verum-deployment` header.
+
+### Python
+
 ```bash
-docker compose -f docker-compose.integration.yml logs git-http
+pip install verum
 ```
 
-### `test_40` fails with "EVOLVE job was not enqueued"
+```python
+import verum.openai  # ← add this line; no other changes required
 
-The experiment loop runs every 10s. Check:
-1. `VERUM_EXPERIMENT_INTERVAL_SECONDS` is set to `10` in the compose file
-2. Both variants have ≥100 traces with `judge_score IS NOT NULL`
-3. The experiment row exists: `SELECT * FROM experiments WHERE status = 'running'`
+from openai import OpenAI
+import os
 
-### Trace quota errors in fake-arcana logs
+client = OpenAI()
 
-The free trace quota (default 1000) may be exhausted. Check:
+resp = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "..."}],
+    extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
+)
+# resp is a standard ChatCompletion — no API surface change
+```
+
+### TypeScript / Node.js
+
 ```bash
-docker compose -f docker-compose.integration.yml logs fake-arcana
+npm install @verum/sdk
 ```
-The integration DB is ephemeral, so this won't happen unless you re-run without `make integration-down`.
 
-## Adding New Fixtures
+```typescript
+import "@verum/sdk/openai";  // ← add this line; no other changes required
+import OpenAI from "openai";
 
-To add a new Anthropic mock response:
+const client = new OpenAI();
 
-1. Capture the real request's system prompt and last user message
-2. Compute the fixture key: `python3 -c "import hashlib; print(hashlib.sha256((system[:400]+last_user[:800]+model).encode()).hexdigest()[:16])"`
-3. Create `tests/integration/mock-providers/fixtures/anthropic/<name>.json`
-4. Set `"id"` to the hex key, or use `"_match_system_contains": "keyword"` for substring matching
+const resp = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "..." }],
+  extra_headers: { "x-verum-deployment": process.env.VERUM_DEPLOYMENT_ID! },
+});
+// resp is a standard ChatCompletion — no API surface change
+```
 
-## Security Notes
+### Required environment variables
 
-- `VERUM_TEST_MODE=1` exposes the plaintext `api_key` in `verum_jobs.result`
-- This is intentional and safe because integration DB is ephemeral and never connects to production
-- The `AUTH_SECRET` value used in integration is a well-known constant — never use it in production
+| Variable | Description |
+|---|---|
+| `VERUM_API_URL` | Verum API base URL (e.g. `https://verum-production.up.railway.app`) |
+| `VERUM_API_KEY` | Your API key |
+| `VERUM_DEPLOYMENT_ID` | Deployment UUID from the Verum dashboard |
+
+### What you get (in addition to Phase 0)
+
+- **Prompt injection**: Verum substitutes the system prompt with the winning variant for the configured traffic split
+- **A/B testing**: Traffic split is controlled from the dashboard — `traffic_split` defaults to `0%` so nothing changes until you explicitly enable it
+- **Automatic OTLP export**: Spans are exported without a separate Phase 0 setup
+
+---
+
+## 5-Layer Safety Net
+
+The Phase 1 SDK never blocks your LLM call. In order:
+
+| Layer | Trigger | Behaviour |
+|---|---|---|
+| Hard timeout | Verum API takes > 200ms | Original messages pass through unchanged |
+| Circuit breaker | 5 consecutive failures | Skips Verum for 300s, then resets |
+| Fresh cache | Config fetched ≤ 60s ago | Serves from memory; no network call |
+| Stale cache | Config fetched > 60s ago but ≤ 24h | Serves stale config; re-fetches in background |
+| Fail-open | Any unhandled error | Original messages pass through unchanged |
+
+---
+
+## Migration from v0 (`verum.Client`)
+
+If you are on the old `verum.Client.chat()` API, see [MIGRATION_v0_to_v1.md](MIGRATION_v0_to_v1.md) for a step-by-step upgrade guide.
+
+---
+
+## Integration Test Environment
+
+For local end-to-end testing of the full Verum Loop stack, see [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md).

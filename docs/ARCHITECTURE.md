@@ -143,7 +143,7 @@ verum/
 | [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast`, `libcst`, `tree-sitter` |
 | [2] INFER | `apps/api/src/loop/infer/` | `anthropic` (Claude Sonnet 4.6+) |
 | [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura`, `playwright` (opt-in, soft import) |
-| [4] GENERATE | `apps/api/src/loop/generate/` | `anthropic` (Claude Sonnet 4.6+), `pgvector` |
+| [4] GENERATE | `apps/api/src/loop/generate/` | `anthropic` (Claude Sonnet 4.6+), `pgvector` — default `GENERATE_MAX_TOKENS=4096`; JSON truncation handled by best-effort repair in `loop/utils.py` |
 | [5] DEPLOY | `apps/api/src/loop/deploy/` | `sdk-python`, `sdk-typescript` |
 | [6] OBSERVE | `apps/api/src/loop/observe/` | OpenTelemetry SDK |
 | [7] EXPERIMENT | `apps/api/src/loop/experiment/` | `scipy` (Bayesian stats) |
@@ -414,45 +414,50 @@ EVOLVE is triggered automatically as a `verum_jobs` worker job when an experimen
 
 ## 6. SDK Surface
 
-Both SDKs expose identical high-level APIs. Internals differ by language.
+Both SDKs follow the same two-phase non-invasive integration pattern. See [docs/INTEGRATION.md](INTEGRATION.md) for a full guide.
 
-### Python SDK (`verum`)
+### Python SDK (`verum`) — Phase 1
 
 ```python
-import verum
+import verum.openai  # 1-line — patches OpenAI client in-process
 
-# Reads VERUM_API_URL and VERUM_API_KEY from environment
-client = verum.Client()
+from openai import OpenAI
+import os
 
-# Route LLM call through Verum (returns modified messages with variant prompt)
-routed = await client.chat(
+client = OpenAI()
+resp = client.chat.completions.create(
+    model="gpt-4o",
     messages=[...],
-    deployment_id="...",
-    provider="grok",
-    model="grok-2-1212",
+    extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
 )
-# Pass routed["messages"] to the actual LLM SDK
-
-# Hybrid RAG retrieval from harvested knowledge
-chunks = await client.retrieve(
-    query="어떤 카드가 나왔나요?",
-    collection_name="arcana-tarot-knowledge",
-    top_k=5,
-)
-
-await client.feedback(trace_id="...", score=1)
+# resp is a standard ChatCompletion — no surface change
 ```
 
-### TypeScript SDK (`@verum/sdk`)
+RAG retrieval and feedback remain available as standalone helpers:
+
+```python
+from verum import retrieve, feedback
+
+chunks = await retrieve(query="어떤 카드가 나왔나요?", collection_name="arcana-tarot-knowledge", top_k=5)
+await feedback(trace_id="...", score=1)
+```
+
+### TypeScript SDK (`@verum/sdk`) — Phase 1
 
 ```typescript
-import { VerumClient } from "@verum/sdk";
+import "@verum/sdk/openai";  // 1-line — patches OpenAI client in-process
+import OpenAI from "openai";
 
-const verum = new VerumClient({ apiUrl: "https://verum.dev", apiKey: "..." });
-
-const response = await verum.chat({ model: "grok-2-1212", messages: [...], deploymentId: "..." });
-const chunks = await verum.retrieve({ query: "...", collectionName: "arcana-tarot-knowledge", topK: 5 });
+const client = new OpenAI();
+const resp = await client.chat.completions.create({
+  model: "gpt-4o",
+  messages: [...],
+  extra_headers: { "x-verum-deployment": process.env.VERUM_DEPLOYMENT_ID! },
+});
+// resp is a standard ChatCompletion — no surface change
 ```
+
+> **Legacy v0 API:** `verum.Client.chat()` and `VerumClient.chat()` are deprecated and emit `DeprecationWarning`. Migrate via [docs/MIGRATION_v0_to_v1.md](MIGRATION_v0_to_v1.md).
 
 ---
 

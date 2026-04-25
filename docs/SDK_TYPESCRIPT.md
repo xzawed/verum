@@ -12,21 +12,155 @@ yarn add @verum/sdk
 
 Node.js 18+ required.
 
-## Quick Setup
+## Non-Invasive Integration (Recommended)
 
-Set the following environment variables before running your application:
+The recommended integration uses a single `import` that monkey-patches the OpenAI SDK in-place. Your existing code requires **no other changes**.
+
+### Phase 0 — Observe Only (Zero code changes)
+
+Set environment variables only. No code modification required:
+
+```env
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-verum-instance/api/v1/otlp
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_VERUM_API_KEY
+VERUM_DEPLOYMENT_ID=your-deployment-uuid
+```
+
+At application startup (e.g. in your entry file before any other imports):
+
+```typescript
+import "@verum/sdk/openai"; // enables auto-instrumentation
+```
+
+### Phase 1 — Bidirectional (A/B routing + traces)
+
+```typescript
+import "@verum/sdk/openai"; // ← only change
+import OpenAI from "openai";
+
+const client = new OpenAI();
+
+const resp = await client.chat.completions.create({
+  model: "grok-2-1212",
+  messages: [{ role: "user", content: "Hello" }],
+  // @ts-ignore — extra_headers is valid in openai SDK but types may lag
+  extra_headers: { "x-verum-deployment": process.env.VERUM_DEPLOYMENT_ID },
+});
+// resp is a standard OpenAI ChatCompletion object — unchanged
+```
+
+The patch intercepts `client.chat.completions.create` at the prototype level. The `x-verum-deployment` header is read by the patch and stripped before the request is forwarded to OpenAI, so it never reaches the upstream API.
+
+### 5-Layer Safety Net
+
+The auto-instrument patch is designed to be completely invisible when Verum is unavailable. The following guarantees apply unconditionally:
+
+| Layer | Behaviour |
+|---|---|
+| **1. 200ms hard timeout** | Config fetches abort after 200ms. Your LLM call always proceeds with the original messages on timeout. |
+| **2. Circuit breaker** | After 5 consecutive failures, Verum is bypassed for 300s automatically. No further fetch attempts during cooldown. |
+| **3. Fresh cache** | Deployment config is cached for 60s (default). Cache TTL is configurable via environment or options. |
+| **4. Stale-while-revalidate** | The last known good config is served for up to 24h even after the fresh TTL expires, so a Verum outage does not affect your service. |
+| **5. Fail-open** | Any unhandled error — network failure, unexpected exception, invalid response — causes the original messages to pass through completely unchanged. |
+
+See [ADR-016](ARCHITECTURE.md#adr-016-no-llm-proxy--direct-call-only) (no gateway) and [ADR-017](ARCHITECTURE.md#adr-017-fail-open-sdk--5-layer-safety-net) (fail-open) for the design rationale.
+
+---
+
+## Environment Variables
 
 | Variable | Description |
 |---|---|
 | `VERUM_API_URL` | Base URL of your Verum instance (e.g. `http://localhost:3000` or your production URL) |
 | `VERUM_API_KEY` | Cryptographic API key — issued when a deployment is created and shown once in the dashboard |
+| `VERUM_DEPLOYMENT_ID` | Deployment UUID — passed via `extra_headers` or read from env when not provided inline |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional. For Phase 0 OTLP-only mode, point to your Verum instance's OTLP receiver |
 
 ```bash
 export VERUM_API_URL=http://localhost:3000
 export VERUM_API_KEY=<your-api-key>
+export VERUM_DEPLOYMENT_ID=<your-deployment-uuid>
 ```
 
-## Client Class
+---
+
+## RAG Integration Example
+
+Use `retrieve` to inject relevant knowledge chunks into the system context before routing.
+
+```typescript
+import "@verum/sdk/openai";
+import { VerumClient } from "@verum/sdk";
+import OpenAI from "openai";
+
+const verum = new VerumClient();
+const openai = new OpenAI();
+
+export async function handleWithRag(userInput: string): Promise<string> {
+  // Retrieve relevant knowledge chunks
+  const chunks = await verum.retrieve({
+    query: userInput,
+    collectionName: "arcana-tarot-knowledge",
+    topK: 5,
+  });
+  const context = chunks.map((c) => c.content).join("\n");
+
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: `Context:\n${context}` },
+      { role: "user", content: userInput },
+    ],
+    // @ts-ignore
+    extra_headers: { "x-verum-deployment": process.env.VERUM_DEPLOYMENT_ID },
+  });
+  return resp.choices[0].message.content ?? "";
+}
+```
+
+---
+
+## Error Handling
+
+The auto-instrument patch never throws. If any error occurs during config resolution, the original messages pass through and the LLM call proceeds normally.
+
+If you use the legacy `VerumClient` API directly, all methods return Promises and throw standard errors on network or server failures. Wrap LLM calls in `try/catch` and pass the error string to `record` so that Verum's EXPERIMENT stage can account for error rates when comparing variants.
+
+```typescript
+let errorStr: string | null = null;
+const start = Date.now();
+
+try {
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: routed.messages,
+  });
+  // handle success...
+} catch (err) {
+  errorStr = err instanceof Error ? err.message : String(err);
+  throw err;
+} finally {
+  await verum.record({
+    deploymentId: DEPLOYMENT_ID,
+    variant: routed.routed_to,
+    model: "gpt-4o",
+    inputTokens: 0,
+    outputTokens: 0,
+    latencyMs: Date.now() - start,
+    error: errorStr,
+  });
+}
+```
+
+---
+
+## Legacy / v0 API
+
+> ⚠️ **Deprecated.** `VerumClient` is deprecated as of v1.0. Migrate to `import "@verum/sdk/openai"`. See [MIGRATION_v0_to_v1.md](MIGRATION_v0_to_v1.md).
+
+The `VerumClient` class is preserved for backwards compatibility. It provides explicit `chat`, `retrieve`, `record`, and `feedback` methods that require manual instrumentation of every LLM call site.
+
+### Client Class
 
 ```typescript
 import { VerumClient } from "@verum/sdk";
@@ -35,6 +169,7 @@ const client = new VerumClient({
   apiUrl: "http://localhost:3000", // optional if env var is set
   apiKey: "<your-api-key>",        // optional if env var is set
   cacheTtlMs: 60_000,              // milliseconds; default 60 000 (1 minute)
+  timeoutMs: 10_000,               // milliseconds; default 10 000 (10 seconds)
 });
 ```
 
@@ -45,10 +180,11 @@ const client = new VerumClient({
 | `apiUrl` | `string \| undefined` | `undefined` | Verum API base URL. Falls back to `VERUM_API_URL` env var. |
 | `apiKey` | `string \| undefined` | `undefined` | Cryptographic API key. Falls back to `VERUM_API_KEY` env var. |
 | `cacheTtlMs` | `number` | `60_000` | Milliseconds to cache the deployment config locally before re-fetching. |
+| `timeoutMs` | `number` | `10_000` | Milliseconds before a Verum API call is aborted. |
 
-## Method Reference
+### Method Reference
 
-### `chat`
+#### `chat`
 
 Routes a message list through Verum's traffic split logic. If a deployment is active, the system prompt may be replaced with the selected variant. The method returns a modified message array — pass it directly to your LLM SDK.
 
@@ -80,7 +216,7 @@ When `deploymentId` is omitted, messages pass through unchanged and `routed_to` 
 
 ---
 
-### `retrieve`
+#### `retrieve`
 
 Fetches the top-k relevant knowledge chunks from a named collection stored in pgvector.
 
@@ -102,7 +238,7 @@ const chunks = await client.retrieve({
 
 ---
 
-### `record`
+#### `record`
 
 Records a completed LLM call as a trace. Call this immediately after your LLM SDK returns.
 
@@ -132,7 +268,7 @@ const traceId = await client.record({
 
 ---
 
-### `feedback`
+#### `feedback`
 
 Attaches a user satisfaction score to a previously recorded trace.
 
@@ -149,7 +285,7 @@ await client.feedback({ traceId, score: 1 });
 
 ---
 
-## Full Integration Example (Node.js)
+### Full Integration Example (Node.js)
 
 ```typescript
 import { VerumClient } from "@verum/sdk";
@@ -196,7 +332,7 @@ export async function handleUserMessage(userInput: string): Promise<string> {
 }
 ```
 
-## Next.js API Route Example
+### Next.js API Route Example
 
 ```typescript
 // app/api/chat/route.ts
@@ -240,61 +376,6 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-## RAG Integration Example
+---
 
-Use `retrieve` to inject relevant knowledge chunks into the system context before routing.
-
-```typescript
-export async function handleWithRag(userInput: string): Promise<string> {
-  // Retrieve relevant knowledge chunks
-  const chunks = await verum.retrieve({
-    query: userInput,
-    collectionName: "arcana-tarot-knowledge",
-    topK: 5,
-  });
-  const context = chunks.map((c) => c.content).join("\n");
-
-  const routed = await verum.chat({
-    messages: [
-      { role: "system", content: `Context:\n${context}` },
-      { role: "user", content: userInput },
-    ],
-    deploymentId: DEPLOYMENT_ID,
-    provider: "openai",
-    model: "gpt-4o",
-  });
-  // ... rest of flow same as the full example above
-}
-```
-
-## Error Handling
-
-All methods return Promises and throw standard errors on network or server failures. Wrap LLM calls in `try/catch` and pass the error string to `record` when a call fails so that Verum's EXPERIMENT stage can account for error rates when comparing variants.
-
-```typescript
-let errorStr: string | null = null;
-const start = Date.now();
-
-try {
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: routed.messages,
-  });
-  // handle success...
-} catch (err) {
-  errorStr = err instanceof Error ? err.message : String(err);
-  throw err;
-} finally {
-  await verum.record({
-    deploymentId: DEPLOYMENT_ID,
-    variant: routed.routed_to,
-    model: "gpt-4o",
-    inputTokens: 0,
-    outputTokens: 0,
-    latencyMs: Date.now() - start,
-    error: errorStr,
-  });
-}
-```
-
-> **Note**: TypeScript uses camelCase parameter names (`deploymentId`, `inputTokens`, `collectionName`, `topK`, `cacheTtlMs`) while the Python SDK uses snake_case equivalents (`deployment_id`, `input_tokens`, `collection_name`, `top_k`, `cache_ttl_ms`). The underlying REST API and behaviour are identical.
+> **Note**: TypeScript uses camelCase parameter names (`deploymentId`, `inputTokens`, `collectionName`, `topK`, `cacheTtlMs`, `timeoutMs`) while the Python SDK uses snake_case equivalents (`deployment_id`, `input_tokens`, `collection_name`, `top_k`, `cache_ttl`, `timeout_ms`). The underlying REST API and behaviour are identical.

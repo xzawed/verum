@@ -51,7 +51,7 @@ def _best_prompt(templates: list[dict[str, Any]]) -> str:
 | Parameter | Value | Source |
 |---|---|---|
 | Model | `claude-sonnet-4-6` (default) | `GENERATE_MODEL` env var; defaults to `INFER_MODEL` → `"claude-sonnet-4-6"` |
-| max_tokens | `2048` (default) | `GENERATE_MAX_TOKENS` env var |
+| max_tokens | `4096` (default) | `GENERATE_MAX_TOKENS` env var |
 | temperature | SDK default | Not specified — see L-5 |
 | system prompt | `"You are an expert prompt engineer and AI quality specialist. Respond ONLY with valid JSON. No markdown, no explanation."` | [`engine.py:17`](apps/api/src/loop/generate/engine.py#L17) |
 

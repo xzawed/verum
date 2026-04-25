@@ -1,75 +1,91 @@
-# ArcanaInsight × Verum 통합 가이드
+# ArcanaInsight × Verum Integration Example
 
-ArcanaInsight(타로 상담 서비스)에 Verum SDK를 적용하는 단계별 가이드입니다.
-이 예제는 Verum Loop의 **[5] DEPLOY** 단계를 실제 서비스에 적용하는 방법을 보여줍니다.
+This example shows how ArcanaInsight (a tarot reading service using Grok 2) integrates
+Verum in a non-invasive way. It is the reference implementation for the **[5] DEPLOY**
+stage of The Verum Loop.
 
-## 개요
+## The integration is literally 3 lines
 
-Verum SDK 통합의 핵심은 **한 줄 변경**입니다.
+```diff
++import verum.openai  # patches openai.Client transparently
++
+ from openai import OpenAI
 
-```python
-# Before
-from openai import OpenAI
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-# After
-import verum
-client = verum.Client(api_url=..., api_key=...)
+ response = client.chat.completions.create(
+     model="grok-2-1212",
+     messages=[...],
+     temperature=0.8,
++    extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
+ )
 ```
 
-이후 모든 LLM 호출이 Verum을 통해 라우팅되며, A/B 테스트·트레이싱·자동 진화가 자동으로 활성화됩니다.
+That is the entire integration. No new client class, no wrapper function, no async
+refactor. The `openai.Client` you already have keeps working exactly as before.
 
-## 사전 준비
+## How it works
 
-Verum 대시보드에서 아래 단계가 완료되어야 합니다.
+`import verum.openai` monkey-patches the OpenAI SDK's HTTP layer. When the
+`x-verum-deployment` header is present, Verum intercepts the request, applies the
+active prompt variant for that deployment, and forwards the request to the LLM provider.
+The response object returned to your code is identical to a normal OpenAI response.
 
-1. **ANALYZE** — ArcanaInsight Repo를 연결하고 분석 완료 확인
-   - Grok `chat.completions.create()` 호출 지점이 모두 탐지되어야 함
-2. **INFER** — 도메인 추론 결과가 `divination/tarot`으로 분류되어야 함
-3. **HARVEST** — 타로 지식 청크 1,000개 이상 수집 완료
-4. **GENERATE** — 프롬프트 변형(CoT, Few-shot 등) 및 평가셋 생성 완료
-5. **DEPLOY** — 배포 생성 후 `DEPLOYMENT_ID` 확인
+Tracing is automatic via OTLP — every call with the header is recorded as a span in the
+Verum backend. There is no `record()` call and no `trace_id` to manage in your code.
 
-대시보드에서 위 단계를 순서대로 진행하면 `VERUM_DEPLOYMENT_ID`가 발급됩니다.
+**Fail-open guarantee**: if Verum is unreachable (network error, service down), the SDK
+falls back to the original request with the original messages. The LLM call proceeds
+normally. Verum being unavailable never breaks your service.
 
-## 설치
+## Prerequisites
+
+Complete these steps in the Verum dashboard before running the integration:
+
+1. **ANALYZE** — connect the ArcanaInsight repo; confirm all `chat.completions.create`
+   call sites are detected
+2. **INFER** — verify the domain is classified as `divination/tarot`
+3. **HARVEST** — confirm ≥ 1,000 tarot knowledge chunks collected
+4. **GENERATE** — approve at least one prompt variant (CoT or Few-shot)
+5. **DEPLOY** — create a deployment; copy the `VERUM_DEPLOYMENT_ID`
+
+## Installation
 
 ```bash
 pip install verum
 ```
 
-## 환경 변수 설정
+## Environment variables
 
-`.env.example`을 복사해서 `.env`를 만들고 값을 채웁니다.
+| Variable | Required | Description |
+|---|---|---|
+| `VERUM_API_URL` | Yes | Verum backend URL, e.g. `https://verum-production.up.railway.app` |
+| `VERUM_API_KEY` | Yes | API key from the Verum dashboard |
+| `VERUM_DEPLOYMENT_ID` | Yes | Deployment ID (prefix `dep_`) from the DEPLOY step |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | Override the OTLP endpoint for traces (Phase 0: Verum sends its own) |
+
+Copy the template and fill in your values:
 
 ```bash
 cp .env.example .env
 ```
 
-```dotenv
-VERUM_API_URL=https://verum-production.up.railway.app
-VERUM_API_KEY=vk_your_api_key_here
-VERUM_DEPLOYMENT_ID=dep_your_deployment_id_here
+## Before vs after
 
-OPENAI_API_KEY=sk-your_openai_key_here
-```
-
-## 코드 변경: Before → After
-
-### Before (`before.py`)
-
-기존 ArcanaInsight 구현 — OpenAI 클라이언트를 직접 호출하고, 시스템 프롬프트를 코드에 하드코딩합니다.
+### before.py — original ArcanaInsight implementation
 
 ```python
+import os
 from openai import OpenAI
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 SYSTEM_PROMPT = """당신은 신비로운 타로 카드 리더입니다. ..."""
 
+
 def read_tarot(question: str, cards: list[str]) -> str:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="grok-2-1212",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"질문: {question}\n뽑힌 카드: {', '.join(cards)}"},
@@ -79,92 +95,76 @@ def read_tarot(question: str, cards: list[str]) -> str:
     return response.choices[0].message.content or ""
 ```
 
-문제점:
-- 프롬프트 개선 시 코드를 직접 수정하고 재배포해야 함
-- 어떤 프롬프트가 더 좋은지 비교할 방법이 없음
-- 비용, 지연시간, 품질 메트릭을 별도로 구현해야 함
+Problems with this approach:
+- Improving the prompt requires editing code and redeploying
+- No way to compare which prompt variant performs better
+- Cost, latency, and quality metrics require separate instrumentation
 
-### After (`after.py`)
-
-`verum.Client`로 교체합니다. 나머지 코드는 그대로입니다.
+### after.py — with Verum
 
 ```python
-import verum
+import os
 
-client = verum.Client(
-    api_url=os.environ["VERUM_API_URL"],
-    api_key=os.environ["VERUM_API_KEY"],
-)
+import verum.openai  # noqa: F401 — side-effect import
 
-DEPLOYMENT_ID = os.environ["VERUM_DEPLOYMENT_ID"]
+from openai import OpenAI
 
-# verum.Client.chat() is async — use async def or asyncio.run()
-async def read_tarot(question: str, cards: list[str]) -> str:
-    result = await client.chat(
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+SYSTEM_PROMPT = """당신은 신비로운 타로 카드 리더입니다. ..."""
+
+
+def read_tarot(question: str, cards: list[str]) -> str:
+    response = client.chat.completions.create(
+        model="grok-2-1212",
         messages=[
-            {"role": "system", "content": _FALLBACK_SYSTEM},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"질문: {question}\n뽑힌 카드: {', '.join(cards)}"},
         ],
-        deployment_id=DEPLOYMENT_ID,
-        provider="openai",
-        model="gpt-4o-mini",
         temperature=0.8,
+        extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
     )
-    return result["messages"][-1]["content"]
+    return response.choices[0].message.content or ""
 ```
 
-> **sync 환경(Flask, Django)에서 사용 시**: `asyncio.run(read_tarot(...))` 으로 래핑하거나, `asgiref`의 `async_to_sync`를 사용하세요.
+What changes after integration:
+- Verum substitutes the active prompt variant (CoT, Few-shot, etc.) on each call
+- Traffic is split automatically across variants — no code change needed to run A/B tests
+- Every call is traced: model, latency, token cost, input/output
+- Prompt improvements are applied from the dashboard; no redeployment required
 
-달라지는 것:
-- Verum이 생성한 프롬프트 변형(CoT, Few-shot 등)이 자동으로 적용됨
-- 트래픽의 10%는 새 변형으로 라우팅 — `result["routed_to"]`로 확인 가능
-- 모든 호출이 Verum 대시보드에 트레이싱됨 (비용, 지연시간, 모델)
-- 프롬프트 개선은 대시보드에서 승인만 하면 됨. 코드 재배포 불필요
+## Verifying the integration
 
-## 동작 확인
+After deploying with the new code, open the Verum dashboard → **Deployments** and check:
 
-통합 후 Verum 대시보드 → **Deployments** 탭에서 다음을 확인합니다.
+| Item | Expected |
+|---|---|
+| Traces appearing | One span per `read_tarot()` call |
+| Active variant | The variant selected by Verum (baseline or a generated variant) |
+| Latency overhead | P95 < 10 ms added vs direct LLM call |
 
-| 항목 | 기대 값 |
-|------|---------|
-| 트래픽 분배 | baseline 90% / variant 10% |
-| 트레이스 수집 | 호출마다 span이 기록됨 |
-| 응답 지연 증가 | P95 기준 10ms 미만 |
+## What happens next (EVOLVE)
 
-## 피드백 수집 (선택)
+Once enough traffic accumulates, Verum runs the EXPERIMENT and EVOLVE stages
+automatically:
 
-사용자 피드백을 Verum에 전달하면 EVOLVE 단계에서 활용됩니다.
+1. Each variant accumulates calls until the Bayesian stopping criterion is met
+   (confidence ≥ 0.95 or ≥ 100 calls per variant)
+2. The winning variant is promoted to the default prompt for this deployment
+3. A new candidate variant is generated and the cycle repeats
 
-```python
-# 사용자가 좋아요/싫어요를 누를 때
-await client.feedback(
-    trace_id=result["trace_id"],
-    score=1,   # 1 = 긍정, -1 = 부정
-)
-```
+No code changes, no redeployments. This is the closed loop that is the point of Verum.
 
-## 다음 단계: 자동 진화 (EVOLVE)
+## Files in this directory
 
-충분한 트래픽이 쌓이면 Verum이 자동으로 A/B 결과를 분석합니다.
+| File | Description |
+|---|---|
+| `before.py` | Original ArcanaInsight implementation without Verum |
+| `after.py` | Same file after Verum integration |
+| `.env.example` | Environment variable template |
 
-1. 두 변형 각각 100회 이상 호출 누적
-2. Bayesian 검정으로 신뢰도 ≥ 0.95 달성 시 승자 자동 선택
-3. 승자 변형이 기본 프롬프트로 승격 — 코드 변경 없음
-4. 다음 사이클을 위해 새 변형 생성 → 루프 반복
+## Related roadmap items
 
-이 과정이 [8] EVOLVE 단계이며, 한 번 통합하면 프롬프트가 자동으로 개선됩니다.
-
-## 관련 파일
-
-| 파일 | 설명 |
-|------|------|
-| `before.py` | Verum 적용 전 원본 구현 |
-| `after.py` | Verum SDK 적용 후 구현 |
-| `.env.example` | 환경 변수 템플릿 |
-
-## 관련 로드맵 항목
-
-- F-3.8: Python SDK `verum.chat()` + `verum.retrieve()` + `verum.feedback()`
-- F-3.9: TypeScript SDK (동일 API)
-- F-3.10: 이 예제 (ArcanaInsight 통합)
-- F-4.11: 첫 자동 진화 사이클 완료
+- F-3.8: Python SDK non-invasive integration (OTLP Phase 0)
+- F-3.10: This example (ArcanaInsight first dogfood)
+- F-4.11: First automatic prompt evolution cycle on production traffic

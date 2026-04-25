@@ -111,12 +111,27 @@ Verum also generated:
 
 ### DEPLOY
 
-Verum deployed via SDK-based canary routing. The ArcanaInsight integration replaced direct SDK calls with `verum.chat()`, which handles:
+Verum deployed via in-process auto-instrumentation. The ArcanaInsight integration added three lines:
+
+```python
+import verum.openai  # replaces: import openai
+
+# All existing openai.chat.completions.create() calls are intercepted in-process.
+# Pass the deployment ID to activate variant routing and RAG injection:
+response = client.chat.completions.create(
+    ...,
+    extra_headers={"x-verum-deployment": DEPLOYMENT_ID},
+)
+```
+
+Verum intercepts the call inside the process — there is no gateway or proxy involved. The interception handles:
 
 - Prompt variant selection based on active experiment configuration
 - RAG context injection before the LLM call
 - Trace capture (input, output, model, latency, token counts) via OpenTelemetry spans
 - Traffic splitting across variants according to experiment weights
+
+The integration is **fail-open**: a 5-layer safety net (timeout guard, circuit breaker, exception catch, flag check, import-time fallback) ensures that any Verum outage or error falls through to the original LLM call transparently. ArcanaInsight's users are never impacted by Verum infrastructure issues.
 
 Initial deployment split: 90% `original`, 10% across challenger variants (2.5% each). This canary phase ran for 48 hours before the experiment formally started.
 
@@ -213,7 +228,7 @@ ArcanaInsight readings contain personal user data — the questions users ask ar
 
 **4. Raw HTTP fetch sites need explicit instrumentation.**
 
-The two raw-fetch LLM calls in ArcanaInsight were invisible to SDK-level wrapping. Verum flagged them during ANALYZE but could not automatically wrap them. They required a one-time manual update to route through `verum.chat()`. This is a known gap — future ANALYZE versions will generate wrapping boilerplate for raw fetch patterns automatically.
+The two raw-fetch LLM calls in ArcanaInsight were invisible to SDK-level auto-instrumentation. Verum flagged them during ANALYZE but could not automatically intercept them. They required a one-time manual update to use the `openai` SDK (so that `import verum.openai` could intercept them) or to export OTLP spans directly to Verum's receiver at `POST /api/v1/otlp/v1/traces`. This is a known gap — future ANALYZE versions will generate migration boilerplate for raw fetch patterns automatically.
 
 **5. Canary deployment is non-negotiable for consumer services.**
 

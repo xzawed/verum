@@ -91,7 +91,7 @@ docker compose up
 
 ### 5단계 — DEPLOY 후 SDK 통합
 
-승인 시 `deployments` 행과 함께 API 키가 발급됩니다. 본인 서비스 코드에 SDK를 한 줄 추가하면 끝입니다:
+승인 시 `deployments` 행과 함께 API 키가 발급됩니다. 본인 서비스 코드에 아래와 같이 통합합니다:
 
 ```bash
 pip install verum            # Python SDK
@@ -99,17 +99,24 @@ npm install @verum/sdk       # TypeScript SDK
 ```
 
 ```python
-import verum
-client = verum.Client(api_url="https://verum.dev", api_key="vrm_...")
+# 1. 엔트리포인트 상단에 import 한 줄 추가 (비침습적 — 다른 코드 변경 없음)
+import verum.openai  # OpenAI 클라이언트를 자동으로 패치
 
-result = await client.chat(
-    messages=[...],
-    deployment_id="...",
-    provider="openai",
-    model="gpt-4o-mini",
+from openai import OpenAI
+import os
+
+client = OpenAI()
+
+# 2. 기존 OpenAI 호출에 x-verum-deployment 헤더만 추가
+resp = client.chat.completions.create(
+    model="grok-2-1212",
+    messages=[{"role": "user", "content": "달 카드에 대해 알려주세요"}],
+    extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
 )
-# result["messages"]를 본인 LLM SDK에 전달하면 됨
+print(resp.choices[0].message.content)
 ```
+
+**Fail-open 보장**: Verum에 접근할 수 없는 경우에도 LLM 호출은 Verum이 없는 것처럼 그대로 진행됩니다. 5단계 안전망 (200ms 하드 타임아웃 → 서킷 브레이커 → 60초 캐시 → 24시간 스테일 캐시 → fail-open)이 Verum으로 인해 서비스가 중단되는 상황을 원천 차단합니다.
 
 ### 6단계 — 자동 진화 시작
 
@@ -150,37 +157,36 @@ def read_tarot(question, cards):
 - 관측 없음 (지연·비용·만족도 추적 불가)
 - A/B 테스트 인프라 별도 구축 필요
 
-### After — Verum 한 줄 교체
+### After — 1줄 통합
 
 ```python
 # examples/arcana-integration/after.py
-import verum
+import verum.openai  # ← 추가되는 유일한 변경. OpenAI 클라이언트를 자동 패치
 
-client = verum.Client(
-    api_url=os.environ["VERUM_API_URL"],
-    api_key=os.environ["VERUM_API_KEY"],
-)
-DEPLOYMENT_ID = os.environ["VERUM_DEPLOYMENT_ID"]
+from openai import OpenAI
+import os
 
-async def read_tarot(question, cards):
-    result = await client.chat(
+client = OpenAI()
+
+def read_tarot(question, cards):
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": _FALLBACK_SYSTEM},  # Verum 도달 불가 시만 사용
             {"role": "user", "content": f"{question} / {cards}"},
         ],
-        deployment_id=DEPLOYMENT_ID,
-        provider="openai",
-        model="gpt-4o-mini",
+        extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
     )
-    # result["routed_to"]: "baseline" 또는 "variant/<name>"
-    return result["messages"][-1]["content"]
+    return resp.choices[0].message.content
 ```
+
+Before와 After의 차이는 정확히 두 가지입니다: 상단에 `import verum.openai` 한 줄, 기존 호출에 `extra_headers` 추가. OpenAI 클라이언트, 호출 시그니처, 응답 타입은 모두 동일합니다.
 
 자동으로 얻는 것:
 - ✅ Verum 대시보드가 시스템 프롬프트의 5개 변형을 관리
-- ✅ 모든 호출에 자동 트레이스 (지연·비용·모델·피드백)
+- ✅ 모든 호출에 OTLP 자동 트레이스 (지연·비용·모델·피드백)
 - ✅ 변형 간 A/B 테스트 자동 실행
 - ✅ 베이지안 수렴 시 승자 프롬프트 자동 승격
+- ✅ Verum에 접근할 수 없어도 서비스는 100% 정상 작동 (fail-open)
 
 전체 코드: [examples/arcana-integration/after.py](examples/arcana-integration/after.py)
 

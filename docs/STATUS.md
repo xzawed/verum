@@ -232,7 +232,7 @@ trace_id = await client.record(
 | `apps/api/src/db/session.py` | SQLAlchemy async engine + `AsyncSessionLocal` + `get_db_for_user(user_id)` RLS context manager |
 | `apps/api/src/db/error_helpers.py` | `mark_error(db, model, row_id, msg)` — 4개 단계 공통 에러 마킹 헬퍼 |
 | `apps/api/src/loop/llm_client.py` | `call_claude(model, max_tokens, system, user, temperature)` — Anthropic 클라이언트 공통 래퍼 |
-| `apps/api/src/loop/utils.py` | `parse_json_response(text)` — markdown fence 파싱 + `json.loads` 예외 처리 |
+| `apps/api/src/loop/utils.py` | `parse_json_response(text)` — markdown fence 파싱 + `json.loads` 예외 처리 + truncation repair fallback (`_repair_truncated_json`) |
 | `apps/api/src/loop/quota.py` | `check_quota()` / `increment_quota()` / `get_or_create_quota()` — freemium 쿼터 집행 |
 | `apps/api/src/loop/email.py` | `send_quota_warning_email()` stub (80% 쿼터 도달 시 트리거) |
 | `apps/api/src/worker/handlers/analyze.py` | ANALYZE 잡 핸들러 (단일 트랜잭션으로 save + enqueue_next) |
@@ -275,6 +275,22 @@ trace_id = await client.record(
 | `apps/dashboard/src/app/repos/[id]/ExperimentSection.tsx` | EXPERIMENT 섹션 UI (5초 폴링, Bayesian 신뢰도 바) |
 | `apps/dashboard/src/app/api/repos/[id]/status/route.ts` | Repo 잡 상태 폴링 (미들웨어 matcher `api/repos` 제외) |
 | `apps/dashboard/src/app/api/test/login/route.ts` | CI/E2E JWT 세션 발급 (`VERUM_TEST_MODE=1`만 활성화). DB upsert는 best-effort (try/catch) — Postgres 없는 E2E 환경에서도 JWT 반환 |
+| `apps/dashboard/src/app/api/v1/otlp/v1/traces/route.ts` | Phase 0 OTLP HTTP receiver — openinference span 수신, 인증 불필요 |
+| `apps/dashboard/src/app/api/v1/activation/[repoId]/route.ts` | ActivationCard 데이터 엔드포인트 — INFER/GENERATE/HARVEST 요약 반환 |
+| `apps/dashboard/src/components/repo/ActivationCard.tsx` | SDK 설치 전 통합 선택 UI (Phase 0 OTLP / Phase 1 bidirectional 두 모드 버튼) |
+
+### SDK Packages
+
+| 파일 | 역할 |
+|------|------|
+| `packages/sdk-python/src/verum/openai.py` | `import verum.openai` — OpenAI Python SDK monkey-patch (Phase 1 auto-instrument) |
+| `packages/sdk-python/src/verum/anthropic.py` | `import verum.anthropic` — Anthropic Python SDK monkey-patch |
+| `packages/sdk-python/src/verum/_safe_resolver.py` | 5-layer safety net: 200ms timeout → circuit breaker → 60s cache → 24h stale cache → fail-open |
+| `packages/sdk-python/src/verum/_instrument.py` | OTLP span export helper shared by openai/anthropic patches |
+| `packages/sdk-python/src/verum/client.py` | Legacy `Client` class (deprecated v0 API — emits `DeprecationWarning`) |
+| `packages/sdk-typescript/src/openai.ts` | `import "@verum/sdk/openai"` — OpenAI TypeScript SDK monkey-patch (Phase 1) |
+| `packages/sdk-typescript/src/_safe-resolver.ts` | TypeScript 5-layer safety net (mirrors Python `_safe_resolver.py`) |
+| `packages/sdk-typescript/src/client.ts` | Legacy `VerumClient` class (deprecated v0 API) |
 
 ---
 
