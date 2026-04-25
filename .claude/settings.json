@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/post_test_edit.py",
+            "command": "bash -c 'GITCOMMON=$(git rev-parse --git-common-dir 2>/dev/null) && python3 \"$(dirname \"$GITCOMMON\")/.claude/hooks/post_test_edit.py\"'",
             "timeout": 45000
           }
         ]

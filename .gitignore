@@ -52,4 +52,10 @@ Verum_소개.md
 
 # Git worktrees
 .worktrees/
+
+# Coverage & test artifacts
 coverage.xml
+coverage.json
+coverage/
+playwright-results.xml
+test-results/
