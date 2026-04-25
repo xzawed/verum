@@ -44,6 +44,10 @@ jest.mock("@/lib/github/pr-creator", () => ({
   })),
 }));
 
+jest.mock("@/lib/rateLimit", () => ({
+  checkRateLimit: jest.fn().mockResolvedValue(null),
+}));
+
 jest.mock("@/lib/sdk-pr/transformer", () => ({
   buildPrFileChanges: jest.fn().mockReturnValue([
     { path: "src/lib/verum/client.ts", content: "export class VerumClient {}" },

@@ -35,7 +35,7 @@ export async function POST(
   const user = session?.user as Record<string, unknown> | undefined;
   const userId = user?.id as string | undefined;
   if (!userId) return new Response("unauthorized", { status: 401 });
-  const rateLimitResponse = checkRateLimit(userId, 20);
+  const rateLimitResponse = await checkRateLimit(userId, 20);
   if (rateLimitResponse) return rateLimitResponse;
   const accessToken = user?.github_access_token as string | undefined;
   if (!accessToken) return new Response("github_access_token missing from session", { status: 401 });
