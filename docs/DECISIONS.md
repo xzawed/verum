@@ -34,6 +34,7 @@ status: active
 | ADR-012 | Integration test via prod-image compose + mock provider stack | Full Verum Loop (ANALYZE→EVOLVE) validated against the same `Dockerfile` used in Railway. All external APIs redirected to a FastAPI mock stack. 5+2 env-gated hooks in production code; business logic (`apps/api/src/loop/**`) untouched. `VERUM_TEST_MODE=1` exposes `api_key` in DEPLOY job result for fake-arcana. Nightly + workflow_dispatch CI; informational until 2-week stability baseline. | [INTEGRATION.md](INTEGRATION.md) |
 | ADR-013 | SQLAlchemy `text()` PostgreSQL cast syntax | `text()` 쿼리에서 `:param::type` 캐스트 금지. `CAST(:param AS type)` 만 허용. | [ARCHITECTURE.md §ADR-013](ARCHITECTURE.md#adr-013-sqlalchemy-text--postgresql-cast-syntax) |
 | ADR-014 | SQLAlchemy AsyncSession 동시성 격리 | 하나의 `AsyncSession`을 동시에 실행 중인 여러 코루틴이 공유하면 안 됨. 각 코루틴은 `async with AsyncSessionLocal() as db:`로 독립 세션 획득. | [ARCHITECTURE.md §ADR-014](ARCHITECTURE.md#adr-014-one-sqlalchemy-asyncsession-per-concurrent-coroutine) |
+| ADR-015 | 공통 mock 대상 모듈 직접 테스트 필수 | `jest.mock()` / `patch()`로 통째로 교체되는 유틸리티 모듈은 반드시 전용 직접 단위 테스트를 가져야 함. 미준수 시 SonarCloud New Code Coverage 80% 게이트 실패. | [ARCHITECTURE.md §ADR-015](ARCHITECTURE.md#adr-015-공통-mock-대상-모듈은-직접-단위-테스트-필수) |
 
 ---
 
@@ -83,4 +84,4 @@ The old spec's metadata convention (`kind`, `version`, `service`, `active`, `tag
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25_
+_Maintainer: xzawed | Last updated: 2026-04-25 (ADR-015 추가 — SonarCloud mock coverage 재발 방지)_

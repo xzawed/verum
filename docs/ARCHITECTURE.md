@@ -712,4 +712,45 @@ async def _harvest_one(source_id, url):
 
 ---
 
+### ADR-015: 공통 mock 대상 모듈은 직접 단위 테스트 필수
+
+**Status:** Accepted | **Date:** 2026-04-25
+
+**Decision:** 여러 테스트 파일에서 `jest.mock()` 또는 `unittest.mock.patch()`로 통째로 교체되는 유틸리티 모듈은 **반드시 해당 모듈을 직접 import하는 전용 테스트 파일**을 가져야 한다.
+
+```typescript
+// ❌ 금지 — handlers.ts를 사용하는 모든 route 테스트가 이렇게 mock하면
+// handlers.ts 자체는 한 줄도 실행되지 않는다
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
+
+// ✅ 필수 — src/lib/api/__tests__/handlers.test.ts 에서 직접 테스트
+import { getAuthUserId, createGetByIdHandler } from "../handlers";
+// auth, rateLimit만 mock하고 handlers.ts 로직은 실제로 실행
+```
+
+```python
+# Python도 동일 — patcher로 완전히 대체되는 모듈은 직접 테스트 필요
+# ✅ tests/worker/test_payloads.py: AnalyzePayload 직접 호출로
+#    validate_repo_url / validate_branch 오류 경로 커버
+```
+
+**Why (재발 원인):** 2026-04-25 SonarCloud Quality Gate가 "New Code Coverage 78.7% < 80%"로 실패했다. 전체 Python 커버리지(88%)는 충분했지만 SonarCloud는 **참조 커밋 이후 추가된 신규 라인만** 집계한다. 신규 파일인 `apps/dashboard/src/lib/api/handlers.ts`(26줄)는 route 테스트들이 전부 mock하기 때문에 0% 커버리지였고, `src/worker/payloads.py`의 새 validator 오류 경로(3줄)도 미커버였다. 이 두 파일의 미커버 라인이 TypeScript 신규 라인 풀을 끌어내려 게이트를 통과하지 못한 것이다.
+
+**SonarCloud "New Code" 작동 방식 (필독):**
+- `previous_version` 모드: 직전 소나 버전(= 직전 push의 `sonar.projectVersion`) 이후 추가·수정된 라인만 신규 코드로 집계
+- 신규 라인 커버리지 = (신규 라인 중 hit된 것) / (신규 라인 전체 실행 가능 줄 수)
+- 임계값: **80%** (sonar-project.properties `sonar.qualitygate.wait=true`)
+- Python(coverage.xml)과 TypeScript(LCOV) **모두 합산**된다 — Python만 높아도 TS가 낮으면 전체가 낮아짐
+
+**방지 규칙:**
+1. 새 유틸리티 파일(`lib/`, `utils/`, `helpers/` 등)을 추가할 때 **동일 PR에 직접 테스트 파일을 포함**한다.
+2. `jest.mock('경로')` 또는 `patch('경로')` 가 5곳 이상 존재하는 모듈은 별도 직접 테스트 대상으로 표시한다.
+3. 신규 Python validator / error path는 해당 모듈의 테스트 파일에서 직접 `pytest.raises`로 커버한다.
+
+**Trade-off accepted:** mock 대상 파일에 테스트를 추가하면 `auth`, `rateLimit` 등 외부 의존을 한 번 더 mock해야 한다. 이는 약간의 보일러플레이트지만, SonarCloud 게이트 실패와 디버깅 비용보다 훨씬 저렴하다.
+
+**Revisit trigger:** SonarCloud 임계값이 80% 미만으로 낮아지거나, `sonar.coverage.exclusions`에 해당 파일을 추가하는 경우 (단, 이는 증상을 가리는 것이지 해결책이 아님).
+
+---
+
 _Maintainer: xzawed | Last updated: 2026-04-25_

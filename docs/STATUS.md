@@ -362,19 +362,27 @@ function getClient() {
 
 | 구분 | 테스트 파일 수 | 테스트 수 | 최근 갱신 |
 |------|--------------|---------|----------|
-| Python API (loop + worker) | 38 | 353 passing (CI: full suite with Postgres; 로컬 Postgres 미기동 시 requires_db 자동 skip) | 2026-04-25 |
-| Dashboard Jest | 22 suites | 104 | 2026-04-25 |
+| Python API (loop + worker) | 40 | 423 passing (CI: full suite with Postgres; 로컬 Postgres 미기동 시 requires_db 자동 skip) | 2026-04-25 |
+| Dashboard Jest | 29 suites | 160 | 2026-04-25 |
 | E2E Playwright | 3 spec | ~16 | 2026-04-25 |
 
+**SonarCloud Quality Gate:** PASSED ✅ — New Code Coverage **81.2%** (임계값 80%). 참조 커밋 기준 신규 라인 456/463 Python + TypeScript 합산.
+
 > `requires_db` 마커가 붙은 1개 테스트는 로컬 Postgres 미기동 시 자동 skip. CI `test-api` 잡에서는 Postgres service가 기동되므로 전체 실행됨.
+
+### SonarCloud "New Code Coverage" 주의사항 (ADR-015)
+
+SonarCloud는 직전 push 이후 **추가·수정된 라인만** 신규 코드로 집계한다 (`previous_version` 모드). Python과 TypeScript LCOV가 **합산**되므로, Python 커버리지가 높아도 TypeScript 신규 파일이 미커버라면 전체 게이트가 실패한다.
+
+**재발 방지 패턴:** 새 유틸리티 파일(`lib/`, `helpers/`)을 추가할 때 **동일 PR에 직접 단위 테스트 파일을 포함**한다. `jest.mock()`으로 통째로 교체되는 파일은 mock 없이 직접 import하는 별도 테스트가 필요하다. → 전체 규칙은 [ADR-015](ARCHITECTURE.md#adr-015-공통-mock-대상-모듈은-직접-단위-테스트-필수) 참조.
 
 ### Python 테스트 파일 분포
 
 | 모듈 | 테스트 파일 수 | 주요 커버 영역 |
 |------|-------------|--------------|
-| `loop/analyze/` | 3 | models, repository, typescript parser |
+| `loop/analyze/` | 4 | models, repository, typescript parser, cloner (disk-quota/SSRF/timeout) |
 | `loop/infer/` | 3 | engine (Claude mock), models, repository |
-| `loop/harvest/` | 5 | chunker, chunking_strategy, embedder, playwright_crawler, repository |
+| `loop/harvest/` | 7 | chunker, chunking_strategy, embedder, playwright_crawler, pipeline, crawler_security, repository |
 | `loop/generate/` | 4 | engine, metric_profile, models, repository |
 | `loop/deploy/` | 3 | engine, orchestrator, repository |
 | `loop/observe/` | 1 | repository |
@@ -382,9 +390,10 @@ function getClient() {
 | `loop/evolve/` | 2 | engine, repository |
 | `loop/` (root) | 2 | llm_client, utils |
 | `worker/handlers/` | 8 | 8개 핸들러 전체 |
-| `worker/` (root) | 3 | chain, payloads, runner |
+| `worker/` (root) | 3 | chain, payloads (validator 오류경로 포함), runner |
+| `db/` | 1 | session (get_db_for_user GUC) |
 | `tests/` (root) | 1 | quota |
-| **합계** | **38** | |
+| **합계** | **40** | |
 
 ### 테스트 Role (.claude/)
 
@@ -404,4 +413,4 @@ function getClient() {
 
 ---
 
-_Last updated: 2026-04-25 (보안 강화 — Redis 레이트 리미터(ioredis + Lua 슬라이딩 윈도우 + in-memory 폴백), RLS 완전 적용 기반(verum_app 역할 + get_db_for_user + withUserId + 0022 FORCE 마이그레이션), DNS 리바인딩 완전 수정(crawler.py IP-pinned asyncio 트랜스포트); 이전: HARVEST 3중 버그 수정 — harvest.py 독립 세션(ADR-014), runner.py _reset_stale harvest_sources CRAWLING 복구, queries.ts harvestJobStatus 직접 조회) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-25 (SonarCloud Quality Gate PASSED — New Code Coverage 81.2%; ADR-015 문서화. 이전: 보안 강화 — Redis 레이트 리미터, RLS, IP-pinned crawler, cloner disk-quota/SSRF/timeout 테스트 보강) | Maintained by: Claude at end of each implementation session_
