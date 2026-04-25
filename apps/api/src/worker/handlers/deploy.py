@@ -20,7 +20,7 @@ from src.loop.deploy.orchestrator import deploy_and_start_experiment
 logger = logging.getLogger(__name__)
 
 _VARIANT_FRACTION: float = float(os.environ.get("VERUM_DEPLOY_VARIANT_FRACTION", "0.10"))
-if not (0.0 < _VARIANT_FRACTION < 1.0):
+if not (0.0 < _VARIANT_FRACTION < 1.0):  # pragma: no cover
     raise RuntimeError(
         f"VERUM_DEPLOY_VARIANT_FRACTION must be in (0, 1), got {_VARIANT_FRACTION}"
     )

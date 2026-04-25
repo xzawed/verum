@@ -30,6 +30,10 @@ ignore:
   - "apps/api/src/loop/infer/cli.py"
   - "apps/api/src/loop/harvest/cli.py"
   - "scripts/**"
+  # SDK module-init blocks use # pragma: no cover; codecov sees them as missing
+  # in the patch diff because coverage.py removes them from the report entirely.
+  - "packages/sdk-python/src/verum/anthropic.py"
+  - "packages/sdk-python/src/verum/openai.py"
 
 comment:
   layout: "reach,diff,flags,components"

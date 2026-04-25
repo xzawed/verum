@@ -225,6 +225,7 @@ def test_write_integration_state_writes_json(tmp_path) -> None:
     assert data["api_key"] == api_key
 
 
+
 @pytest.mark.asyncio
 async def test_handle_deploy_test_mode_writes_integration_state(tmp_path) -> None:
     """When _TEST_MODE is True, _write_integration_state is called after commit."""

@@ -37,12 +37,14 @@ import { validateApiKey } from "@/lib/api/validateApiKey";
 import { getDeployment } from "@/lib/db/queries";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { checkAndIncrementTraceQuota } from "@/lib/db/quota";
+import { checkRateLimitDual } from "@/lib/rateLimit";
 
 const mockValidateApiKey = validateApiKey as jest.MockedFunction<typeof validateApiKey>;
 const mockGetDeployment = getDeployment as jest.MockedFunction<typeof getDeployment>;
 const mockGetModelPricing = getModelPricing as jest.MockedFunction<typeof getModelPricing>;
 const mockInsertTrace = insertTrace as jest.MockedFunction<typeof insertTrace>;
 const mockCheckQuota = checkAndIncrementTraceQuota as jest.MockedFunction<typeof checkAndIncrementTraceQuota>;
+const mockCheckRateLimitDual = checkRateLimitDual as jest.Mock;
 
 // ── Pure helper unit tests ───────────────────────────────────────────────────
 
@@ -323,5 +325,70 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     expect(mockInsertTrace).toHaveBeenCalledWith(
       expect.objectContaining({ error: "ERROR" }),
     );
+  });
+
+  it("passes through rate limit response when IP gate fires", async () => {
+    mockCheckRateLimitDual.mockResolvedValueOnce(new Response("rate limited", { status: 429 }));
+    const res = await POST(makeOtlpRequest());
+    expect(res.status).toBe(429);
+  });
+
+  it("returns 400 for invalid JSON body", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+    mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
+    const req = new Request("http://localhost/api/v1/otlp/v1/traces", {
+      method: "POST",
+      headers: { "authorization": "Bearer validkeyvalidkeyvalidkeyvalidkeyvalidkey", "content-type": "text/plain" },
+      body: "not-json",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it("counts span with oversized model field as rejected", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+    mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
+    mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
+
+    const longModel = "a".repeat(201);
+    const bodyWithLongModel = {
+      resourceSpans: [{
+        scopeSpans: [{
+          spans: [{
+            startTimeUnixNano: "1714000000000000000",
+            endTimeUnixNano: "1714000001000000000",
+            attributes: [{ key: "llm.model_name", value: { stringValue: longModel } }],
+          }],
+        }],
+      }],
+    };
+    const res = await POST(makeOtlpRequest({ body: bodyWithLongModel }));
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.partialSuccess.rejectedSpans).toBe(1);
+  });
+
+  it("counts span as rejected when insertTrace throws", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+    mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
+    mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
+    mockGetModelPricing.mockResolvedValueOnce(null);
+    mockInsertTrace.mockRejectedValueOnce(new Error("DB error"));
+
+    const res = await POST(makeOtlpRequest());
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.partialSuccess.rejectedSpans).toBe(1);
+  });
+
+  it("returns 202 when quota is at warning level", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+    mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
+    mockCheckQuota.mockResolvedValueOnce({ status: "warning", tracesUsed: 850 });
+    mockGetModelPricing.mockResolvedValueOnce(null);
+    mockInsertTrace.mockResolvedValueOnce("trace-uuid");
+
+    const res = await POST(makeOtlpRequest());
+    expect(res.status).toBe(202);
   });
 });
