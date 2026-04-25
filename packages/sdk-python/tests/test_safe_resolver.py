@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -144,8 +144,9 @@ async def test_circuit_opens_after_five_failures():
             await resolver.resolve(_DEP, [])
 
     assert resolver._failure_count >= _FAILURE_THRESHOLD
-    assert resolver._circuit_open_until > time.monotonic()
-    assert resolver._circuit_open_until == pytest.approx(time.monotonic() + 300.0, abs=1.0)
+    now = time.monotonic()
+    assert resolver._circuit_open_until > now
+    assert resolver._circuit_open_until == pytest.approx(now + 300.0, abs=1.0)
 
 
 @pytest.mark.asyncio
@@ -231,8 +232,8 @@ async def test_hard_timeout_does_not_block_caller():
             _, reason = await resolver.resolve(_DEP, [])
         elapsed = time.monotonic() - start
 
-    # Must return quickly (well under 1 s — no real sleep involved)
-    assert elapsed < 1.0
+    # Must return quickly (well under 0.5 s — no real sleep involved)
+    assert elapsed < 0.5
     # Timeout counts as a failure → falls back to stale or fail_open
     assert reason in ("stale", "fail_open")
 
@@ -265,8 +266,7 @@ async def test_fetch_uses_200ms_hard_timeout():
 
 def test_apply_config_swaps_system_message_when_variant():
     cache = DeploymentConfigCache()
-    http = httpx.AsyncClient()
-    resolver = _SafeConfigResolver(http, _API_URL, _API_KEY, cache)
+    resolver = _SafeConfigResolver(MagicMock(), _API_URL, _API_KEY, cache)
 
     config = {"traffic_split": 1.0, "variant_prompt": "You are a variant assistant."}
     messages = [
@@ -282,8 +282,7 @@ def test_apply_config_swaps_system_message_when_variant():
 
 def test_apply_config_prepends_system_when_none_exists():
     cache = DeploymentConfigCache()
-    http = httpx.AsyncClient()
-    resolver = _SafeConfigResolver(http, _API_URL, _API_KEY, cache)
+    resolver = _SafeConfigResolver(MagicMock(), _API_URL, _API_KEY, cache)
 
     config = {"traffic_split": 1.0, "variant_prompt": "New system."}
     messages = [{"role": "user", "content": "Hi"}]
@@ -297,8 +296,7 @@ def test_apply_config_prepends_system_when_none_exists():
 
 def test_apply_config_baseline_leaves_messages_unchanged():
     cache = DeploymentConfigCache()
-    http = httpx.AsyncClient()
-    resolver = _SafeConfigResolver(http, _API_URL, _API_KEY, cache)
+    resolver = _SafeConfigResolver(MagicMock(), _API_URL, _API_KEY, cache)
 
     config = {"traffic_split": 0.0, "variant_prompt": "Unused variant."}
     messages = [{"role": "user", "content": "Hello"}]

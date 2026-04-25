@@ -37,7 +37,7 @@ class Client:
     ) -> None:
         self._api_url = (api_url or os.environ.get("VERUM_API_URL", "")).rstrip("/")
         self._api_key = api_key or os.environ.get("VERUM_API_KEY", "")
-        self._cache: DeploymentConfigCache = DeploymentConfigCache(ttl=cache_ttl)
+        self._cache: DeploymentConfigCache[dict[str, Any]] = DeploymentConfigCache[dict[str, Any]](ttl=cache_ttl)
         self._http = httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(retries=retries),
         )

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, TypedDict
 
 import httpx
 
@@ -17,6 +17,13 @@ _CIRCUIT_OPEN_SECONDS = 300.0
 _FETCH_TIMEOUT = 0.2
 
 
+class DeploymentConfig(TypedDict, total=False):
+    """Shape of a deployment config returned by the Verum API."""
+
+    traffic_split: float
+    variant_prompt: str | None
+
+
 class _SafeConfigResolver:
     """Resolve deployment config without ever raising to the caller's LLM path.
 
@@ -26,12 +33,6 @@ class _SafeConfigResolver:
       3. fetched       — fetch succeeded within 200 ms hard timeout
       4. stale_cache   — fetch failed but stale copy exists (up to 24 h)
       5. fail_open     — nothing works; return original messages unchanged
-
-    Args:
-        http_client: Shared :class:`httpx.AsyncClient` instance.
-        api_url: Base URL of the Verum API (no trailing slash).
-        api_key: Verum API key sent as ``x-verum-api-key``.
-        cache: :class:`DeploymentConfigCache` shared with the main client.
     """
 
     def __init__(
@@ -39,8 +40,16 @@ class _SafeConfigResolver:
         http_client: httpx.AsyncClient,
         api_url: str,
         api_key: str,
-        cache: DeploymentConfigCache,
+        cache: DeploymentConfigCache[dict[str, Any]],
     ) -> None:
+        """Initialise the resolver.
+
+        Args:
+            http_client: Shared :class:`httpx.AsyncClient` instance.
+            api_url: Base URL of the Verum API (no trailing slash).
+            api_key: Verum API key sent as ``x-verum-api-key``.
+            cache: :class:`DeploymentConfigCache` shared with the main client.
+        """
         self._http = http_client
         self._api_url = api_url.rstrip("/")
         self._api_key = api_key
@@ -110,24 +119,22 @@ class _SafeConfigResolver:
         self._failure_count = 0
         self._circuit_open_until = 0.0
 
-    async def _fetch(self, deployment_id: str) -> dict[str, Any] | None:
+    async def _fetch(self, deployment_id: str) -> DeploymentConfig | None:
         """Fetch config from the API with a hard 200 ms timeout.
-
-        Returns the parsed config dict on success, or None on any failure
-        (network error, non-2xx status, or timeout).
 
         Args:
             deployment_id: Verum deployment UUID.
 
         Returns:
-            Config dict or None.
+            Config dict on success, or None on any failure (network error,
+            non-2xx status, or timeout).
         """
         url = f"{self._api_url}/api/v1/deploy/{deployment_id}/config"
         headers = {"x-verum-api-key": self._api_key}
         try:
             resp = await self._http.get(url, headers=headers, timeout=_FETCH_TIMEOUT)
             resp.raise_for_status()
-            result: dict[str, Any] = resp.json()
+            result: DeploymentConfig = resp.json()
             return result
         except Exception:  # noqa: BLE001
             self._on_failure()
@@ -135,7 +142,7 @@ class _SafeConfigResolver:
 
     def _apply_config(
         self,
-        config: dict[str, Any],
+        config: DeploymentConfig,
         messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Apply the deployment config to the message list.

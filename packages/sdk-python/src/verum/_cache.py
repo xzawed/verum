@@ -2,19 +2,22 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Generic, TypeVar
+
+_V = TypeVar("_V")
 
 
-class DeploymentConfigCache:
+class DeploymentConfigCache(Generic[_V]):
     """Cache that distinguishes between a fresh TTL and a longer stale TTL.
 
     The fresh TTL (default 60s) is used for normal hits. The stale TTL
     (default 24h) allows serving a cached value even after the fresh window
     expires, so callers can fall back to stale data instead of failing.
+
+    Internal store shape: key → (value, fresh_expires_at, stale_expires_at).
     """
 
-    # Internal store shape: key → (value, fresh_expires_at, stale_expires_at)
-    _store: dict[str, tuple[Any, float, float]]
+    _store: dict[str, tuple[_V, float, float]]
 
     def __init__(self, ttl: float = 60.0, stale_ttl: float = 86400.0) -> None:
         self._ttl = ttl
@@ -23,7 +26,7 @@ class DeploymentConfigCache:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def get(self, key: str) -> Any | None:
+    def get(self, key: str) -> _V | None:
         """Return value if within the fresh TTL window, else None.
 
         Backward-compatible alias for :meth:`get_fresh`.
@@ -36,7 +39,7 @@ class DeploymentConfigCache:
         """
         return self.get_fresh(key)
 
-    def get_fresh(self, key: str) -> Any | None:
+    def get_fresh(self, key: str) -> _V | None:
         """Return value only if it is still within the fresh TTL.
 
         Args:
@@ -57,7 +60,7 @@ class DeploymentConfigCache:
             return None
         return value
 
-    def get_stale(self, key: str) -> Any | None:
+    def get_stale(self, key: str) -> _V | None:
         """Return value if within the stale TTL, even if the fresh TTL has passed.
 
         Args:
@@ -75,7 +78,7 @@ class DeploymentConfigCache:
             return None
         return value
 
-    def set(self, key: str, value: Any) -> None:
+    def set(self, key: str, value: _V) -> None:
         """Store a value with both fresh and stale expiry timestamps.
 
         Args:
