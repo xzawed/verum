@@ -277,21 +277,23 @@ async def test_dispatch_job_unknown_kind_calls_mark_failed() -> None:
 
 @pytest.mark.asyncio
 async def test_reset_stale_executes_update_query(mock_db: AsyncMock) -> None:
-    """_reset_stale issues a single UPDATE touching 'running' → 'queued' rows."""
+    """_reset_stale issues two UPDATEs: verum_jobs running→queued and harvest_sources crawling→error."""
     mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
 
     await _reset_stale(mock_db)
 
-    mock_db.execute.assert_awaited_once()
-    sql_text = str(mock_db.execute.await_args.args[0])
-    # The UPDATE should reference both source status and target status
-    assert "running" in sql_text
-    assert "queued" in sql_text
+    assert mock_db.execute.await_count == 2
+    first_sql = str(mock_db.execute.await_args_list[0].args[0])
+    assert "running" in first_sql
+    assert "queued" in first_sql
+    second_sql = str(mock_db.execute.await_args_list[1].args[0])
+    assert "crawling" in second_sql
+    assert "harvest_sources" in second_sql
 
 
 @pytest.mark.asyncio
 async def test_reset_stale_commits(mock_db: AsyncMock) -> None:
-    """_reset_stale calls db.commit() once after the UPDATE."""
+    """_reset_stale calls db.commit() once after both UPDATEs."""
     mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
 
     await _reset_stale(mock_db)
@@ -301,16 +303,17 @@ async def test_reset_stale_commits(mock_db: AsyncMock) -> None:
 
 @pytest.mark.asyncio
 async def test_reset_stale_passes_cutoff_param(mock_db: AsyncMock) -> None:
-    """_reset_stale passes a :cutoff bind parameter (datetime) to the UPDATE."""
+    """_reset_stale passes :cutoff to both UPDATE statements."""
     from datetime import datetime
 
     mock_db.execute.return_value = MagicMock(fetchall=MagicMock(return_value=[]))
 
     await _reset_stale(mock_db)
 
-    params = mock_db.execute.await_args.args[1]
-    assert "cutoff" in params
-    assert isinstance(params["cutoff"], datetime)
+    for call in mock_db.execute.await_args_list:
+        params = call.args[1]
+        assert "cutoff" in params
+        assert isinstance(params["cutoff"], datetime)
 
 
 # ── _mark_done JSON serialization ─────────────────────────────────────────────
@@ -562,7 +565,7 @@ async def test_stale_reset_loop_calls_reset_stale() -> None:
         with pytest.raises(asyncio.CancelledError):
             await _stale_reset_loop()
 
-    mock_session.execute.assert_awaited_once()
+    assert mock_session.execute.await_count == 2  # _reset_stale now runs 2 UPDATE queries
 
 
 @pytest.mark.asyncio

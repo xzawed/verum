@@ -76,8 +76,9 @@ _PAYLOAD_SCHEMAS = {
 
 
 async def _reset_stale(db: AsyncSession) -> None:
-    """On startup, reset any jobs stuck in 'running' from a previous crash."""
+    """On startup and periodically, reset jobs and sources stuck from a previous crash."""
     cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=STALE_AFTER_MINUTES)
+
     result = await db.execute(
         text(
             "UPDATE verum_jobs SET status = 'queued', started_at = NULL"
@@ -89,6 +90,22 @@ async def _reset_stale(db: AsyncSession) -> None:
     ids = result.fetchall()
     if ids:
         logger.info("Reset %d stale jobs to queued", len(ids))
+
+    # Reset harvest_sources stuck in CRAWLING (worker killed between mark_crawling and mark_done).
+    # Uses created_at as proxy because the model has no updated_at column.
+    src_result = await db.execute(
+        text(
+            "UPDATE harvest_sources SET status = 'error',"
+            " error = 'reset: worker restart detected'"
+            " WHERE status = 'crawling' AND created_at < :cutoff"
+            " RETURNING id"
+        ),
+        {"cutoff": cutoff},
+    )
+    src_ids = src_result.fetchall()
+    if src_ids:
+        logger.info("Reset %d stale harvest_sources to error", len(src_ids))
+
     await db.commit()
 
 

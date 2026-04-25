@@ -177,9 +177,20 @@ export interface RepoStatus {
   harvestChunks: number;
   harvestSourcesDone: number;
   harvestSourcesTotal: number;
+  harvestJobStatus: string | null;
   latestGeneration: GenerationSummary | null;
   latestDeploymentId: string | null;
   latestDeploymentExperimentStatus: string | null;
+}
+
+async function getLatestHarvestJobStatus(inferenceId: string): Promise<string | null> {
+  const rows = await db.execute(
+    sql`SELECT status FROM verum_jobs
+        WHERE kind = 'harvest' AND payload->>'inference_id' = ${inferenceId}
+        ORDER BY created_at DESC LIMIT 1`,
+  );
+  const row = rows.rows[0] as { status: string } | undefined;
+  return row?.status ?? null;
 }
 
 async function getLatestDeploymentIdForGeneration(
@@ -290,11 +301,13 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
   let harvestChunks = 0;
   let harvestSourcesDone = 0;
   let harvestSourcesTotal = 0;
+  let harvestJobStatus: string | null = null;
   if (latestInference) {
     const sources = await getHarvestSources(latestInference.id);
     harvestSourcesTotal = sources.length;
     harvestSourcesDone = sources.filter((s) => s.status === "done").length;
     harvestChunks = await countChunks(latestInference.id);
+    harvestJobStatus = await getLatestHarvestJobStatus(String(latestInference.id));
   }
 
   let latestGeneration: GenerationSummary | null = null;
@@ -317,6 +330,7 @@ export async function getRepoStatus(userId: string, repoId: string): Promise<Rep
     harvestChunks,
     harvestSourcesDone,
     harvestSourcesTotal,
+    harvestJobStatus,
     latestGeneration,
     latestDeploymentId,
     latestDeploymentExperimentStatus,

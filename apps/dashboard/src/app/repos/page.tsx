@@ -238,11 +238,15 @@ export default async function ReposPage({
                   <StatusChip
                     label="HARVEST"
                     status={
-                      status?.harvestChunks
-                        ? status.harvestSourcesDone >= status.harvestSourcesTotal && status.harvestSourcesTotal > 0
-                          ? "done"
-                          : "running"
-                        : null
+                      status?.harvestJobStatus === "done" || status?.harvestJobStatus === "failed"
+                        ? "done"
+                        : status?.harvestJobStatus === "running" || status?.harvestJobStatus === "queued"
+                          ? "running"
+                          : status?.harvestChunks
+                            ? status.harvestSourcesDone >= status.harvestSourcesTotal && status.harvestSourcesTotal > 0
+                              ? "done"
+                              : "running"
+                            : null
                     }
                     detail={status?.harvestChunks ? `${status.harvestChunks.toLocaleString()} chunks` : undefined}
                   />

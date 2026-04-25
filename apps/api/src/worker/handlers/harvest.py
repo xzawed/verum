@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.db.session import AsyncSessionLocal
 from src.loop.email import send_quota_warning_email
 from src.loop.generate.repository import create_pending_generation
 from src.loop.harvest.pipeline import harvest_source
@@ -38,15 +39,18 @@ async def handle_harvest(
     async def _harvest_one(source_id_str: str, url: str) -> dict[str, Any]:
         source_id = uuid.UUID(source_id_str)
         async with sem:
-            try:
-                count = await harvest_source(
-                    db, source_id, url, inference_id,
-                    chunking_strategy=chunking_strategy,
-                    use_playwright=use_playwright,
-                )
-                return {"source_id": source_id_str, "chunks": count, "status": "done"}
-            except Exception as exc:
-                return {"source_id": source_id_str, "error": str(exc), "status": "error"}
+            # Each source gets its own session to avoid concurrent commit races
+            # on the shared parent session (parent db is reserved for the final chain commit).
+            async with AsyncSessionLocal() as own_db:
+                try:
+                    count = await harvest_source(
+                        own_db, source_id, url, inference_id,
+                        chunking_strategy=chunking_strategy,
+                        use_playwright=use_playwright,
+                    )
+                    return {"source_id": source_id_str, "chunks": count, "status": "done"}
+                except Exception as exc:
+                    return {"source_id": source_id_str, "error": str(exc), "status": "error"}
 
     results: list[dict[str, Any]] = list(await asyncio.gather(
         *[_harvest_one(sid, url) for sid, url in source_pairs],
