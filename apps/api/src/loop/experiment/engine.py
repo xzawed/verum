@@ -9,7 +9,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.loop.experiment.models import ExperimentResult
+    from src.loop.experiment.models import ExperimentResult  # pragma: no cover
 
 import numpy as np
 

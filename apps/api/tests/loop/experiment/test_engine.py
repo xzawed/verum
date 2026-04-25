@@ -1,3 +1,5 @@
+import sys
+from unittest.mock import patch
 import pytest
 from src.loop.experiment.engine import (
     compute_winner_score,
@@ -39,6 +41,22 @@ def test_bayesian_confidence_baseline_dominates():
 def test_bayesian_confidence_uncertain():
     conf = bayesian_confidence(b_wins=50, b_n=100, c_wins=52, c_n=100, samples=20_000)
     assert 0.05 < conf < 0.95
+
+
+def test_bayesian_confidence_scipy_fallback_challenger_wins():
+    """When scipy is unavailable, fall back to raw win-rate comparison."""
+    with patch.dict(sys.modules, {"scipy": None, "scipy.stats": None}):
+        import src.loop.experiment.engine as engine_mod
+        conf = engine_mod.bayesian_confidence(b_wins=5, b_n=100, c_wins=80, c_n=100)
+    assert conf > 0.5
+
+
+def test_bayesian_confidence_scipy_fallback_zero_n():
+    """Fallback returns 0.5 when both n values are zero (denom == 0)."""
+    with patch.dict(sys.modules, {"scipy": None, "scipy.stats": None}):
+        import src.loop.experiment.engine as engine_mod
+        conf = engine_mod.bayesian_confidence(b_wins=0, b_n=0, c_wins=0, c_n=0)
+    assert conf == 0.5
 
 
 # ── check_experiment ─────────────────────────────────────────────────────────

@@ -893,3 +893,209 @@ class TestModuleInitSetupOtelErrorSwallowed(unittest.TestCase):
         mod = importlib.import_module("verum.openai")
         self.assertIsNotNone(mod)
         sys.modules.pop("verum.openai", None)
+
+
+# ---------------------------------------------------------------------------
+# _get_resolver — successful creation path (httpx import block)
+# ---------------------------------------------------------------------------
+
+
+class TestGetResolverSuccessfulCreation(unittest.TestCase):
+    """_get_resolver successfully creates resolver when env vars are set."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        os.environ.pop("VERUM_API_URL", None)
+        os.environ.pop("VERUM_API_KEY", None)
+
+    def test_resolver_created_successfully_when_env_set(self) -> None:
+        """Covers the httpx import block inside _get_resolver()."""
+        mod = _fresh_import_verum_openai()
+        # Reset singletons to force re-creation
+        mod._resolver = None
+        mod._sync_http = None
+        mod._async_http = None
+
+        resolver = mod._get_resolver()
+        self.assertIsNotNone(resolver)
+
+        # Second call returns cached resolver (fast path)
+        resolver2 = mod._get_resolver()
+        self.assertIs(resolver, resolver2)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_sync — sync no-loop path (asyncio.run branch)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSyncNoLoopOpenAI(unittest.TestCase):
+    """_resolve_sync calls asyncio.run when there is no running event loop."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        for v in ("VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_resolve_sync_calls_asyncio_run_when_no_loop(self) -> None:
+        """Sync context: no running loop → asyncio.run(_run()) branch is taken."""
+        mod = _fresh_import_verum_openai()
+        mock_resolver = MagicMock()
+        messages = [{"role": "user", "content": "hello"}]
+        mock_resolver.resolve = AsyncMock(return_value=(messages, "fresh"))
+        with patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            result_msgs, reason = mod._resolve_sync("dep-001", messages)
+        self.assertEqual(result_msgs, messages)
+        self.assertEqual(reason, "fresh")
+
+
+# ---------------------------------------------------------------------------
+# _wrapped_create — _extract_usage raises → except Exception: pass
+# ---------------------------------------------------------------------------
+
+
+class TestWrappedCreateExtractUsageExceptionOpenAI(unittest.TestCase):
+    """_wrapped_create swallows exceptions from _extract_usage."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-extract-except-openai"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def test_extract_usage_exception_swallowed_in_wrapped_create(self) -> None:
+        """When _extract_usage raises, exception is caught and response is still returned."""
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        messages = [{"role": "user", "content": "test"}]
+
+        def spy_create(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=5, completion_tokens=3),
+            )
+
+        comp_mod.Completions.create = spy_create  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        with patch.object(
+            mod, "_resolve_sync", return_value=(messages, "baseline")
+        ), patch.object(
+            mod, "_extract_usage", side_effect=RuntimeError("usage exploded")
+        ):
+            instance = comp_mod.Completions()
+            response = instance.create(model="gpt-4", messages=messages)
+
+        self.assertIsNotNone(response)
+
+
+# ---------------------------------------------------------------------------
+# _wrapped_acreate — resolver is None → variant stays "no_resolver"
+# ---------------------------------------------------------------------------
+
+
+class TestWrappedAcreateNoResolverOpenAI(unittest.IsolatedAsyncioTestCase):
+    """_wrapped_acreate uses 'no_resolver' variant when resolver is None."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-acreate-no-resolver"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_acreate_no_resolver_calls_original_with_original_messages(self) -> None:
+        """When _get_resolver returns None in async path, original messages pass through."""
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        received_messages: list[Any] = []
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            received_messages.extend(kwargs.get("messages", []))
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=5, completion_tokens=3),
+            )
+
+        comp_mod.AsyncCompletions.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        with patch.object(mod, "_get_resolver", return_value=None):
+            instance = comp_mod.AsyncCompletions()
+            response = await instance.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "no resolver async"}],
+            )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(len(received_messages), 1)
+        self.assertEqual(received_messages[0]["content"], "no resolver async")
+
+
+# ---------------------------------------------------------------------------
+# _wrapped_acreate — _extract_usage raises → except Exception: pass
+# ---------------------------------------------------------------------------
+
+
+class TestWrappedAcreateExtractUsageExceptionOpenAI(unittest.IsolatedAsyncioTestCase):
+    """_wrapped_acreate swallows exceptions from _extract_usage."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-async-extract-except-openai"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_extract_usage_exception_swallowed_in_wrapped_acreate(self) -> None:
+        """When _extract_usage raises in async path, response is still returned."""
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=5, completion_tokens=3),
+            )
+
+        comp_mod.AsyncCompletions.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        mock_resolver = AsyncMock()
+        mock_resolver.resolve.return_value = (
+            [{"role": "user", "content": "resolved"}],
+            "baseline",
+        )
+
+        with patch.object(
+            mod, "_get_resolver", return_value=mock_resolver
+        ), patch.object(
+            mod, "_extract_usage", side_effect=RuntimeError("async usage exploded")
+        ):
+            instance = comp_mod.AsyncCompletions()
+            response = await instance.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "async test"}],
+            )
+
+        self.assertIsNotNone(response)

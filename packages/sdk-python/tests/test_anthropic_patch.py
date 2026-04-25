@@ -815,3 +815,161 @@ class TestSyncWrappedCreateExceptionHandlerAnthropic(unittest.TestCase):
 
         self.assertIsNotNone(response)
         self.assertEqual(len(received_calls), 1)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_sync — sync no-loop path (asyncio.run branch)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSyncNoLoop(unittest.TestCase):
+    """_resolve_sync calls asyncio.run when there is no running event loop."""
+
+    def setUp(self) -> None:
+        _make_anthropic_stub()
+        for v in ("VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def tearDown(self) -> None:
+        _cleanup_anthropic_stub()
+
+    def test_resolve_sync_calls_asyncio_run_when_no_loop(self) -> None:
+        """Sync context: no running loop → asyncio.run(_run()) branch is taken."""
+        mod = _fresh_import_verum_anthropic()
+        mock_resolver = MagicMock()
+        messages = [{"role": "user", "content": "hello"}]
+        mock_resolver.resolve = AsyncMock(return_value=(messages, "fresh"))
+        with patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            result_msgs, reason = mod._resolve_sync("dep-001", messages)
+        # asyncio.run path should succeed and return the mock values
+        self.assertEqual(result_msgs, messages)
+        self.assertEqual(reason, "fresh")
+
+
+# ---------------------------------------------------------------------------
+# _resolve_sync — async with-loop path (ThreadPoolExecutor branch)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSyncInAsyncContext(unittest.IsolatedAsyncioTestCase):
+    """_resolve_sync dispatches to ThreadPoolExecutor when an event loop is running."""
+
+    def setUp(self) -> None:
+        _make_anthropic_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_anthropic_stub()
+
+    async def test_resolve_sync_uses_thread_pool_when_loop_running(self) -> None:
+        """Async context: running loop → ThreadPoolExecutor branch is taken."""
+        mod = _fresh_import_verum_anthropic()
+        mock_resolver = MagicMock()
+        messages = [{"role": "user", "content": "test"}]
+        mock_resolver.resolve = AsyncMock(return_value=(messages, "cached"))
+        with patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            result_msgs, reason = mod._resolve_sync("dep-001", messages)
+        self.assertEqual(result_msgs, messages)
+        self.assertEqual(reason, "cached")
+
+
+# ---------------------------------------------------------------------------
+# _wrapped_create — _extract_usage_anthropic raises → except Exception: pass
+# ---------------------------------------------------------------------------
+
+
+class TestWrappedCreateExtractUsageException(unittest.TestCase):
+    """_wrapped_create swallows exceptions from _extract_usage_anthropic."""
+
+    def setUp(self) -> None:
+        _make_anthropic_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-extract-except"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_anthropic_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    def test_extract_usage_exception_swallowed_in_wrapped_create(self) -> None:
+        """When _extract_usage_anthropic raises, the exception is caught and the response is still returned."""
+        import anthropic.resources.messages as msg_mod  # type: ignore[import]
+
+        def spy_create(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            return MagicMock(
+                model="claude-3",
+                usage=MagicMock(input_tokens=5, output_tokens=3),
+            )
+
+        msg_mod.Messages.create = spy_create  # type: ignore[method-assign]
+        mod = _fresh_import_verum_anthropic()
+
+        resolved = [{"role": "system", "content": "You are helpful."}]
+        with patch.object(
+            mod, "_resolve_sync", return_value=(resolved, "baseline")
+        ), patch.object(
+            mod, "_extract_usage_anthropic", side_effect=RuntimeError("usage exploded")
+        ):
+            instance = msg_mod.Messages()
+            response = instance.create(
+                model="claude-3",
+                system="You are helpful.",
+                messages=[{"role": "user", "content": "test"}],
+            )
+
+        # Response must still be returned — the exception was swallowed
+        self.assertIsNotNone(response)
+
+
+# ---------------------------------------------------------------------------
+# _wrapped_acreate — _extract_usage_anthropic raises → except Exception: pass
+# ---------------------------------------------------------------------------
+
+
+class TestWrappedAcreateExtractUsageException(unittest.IsolatedAsyncioTestCase):
+    """_wrapped_acreate swallows exceptions from _extract_usage_anthropic."""
+
+    def setUp(self) -> None:
+        _make_anthropic_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-async-extract-except"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_anthropic_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_extract_usage_exception_swallowed_in_wrapped_acreate(self) -> None:
+        """When _extract_usage_anthropic raises in async path, response is still returned."""
+        import anthropic.resources.messages as msg_mod  # type: ignore[import]
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            return MagicMock(
+                model="claude-3-opus",
+                usage=MagicMock(input_tokens=5, output_tokens=3),
+            )
+
+        msg_mod.AsyncMessages.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_anthropic()
+
+        mock_resolver = AsyncMock()
+        mock_resolver.resolve.return_value = (
+            [{"role": "system", "content": "You are helpful."}],
+            "baseline",
+        )
+
+        with patch.object(
+            mod, "_get_resolver", return_value=mock_resolver
+        ), patch.object(
+            mod, "_extract_usage_anthropic", side_effect=RuntimeError("async usage exploded")
+        ):
+            instance = msg_mod.AsyncMessages()
+            response = await instance.create(
+                model="claude-3-opus",
+                system="You are helpful.",
+                messages=[{"role": "user", "content": "async test"}],
+            )
+
+        # Response must still be returned — the exception was swallowed
+        self.assertIsNotNone(response)

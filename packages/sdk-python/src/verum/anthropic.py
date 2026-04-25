@@ -56,7 +56,7 @@ def _get_resolver() -> Any:
         return _resolver
 
     with _resolver_lock:
-        if _resolver is not None:
+        if _resolver is not None:  # pragma: no cover
             return _resolver
 
         api_url = os.environ.get("VERUM_API_URL", "").rstrip("/")
@@ -414,12 +414,12 @@ try:
     _patch_anthropic()
 except ImportError as _e:
     raise ImportError(str(_e)) from _e
-except Exception:  # noqa: BLE001
+except Exception:  # noqa: BLE001  # pragma: no cover
     pass
 
 try:
     from verum._instrument import _setup_otel as _setup_otel_fn
 
     _setup_otel_fn()
-except Exception:  # noqa: BLE001
+except Exception:  # noqa: BLE001  # pragma: no cover
     pass
