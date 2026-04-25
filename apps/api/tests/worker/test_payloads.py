@@ -44,6 +44,35 @@ class TestAnalyzePayload:
                 analysis_id=_ID2,
             )
 
+    def test_invalid_url_raises_in_production_mode(self, monkeypatch) -> None:
+        monkeypatch.delenv("VERUM_TEST_MODE", raising=False)
+        with pytest.raises(ValidationError, match="github.com HTTPS URL"):
+            AnalyzePayload(
+                repo_url="https://gitlab.com/owner/repo",
+                branch="main",
+                repo_id=_ID,
+                analysis_id=_ID2,
+            )
+
+    def test_invalid_url_allowed_in_test_mode(self, monkeypatch) -> None:
+        monkeypatch.setenv("VERUM_TEST_MODE", "1")
+        p = AnalyzePayload(
+            repo_url="https://localhost/owner/repo",
+            branch="main",
+            repo_id=_ID,
+            analysis_id=_ID2,
+        )
+        assert p.repo_url == "https://localhost/owner/repo"
+
+    def test_invalid_branch_raises(self) -> None:
+        with pytest.raises(ValidationError, match="invalid characters"):
+            AnalyzePayload(
+                repo_url="https://github.com/x/y",
+                branch="bad branch!",
+                repo_id=_ID,
+                analysis_id=_ID2,
+            )
+
 
 class TestInferPayload:
     def test_valid(self) -> None:
