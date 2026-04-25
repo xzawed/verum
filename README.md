@@ -249,33 +249,3 @@ Planned for Phase 1.5 (F-1.3). Currently only JS/TS tree-sitter-based detection 
 ### Q8. Does Verum work for domains other than tarot?
 
 Yes. The INFER stage classifies the domain automatically, and HARVEST applies a domain-appropriate crawling strategy. 20 initial domain categories are supported (tarot/divination, code review, legal Q&A, medical, etc.). For new domains, INFER maps to the closest category and the HARVEST sources are surfaced for user review and editing before crawling begins.
-
----
-
-## 🆚 How Verum Differs
-
-| Tool | What it does | What Verum adds |
-|---|---|---|
-| Langfuse / LangSmith | Observe, evaluate, and version LLM calls | Auto-generates prompts + RAG from static code analysis; evolves them from live data |
-| RAGAS | Evaluate RAG | Auto-builds the eval dataset (domain-specific Q&A pairs) |
-| PromptLayer | Version and A/B-test prompts | AI writes the prompts from your codebase and auto-promotes winners |
-| CodeRabbit / SCAManager | Code review | Uses code analysis to optimize the AI service itself |
-
-**In one sentence**: Other tools help humans operate LLM systems. Verum helps LLM systems operate themselves.
-
----
-
-## 🏗️ Tech Stack
-
-**Backend** — Python 3.13, asyncio, SQLAlchemy 2, Alembic, PostgreSQL 16 + pgvector  
-**Frontend** — Next.js 16, React 19, TypeScript strict, Auth.js v5, Drizzle ORM  
-**AI** — Claude Sonnet 4.6 (INFER + GENERATE), Voyage AI `voyage-3.5` (embeddings, 1024-dim)  
-**Infra** — Railway, Docker (single image: Node PID1 + Python worker subprocess)
-
----
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE).
-
-Every feature is open source. The only difference between self-hosted and Verum Cloud is who runs the infrastructure — there is no feature paywall.
