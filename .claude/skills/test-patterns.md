@@ -199,3 +199,28 @@ export default async function globalSetup() {
 <button data-testid="register-repo-btn">
 <a data-testid={`repo-link-${repo.id}`}>
 ```
+
+---
+
+## 커버리지 도구 동기화 규칙
+
+### Sonar exclusions ↔ Jest `collectCoverageFrom` 반드시 쌍으로 관리
+
+`sonar.coverage.exclusions`(sonar-project.properties)와 Jest의 `collectCoverageFrom`(jest.config.ts)은 각각 독립적으로 커버리지 분모를 계산한다. 한 쪽만 추가하면:
+- Sonar에서는 제외됐는데 Jest에서는 미커버로 잡혀 `coverageThreshold` 실패
+- Jest에서는 제외됐는데 Sonar에서는 분모에 포함돼 수치 괴리 발생
+
+**규칙:** 파일을 어느 한 쪽에 추가할 때는 반드시 다른 쪽에도 추가한다.
+
+### `# pragma: no cover`와 Codecov patch gate
+
+`coverage.py`가 `# pragma: no cover`를 처리하면 해당 라인이 `coverage.xml`에서 **완전히 사라진다** (excluded로 마킹되는 게 아님). Codecov의 patch analysis는 PR에서 추가된 라인을 coverage.xml과 대조하는데, 없는 라인은 "미커버"로 카운트한다.
+
+**증상:** 로컬 `pytest --cov`에서는 100%지만 Codecov patch gate가 실패.
+
+**해결:** pragma가 모듈 레벨에 있는 파일 전체를 `.codecov.yml → ignore`에 추가:
+```yaml
+ignore:
+  - "packages/sdk-python/src/verum/anthropic.py"
+  - "packages/sdk-python/src/verum/openai.py"
+```

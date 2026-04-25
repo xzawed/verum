@@ -7,13 +7,13 @@ import { users } from "@/lib/db/schema";
 const TEST_USER_ID = "00000000-0000-0000-0000-000000000099";
 const TEST_GITHUB_ID = 9999999;
 
-// This endpoint is ONLY available when NODE_ENV !== "production" AND VERUM_TEST_MODE=1.
-// We use a separate env flag in addition to NODE_ENV because `next dev` always
-// forces NODE_ENV=development regardless of the shell environment.
-// The production guard ensures this endpoint is never reachable in deployed builds.
+// This endpoint is ONLY available when VERUM_TEST_MODE=1.
+// The NODE_ENV guard uses AND (not OR): integration stack runs NODE_ENV=production
+// to mirror Railway, so OR would unconditionally block the endpoint. The real
+// production safety comes from VERUM_TEST_MODE not being set on Railway.
 export async function POST() {
   if (
-    process.env.NODE_ENV === "production" ||
+    process.env.NODE_ENV === "production" &&
     process.env.VERUM_TEST_MODE !== "1"
   ) {
     return new Response("not found", { status: 404 });

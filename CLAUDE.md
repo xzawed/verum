@@ -489,9 +489,10 @@ test(generate): add prompt variant generation test cases
 ### 테스트
 
 - **Phase 1까지**: 빠른 프로토타이핑 허용. 커버리지 무관
-- **Phase 2 이상**: 커버리지 80% 이상
+- **Phase 2 이상**: 커버리지 95% 이상 (`pytest --cov-fail-under=95` / Jest lines 90%, branches 78%)
 - **Unit + Integration + E2E (Playwright)** 3단 구조
 - **CI 실패 시 머지 차단**
+- **Sonar exclusions ↔ Jest `collectCoverageFrom` 동기화 필수**: 한 쪽만 수정하면 LCOV 분모가 달라져 Jest가 Sonar 없이 실패함. 둘을 항상 쌍으로 관리할 것
 
 ---
 
