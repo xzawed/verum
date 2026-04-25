@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections import namedtuple
+from contextlib import contextmanager
 import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.loop.analyze.cloner import (
+    CloneQuotaError,
     RepoCloneError,
     _BRANCH_RE,
     _GITHUB_URL_RE,
@@ -16,6 +19,23 @@ from src.loop.analyze.cloner import (
     clone_repo,
     cloned_repo,
 )
+
+
+# ---------------------------------------------------------------------------
+# Disk-quota mock helper
+# ---------------------------------------------------------------------------
+
+_FakeUsage = namedtuple("_FakeUsage", ["total", "used", "free"])
+
+
+@contextmanager
+def _mock_disk_quota(free_mb: int = 8192):
+    """Patch shutil.disk_usage so _check_disk_quota() doesn't hit a real /tmp path."""
+    with patch(
+        "src.loop.analyze.cloner.shutil.disk_usage",
+        return_value=_FakeUsage(total=0, used=0, free=free_mb * 1024 * 1024),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +163,11 @@ async def test_clone_repo_success_returns_path():
     analysis_id = uuid.uuid4()
     mock_proc = _make_mock_proc(returncode=0)
 
-    with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
-        with patch("pathlib.Path.exists", return_value=False):
-            with patch("pathlib.Path.mkdir"):
-                result = await clone_repo("https://github.com/owner/repo", analysis_id)
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            with patch("pathlib.Path.exists", return_value=False):
+                with patch("pathlib.Path.mkdir"):
+                    result = await clone_repo("https://github.com/owner/repo", analysis_id)
 
     mock_exec.assert_awaited_once()
     assert str(analysis_id) in str(result)
@@ -156,11 +177,12 @@ async def test_clone_repo_success_returns_path():
 async def test_clone_repo_raises_on_nonzero_exit():
     mock_proc = _make_mock_proc(returncode=128, stderr=b"remote: Repository not found.")
 
-    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
-        with patch("pathlib.Path.exists", return_value=False):
-            with patch("pathlib.Path.mkdir"):
-                with pytest.raises(RepoCloneError) as exc_info:
-                    await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch("pathlib.Path.exists", return_value=False):
+                with patch("pathlib.Path.mkdir"):
+                    with pytest.raises(RepoCloneError) as exc_info:
+                        await clone_repo("https://github.com/owner/repo", uuid.uuid4())
 
     assert exc_info.value.kind == "not_found"
 
@@ -169,15 +191,16 @@ async def test_clone_repo_raises_on_nonzero_exit():
 async def test_clone_repo_cleans_up_target_on_failure():
     mock_proc = _make_mock_proc(returncode=128, stderr=b"fatal: Authentication failed")
 
-    with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
-        with patch("pathlib.Path.mkdir"):
-            with patch("pathlib.Path.exists", return_value=True) as mock_exists:
-                with patch("src.loop.analyze.cloner._rmtree") as mock_rmtree:
-                    # First call returns False (before clone), second returns True (after failed clone)
-                    mock_exists.side_effect = [False, True]
-                    with pytest.raises(RepoCloneError):
-                        await clone_repo("https://github.com/owner/repo", uuid.uuid4())
-                    mock_rmtree.assert_called_once()
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch("pathlib.Path.mkdir"):
+                with patch("pathlib.Path.exists", return_value=True) as mock_exists:
+                    with patch("src.loop.analyze.cloner._rmtree") as mock_rmtree:
+                        # First call returns False (before clone), second returns True (after failed clone)
+                        mock_exists.side_effect = [False, True]
+                        with pytest.raises(RepoCloneError):
+                            await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+                        mock_rmtree.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -210,3 +233,115 @@ async def test_cloned_repo_cleans_up_even_after_exception():
                     async with cloned_repo("https://github.com/owner/repo", analysis_id):
                         raise RuntimeError("analysis failed")
                 mock_rmtree.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _check_disk_quota — direct coverage of security additions
+# ---------------------------------------------------------------------------
+
+
+def test_check_disk_quota_passes_when_free_above_threshold():
+    from src.loop.analyze.cloner import _check_disk_quota
+    with _mock_disk_quota(free_mb=8192):
+        with patch("pathlib.Path.mkdir"):
+            _check_disk_quota()  # must not raise
+
+
+def test_check_disk_quota_raises_when_free_below_threshold():
+    from src.loop.analyze.cloner import _check_disk_quota
+    with _mock_disk_quota(free_mb=10):  # 10 MB < MIN_FREE_DISK_MB default (1024)
+        with patch("pathlib.Path.mkdir"):
+            with pytest.raises(CloneQuotaError, match="Insufficient disk space"):
+                _check_disk_quota()
+
+
+# ---------------------------------------------------------------------------
+# _get_dir_size_mb
+# ---------------------------------------------------------------------------
+
+
+def test_get_dir_size_mb_sums_files(tmp_path):
+    from src.loop.analyze.cloner import _get_dir_size_mb
+    (tmp_path / "a.bin").write_bytes(b"x" * 512 * 1024)  # 0.5 MB
+    (tmp_path / "b.bin").write_bytes(b"x" * 512 * 1024)  # 0.5 MB
+    assert _get_dir_size_mb(tmp_path) == 1
+
+
+def test_get_dir_size_mb_returns_zero_on_oserror(tmp_path):
+    from src.loop.analyze.cloner import _get_dir_size_mb
+    with patch.object(Path, "rglob", side_effect=OSError("no access")):
+        assert _get_dir_size_mb(tmp_path) == 0
+
+
+# ---------------------------------------------------------------------------
+# _validate_url — TEST_MODE branches (security additions)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_url_test_mode_allows_listed_host(monkeypatch):
+    from src.loop.analyze.cloner import _validate_url
+    monkeypatch.setenv("VERUM_TEST_MODE", "1")
+    monkeypatch.setenv("VERUM_ALLOW_INSECURE_CLONE_HOSTS", "localhost")
+    _validate_url("https://localhost/owner/repo")  # must not raise
+
+
+def test_validate_url_non_test_mode_rejects_non_github(monkeypatch):
+    from src.loop.analyze.cloner import _validate_url
+    monkeypatch.delenv("VERUM_TEST_MODE", raising=False)
+    with pytest.raises(ValueError, match="Invalid GitHub URL"):
+        _validate_url("https://gitlab.com/owner/repo")
+
+
+def test_validate_url_test_mode_rejects_unknown_host(monkeypatch):
+    from src.loop.analyze.cloner import _validate_url
+    monkeypatch.setenv("VERUM_TEST_MODE", "1")
+    monkeypatch.setenv("VERUM_ALLOW_INSECURE_CLONE_HOSTS", "allowed.example.com")
+    with pytest.raises(ValueError, match="not in VERUM_ALLOW_INSECURE_CLONE_HOSTS"):
+        _validate_url("https://notallowed.example.com/owner/repo")
+
+
+def test_validate_url_test_mode_rejects_non_http_scheme(monkeypatch):
+    from src.loop.analyze.cloner import _validate_url
+    monkeypatch.setenv("VERUM_TEST_MODE", "1")
+    monkeypatch.setenv("VERUM_ALLOW_INSECURE_CLONE_HOSTS", "internal.host")
+    with pytest.raises(ValueError, match="only http/https are allowed"):
+        _validate_url("git://internal.host/repo.git")
+
+
+# ---------------------------------------------------------------------------
+# clone_repo — timeout + oversized-clone branches (security additions)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_clone_repo_timeout_kills_proc_and_raises():
+    mock_proc = AsyncMock()
+    mock_proc.kill = MagicMock()
+    mock_proc.wait = AsyncMock()
+
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch("pathlib.Path.exists", return_value=False):
+                with patch("pathlib.Path.mkdir"):
+                    with patch(
+                        "src.loop.analyze.cloner.asyncio.wait_for",
+                        side_effect=asyncio.TimeoutError(),
+                    ):
+                        with pytest.raises(asyncio.TimeoutError):
+                            await clone_repo("https://github.com/owner/repo", uuid.uuid4())
+
+    mock_proc.kill.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_clone_repo_oversized_clone_raises_quota_error():
+    mock_proc = _make_mock_proc(returncode=0)
+
+    with _mock_disk_quota():
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            with patch("pathlib.Path.exists", return_value=False):
+                with patch("pathlib.Path.mkdir"):
+                    with patch("src.loop.analyze.cloner._get_dir_size_mb", return_value=9999):
+                        with patch("src.loop.analyze.cloner._rmtree"):
+                            with pytest.raises(CloneQuotaError, match="exceeding the"):
+                                await clone_repo("https://github.com/owner/repo", uuid.uuid4())
