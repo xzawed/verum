@@ -126,7 +126,7 @@ async def _get_robots_parser(base_url: str) -> RobotFileParser | None:
         # Any network/SSRF/parse error → be permissive, log for visibility.
         logger.debug("robots.txt fetch failed for %s: %s — assuming allow", base_url, exc)
         rp = RobotFileParser()
-        rp.allow_all = True  # explicit: uninitialized parser.can_fetch() returns False in Python 3.14+
+        rp.allow_all = True  # type: ignore[attr-defined]  # explicit: uninitialized parser.can_fetch() returns False in Python 3.14+
 
     _robots_cache[base_url] = (now, rp)
     return rp
