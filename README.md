@@ -1,5 +1,7 @@
 <div align="center">
 
+<p align="right"><a href="README.ko.md">🇰🇷 한국어</a></p>
+
 # Verum
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
