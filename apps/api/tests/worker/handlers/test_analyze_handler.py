@@ -103,3 +103,36 @@ async def test_handle_analyze_uses_default_branch() -> None:
         )
 
     assert captured["branch"] == "main"
+
+
+@pytest.mark.asyncio
+async def test_handle_analyze_rejects_non_github_url() -> None:
+    """Non-GitHub URL in payload raises ValueError before any analysis runs."""
+    db = AsyncMock()
+    with pytest.raises(ValueError, match="Rejected non-GitHub URL"):
+        await handle_analyze(
+            db=db,
+            owner_user_id=uuid.uuid4(),
+            payload={
+                "repo_url": "https://gitlab.com/user/repo",
+                "repo_id": str(uuid.uuid4()),
+                "analysis_id": str(uuid.uuid4()),
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_handle_analyze_rejects_unsafe_branch() -> None:
+    """Branch name with shell-special characters raises ValueError."""
+    db = AsyncMock()
+    with pytest.raises(ValueError, match="Rejected unsafe branch name"):
+        await handle_analyze(
+            db=db,
+            owner_user_id=uuid.uuid4(),
+            payload={
+                "repo_url": "https://github.com/xzawed/ArcanaInsight",
+                "branch": "feat; rm -rf /",
+                "repo_id": str(uuid.uuid4()),
+                "analysis_id": str(uuid.uuid4()),
+            },
+        )

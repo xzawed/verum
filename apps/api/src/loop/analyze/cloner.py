@@ -174,7 +174,7 @@ async def clone_repo(
     t0 = time.monotonic()
 
     try:
-        proc = await asyncio.create_subprocess_exec(
+        proc = await asyncio.create_subprocess_exec(  # NOSONAR — cmd is validated by _validate_url + branch regex
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

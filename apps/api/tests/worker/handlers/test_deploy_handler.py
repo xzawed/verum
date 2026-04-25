@@ -1,6 +1,7 @@
 """Tests for the DEPLOY job handler and deploy orchestrator atomicity."""
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -9,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 
 from src.loop.deploy.models import DeploymentWithKey
-from src.worker.handlers.deploy import handle_deploy
+from src.worker.handlers.deploy import handle_deploy, _write_integration_state
 
 
 def _make_deployment(generation_id: uuid.UUID | None = None) -> DeploymentWithKey:
@@ -196,3 +197,59 @@ async def test_deploy_and_start_experiment_raises_when_experiment_insert_fails()
 
     with pytest.raises(RuntimeError, match="experiment INSERT returned no row"):
         await deploy_and_start_experiment(db, uuid.uuid4())
+
+
+# ---------------------------------------------------------------------------
+# _write_integration_state — test-mode file output
+# ---------------------------------------------------------------------------
+
+
+def test_write_integration_state_writes_json(tmp_path) -> None:
+    """_write_integration_state writes deployment_info.json with correct content."""
+    import src.worker.handlers.deploy as deploy_module
+
+    dep_id = uuid.uuid4()
+    api_key = "sk-testkey123"
+
+    original_dir = deploy_module._INTEGRATION_STATE_DIR
+    deploy_module._INTEGRATION_STATE_DIR = tmp_path
+    try:
+        _write_integration_state(dep_id, api_key)
+    finally:
+        deploy_module._INTEGRATION_STATE_DIR = original_dir
+
+    state_file = tmp_path / "deployment_info.json"
+    assert state_file.exists()
+    data = json.loads(state_file.read_text())
+    assert data["deployment_id"] == str(dep_id)
+    assert data["api_key"] == api_key
+
+
+@pytest.mark.asyncio
+async def test_handle_deploy_test_mode_writes_integration_state(tmp_path) -> None:
+    """When _TEST_MODE is True, _write_integration_state is called after commit."""
+    import src.worker.handlers.deploy as deploy_module
+
+    db = AsyncMock()
+    generation_id = uuid.uuid4()
+    deployment = _make_deployment(generation_id)
+
+    original_test_mode = deploy_module._TEST_MODE
+    original_dir = deploy_module._INTEGRATION_STATE_DIR
+    deploy_module._TEST_MODE = True
+    deploy_module._INTEGRATION_STATE_DIR = tmp_path
+    try:
+        with patch(
+            "src.worker.handlers.deploy.deploy_and_start_experiment",
+            return_value=(deployment, uuid.uuid4()),
+            new_callable=AsyncMock,
+        ):
+            result = await handle_deploy(db, uuid.uuid4(), {"generation_id": str(generation_id)})
+    finally:
+        deploy_module._TEST_MODE = original_test_mode
+        deploy_module._INTEGRATION_STATE_DIR = original_dir
+
+    state_file = tmp_path / "deployment_info.json"
+    assert state_file.exists()
+    data = json.loads(state_file.read_text())
+    assert data["deployment_id"] == result["deployment_id"]
