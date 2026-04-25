@@ -63,119 +63,125 @@ export async function GET(
     .where(and(eq(repos.id, repoId), eq(repos.owner_user_id, userId)))
     .limit(1);
   if (ownerCheck.length === 0) {
+    // 404 intentional — avoid leaking repo existence to non-owners
     return new Response("not found", { status: 404 });
   }
 
-  // Fetch analysis and inference in parallel (both only need repoId)
-  const [analysis, inference] = await Promise.all([
-    getLatestAnalysis(repoId),
-    getLatestInference(repoId),
-  ]);
-
-  // Harvest chunk count (needs inferenceId)
-  const chunksCount = inference ? await countChunks(String(inference.id)) : 0;
-
-  // Latest generation summary (raw SQL to get counts in one round-trip)
-  let generationRow: {
-    id: string;
-    variant_count: number;
-    eval_count: number;
-  } | null = null;
-  if (inference) {
-    const rows = await db.execute(
-      sql`SELECT g.id::text,
-          (SELECT COUNT(*)::int FROM prompt_variants WHERE generation_id = g.id) AS variant_count,
-          (SELECT COUNT(*)::int FROM eval_pairs WHERE generation_id = g.id) AS eval_count
-          FROM generations g
-          WHERE g.inference_id = ${String(inference.id)}::uuid
-          ORDER BY g.created_at DESC LIMIT 1`,
-    );
-    const row = rows.rows[0] as
-      | { id: string; variant_count: number; eval_count: number }
-      | undefined;
-    generationRow = row ?? null;
-  }
-
-  // RAG config and deployment (both need generationId, run in parallel)
-  let ragConfig: RagConfig | null = null;
-  let depRow: { id: string; traffic_split: unknown } | null = null;
-
-  if (generationRow) {
-    const [ragRows, depRows] = await Promise.all([
-      db
-        .select({
-          chunking_strategy: rag_configs.chunking_strategy,
-          chunk_size: rag_configs.chunk_size,
-          chunk_overlap: rag_configs.chunk_overlap,
-          top_k: rag_configs.top_k,
-          hybrid_alpha: rag_configs.hybrid_alpha,
-        })
-        .from(rag_configs)
-        .where(eq(rag_configs.generation_id, generationRow.id))
-        .limit(1),
-      db
-        .select({ id: deployments.id, traffic_split: deployments.traffic_split })
-        .from(deployments)
-        .where(eq(deployments.generation_id, generationRow.id))
-        .orderBy(desc(deployments.created_at))
-        .limit(1),
+  try {
+    // Fetch analysis and inference in parallel (both only need repoId)
+    const [analysis, inference] = await Promise.all([
+      getLatestAnalysis(repoId),
+      getLatestInference(repoId),
     ]);
 
-    if (ragRows[0]) {
-      ragConfig = {
-        chunking_strategy: ragRows[0].chunking_strategy,
-        chunk_size: ragRows[0].chunk_size,
-        chunk_overlap: ragRows[0].chunk_overlap,
-        top_k: ragRows[0].top_k,
-        hybrid_alpha: ragRows[0].hybrid_alpha,
-      };
+    // Harvest chunk count (needs inferenceId)
+    const chunksCount = inference ? await countChunks(String(inference.id)) : 0;
+
+    // Latest generation summary (raw SQL to get counts in one round-trip)
+    let generationRow: {
+      id: string;
+      variant_count: number;
+      eval_count: number;
+    } | null = null;
+    if (inference) {
+      const rows = await db.execute(
+        sql`SELECT g.id::text,
+            (SELECT COUNT(*)::int FROM prompt_variants WHERE generation_id = g.id) AS variant_count,
+            (SELECT COUNT(*)::int FROM eval_pairs WHERE generation_id = g.id) AS eval_count
+            FROM generations g
+            WHERE g.inference_id = ${String(inference.id)}::uuid
+            ORDER BY g.created_at DESC LIMIT 1`,
+      );
+      const row = rows.rows[0] as
+        | { id: string; variant_count: number; eval_count: number }
+        | undefined;
+      generationRow = row ?? null;
     }
 
-    if (depRows[0]) {
-      depRow = { id: String(depRows[0].id), traffic_split: depRows[0].traffic_split };
-    }
-  }
+    // RAG config and deployment (both need generationId, run in parallel)
+    let ragConfig: RagConfig | null = null;
+    let depRow: { id: string; traffic_split: unknown } | null = null;
 
-  // Build response — all sections nullable
-  const body: ActivationResponse = {
-    inference: inference
-      ? {
-          domain: inference.domain ?? null,
-          tone: inference.tone ?? null,
-          summary: inference.summary ?? null,
-          confidence: inference.confidence ?? null,
-        }
-      : null,
-    analysis: analysis
-      ? {
-          call_sites_count: Array.isArray(analysis.call_sites)
-            ? analysis.call_sites.length
-            : 0,
-        }
-      : null,
-    harvest: inference
-      ? { chunks_count: chunksCount }
-      : null,
-    generation: generationRow
-      ? {
-          id: generationRow.id,
-          variants_count: generationRow.variant_count,
-          eval_pairs_count: generationRow.eval_count,
-          rag_config: ragConfig,
-        }
-      : null,
-    deployment: depRow
-      ? {
-          id: depRow.id,
-          traffic_split:
-            typeof depRow.traffic_split === "object" &&
-            depRow.traffic_split !== null &&
-            "variant" in (depRow.traffic_split as Record<string, unknown>)
-              ? Number((depRow.traffic_split as Record<string, unknown>).variant)
+    if (generationRow) {
+      const [ragRows, depRows] = await Promise.all([
+        db
+          .select({
+            chunking_strategy: rag_configs.chunking_strategy,
+            chunk_size: rag_configs.chunk_size,
+            chunk_overlap: rag_configs.chunk_overlap,
+            top_k: rag_configs.top_k,
+            hybrid_alpha: rag_configs.hybrid_alpha,
+          })
+          .from(rag_configs)
+          .where(eq(rag_configs.generation_id, generationRow.id))
+          .limit(1),
+        db
+          .select({ id: deployments.id, traffic_split: deployments.traffic_split })
+          .from(deployments)
+          .where(eq(deployments.generation_id, generationRow.id))
+          .orderBy(desc(deployments.created_at))
+          .limit(1),
+      ]);
+
+      if (ragRows[0]) {
+        ragConfig = {
+          chunking_strategy: ragRows[0].chunking_strategy,
+          chunk_size: ragRows[0].chunk_size,
+          chunk_overlap: ragRows[0].chunk_overlap,
+          top_k: ragRows[0].top_k,
+          hybrid_alpha: ragRows[0].hybrid_alpha,
+        };
+      }
+
+      if (depRows[0]) {
+        depRow = { id: String(depRows[0].id), traffic_split: depRows[0].traffic_split };
+      }
+    }
+
+    // Build response — all sections nullable
+    const body: ActivationResponse = {
+      inference: inference
+        ? {
+            domain: inference.domain ?? null,
+            tone: inference.tone ?? null,
+            summary: inference.summary ?? null,
+            confidence: inference.confidence ?? null,
+          }
+        : null,
+      analysis: analysis
+        ? {
+            call_sites_count: Array.isArray(analysis.call_sites)
+              ? analysis.call_sites.length
               : 0,
-        }
-      : null,
-  };
+          }
+        : null,
+      harvest: inference
+        ? { chunks_count: chunksCount }
+        : null,
+      generation: generationRow
+        ? {
+            id: generationRow.id,
+            variants_count: generationRow.variant_count,
+            eval_pairs_count: generationRow.eval_count,
+            rag_config: ragConfig,
+          }
+        : null,
+      deployment: depRow
+        ? {
+            id: depRow.id,
+            traffic_split:
+              typeof depRow.traffic_split === "object" &&
+              depRow.traffic_split !== null &&
+              "variant" in (depRow.traffic_split as Record<string, unknown>)
+                ? Number((depRow.traffic_split as Record<string, unknown>).variant)
+                : 0,
+          }
+        : null,
+    };
 
-  return Response.json(body, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(body, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("[activation]", error);
+    return new Response("internal error", { status: 500 });
+  }
 }
