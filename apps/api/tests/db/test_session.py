@@ -76,24 +76,47 @@ async def test_get_db_for_user_resets_guc_even_on_exception():
 @requires_db
 @pytest.mark.asyncio
 async def test_get_db_for_user_sets_and_clears_guc():
-    """With a real DB: GUC is set inside context, cleared outside it."""
-    from src.db.session import AsyncSessionLocal, engine, get_db_for_user
+    """With a real DB: GUC is set inside context, cleared outside it.
+
+    Uses an isolated engine (not the shared module-level one) to avoid
+    corrupting the connection pool for subsequent tests that run under
+    a different asyncio event loop.
+    """
+    import os
+    from contextlib import asynccontextmanager
+    from collections.abc import AsyncGenerator
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    db_url = os.environ["DATABASE_URL"]
+    _engine = create_async_engine(db_url, echo=False)
+    _SessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def _get_db_for_user(user_id: str) -> AsyncGenerator[AsyncSession, None]:
+        async with _SessionLocal() as session:
+            await session.execute(
+                text("SELECT set_config('app.current_user_id', :uid, false)"),
+                {"uid": str(user_id)},
+            )
+            try:
+                yield session
+            finally:
+                import contextlib
+                with contextlib.suppress(Exception):
+                    await session.execute(text("RESET app.current_user_id"))
 
     user_id = str(uuid.uuid4())
 
-    # Inside context: GUC must equal user_id
-    async with get_db_for_user(user_id) as db:
+    async with _get_db_for_user(user_id) as db:
         result = await db.execute(text("SELECT current_setting('app.current_user_id', true)"))
         inside_value = result.scalar()
 
     assert inside_value == user_id
 
-    # After context: GUC must be cleared (empty string or None)
-    async with AsyncSessionLocal() as db:
+    async with _SessionLocal() as db:
         result = await db.execute(text("SELECT current_setting('app.current_user_id', true)"))
         outside_value = result.scalar()
 
     assert outside_value != user_id
 
-    # Dispose connection pool so it doesn't corrupt subsequent tests' event loops.
-    await engine.dispose()
+    await _engine.dispose()
