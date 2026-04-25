@@ -114,7 +114,7 @@ verum/
 │           ├── worker/         # spawn.ts — Python worker lifecycle management
 │           ├── lib/
 │           │   └── db/         # Drizzle ORM client + hand-written schema
-│           └── middleware.ts   # Auth.js v5 route protection
+│           └── proxy.ts        # Auth.js v5 route protection (Next.js 16 edge-compatible name)
 ├── packages/
 │   ├── sdk-python/             # pip install verum
 │   │   ├── src/verum/
@@ -199,12 +199,15 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 |---|---|---|
 | `id` | `UUID` PK | |
 | `inference_id` | `UUID` FK → inferences | |
-| `source_url` | `TEXT` | |
-| `chunk_count` | `INT` | |
-| `collection_name` | `TEXT` | pgvector collection |
-| `embedding_model` | `TEXT` | |
-| `embedding_dim` | `INT` | persisted here; never hardcoded downstream |
-| `harvested_at` | `TIMESTAMPTZ` | |
+| `url` | `TEXT` | 크롤링 대상 URL |
+| `title` | `VARCHAR(512)` | nullable |
+| `description` | `TEXT` | nullable |
+| `status` | `VARCHAR(32)` | `proposed` / `approved` / `rejected` / `crawling` / `done` / `error` |
+| `chunks_count` | `INT` | 크롤링 완료 후 생성된 청크 수 |
+| `error` | `VARCHAR(1024)` | nullable — 실패/복구 사유 |
+| `created_at` | `TIMESTAMPTZ` | stale 감지 기준 컬럼 (`_reset_stale`에서 cutoff 비교) |
+
+> **CRAWLING 복구 규칙 (ADR-014 연관):** 워커 재시작 시 `_reset_stale()`이 `status='crawling' AND created_at < cutoff` 행을 `status='error'`로 일괄 전환한다. `started_at`이 없어 `created_at`을 프록시로 사용한다.
 
 ### `chunks`
 
@@ -684,4 +687,29 @@ This manifests silently in development if you happen to test with mock sessions,
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-24_
+### ADR-014: One SQLAlchemy AsyncSession Per Concurrent Coroutine
+
+**Status:** Accepted | **Date:** 2026-04-25
+
+**Decision:** A single `AsyncSession` instance must **never** be shared across concurrently-executing coroutines. Each coroutine that runs database I/O must acquire its own session via `async with AsyncSessionLocal() as db:`.
+
+```python
+# ❌ Forbidden — shared session passed into asyncio.gather fan-out
+async def handle_harvest(db, ...):
+    await asyncio.gather(*[_harvest_one(db, src) for src in sources])
+
+# ✅ Required — each coroutine owns its session
+async def _harvest_one(source_id, url):
+    async with AsyncSessionLocal() as own_db:
+        ...  # use own_db exclusively
+```
+
+**Why:** SQLAlchemy's async session is not thread-safe or coroutine-safe for concurrent use. When multiple coroutines share one session and interleave `await` points, `execute()` / `commit()` calls can overlap. The result is silent data loss, phantom commits, or `InvalidRequestError` crashes. This manifested in `handle_harvest`: three concurrent `_harvest_one` coroutines shared the handler's session, causing commit races that left `harvest_sources` rows stuck in `crawling` status even after successful crawls.
+
+**Trade-off accepted:** Opening one session per concurrent unit has connection-pool overhead. At `Semaphore(3)` concurrency this is negligible. If concurrency ever scales to O(100), evaluate a connection-per-task overhead budget first.
+
+**Revisit trigger:** If a profiling session shows connection pool exhaustion at high HARVEST concurrency, revisit whether a read-only shared session for SELECT-only paths is acceptable (writes must still own their session).
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-04-25_

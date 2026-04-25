@@ -201,7 +201,7 @@ trace_id = await client.record(
 |------|------|
 | `apps/api/src/config.py` | 모든 런타임 상수 + `PlanLimits`/`FREE_PLAN` (env-var 오버라이드 가능) |
 | `apps/api/src/worker/main.py` | asyncio entrypoint (`python3 -m src.worker.main`) |
-| `apps/api/src/worker/runner.py` | LISTEN/NOTIFY 잡 루프 + 핸들러 디스패치 + payload 스키마 검증 |
+| `apps/api/src/worker/runner.py` | LISTEN/NOTIFY 잡 루프 + 핸들러 디스패치 + payload 스키마 검증. `_reset_stale()`은 부팅/주기 실행 시 `verum_jobs` 뿐 아니라 `harvest_sources.status = 'crawling'`도 `error`로 초기화(워커 재시작 감지) |
 | `apps/api/src/worker/payloads.py` | 8개 job kind별 Pydantic payload 모델 |
 | `apps/api/src/worker/listener.py` | asyncpg 전용 연결로 LISTEN/NOTIFY wake event 관리. DSN에서 `+asyncpg` dialect prefix를 제거해야 asyncpg.connect()가 수락함 |
 | `apps/api/src/worker/chain.py` | `enqueue_next()` — 핸들러가 다음 잡을 큐에 등록하는 공통 헬퍼 |
@@ -227,7 +227,7 @@ trace_id = await client.record(
 | 파일 | 역할 |
 |------|------|
 | `apps/dashboard/src/lib/db/schema.ts` | Drizzle 테이블 정의 (Alembic SoT → 수동 동기화) |
-| `apps/dashboard/src/lib/db/queries.ts` | 읽기 전용 쿼리 (모두 `owner_user_id` 검증) |
+| `apps/dashboard/src/lib/db/queries.ts` | 읽기 전용 쿼리 (모두 `owner_user_id` 검증). `getRepoStatus()`는 `harvestJobStatus`(verum_jobs 직접 조회)를 포함해 대시보드 HARVEST 칩이 실제 잡 완료 여부를 반영하도록 함 |
 | `apps/dashboard/src/lib/db/jobs.ts` | 쓰기 작업 (잡 큐 등록, 상태 변경); INSERT 실패 시 명시적 throw |
 | `apps/dashboard/src/lib/db/deploys.ts` | `findDeploymentByApiKey(hash)` — SDK 인증용 |
 | `apps/dashboard/src/lib/db/quota.ts` | `getQuota(userId)` — 대시보드용 쿼터 조회 |
@@ -356,7 +356,7 @@ function getClient() {
 
 | 구분 | 테스트 파일 수 | 테스트 수 | 최근 갱신 |
 |------|--------------|---------|----------|
-| Python API (loop + worker) | 38 | 265 non-DB passing, 1 skip | 2026-04-25 |
+| Python API (loop + worker) | 38 | 353 passing (CI: full suite with Postgres; 로컬 Postgres 미기동 시 requires_db 자동 skip) | 2026-04-25 |
 | Dashboard Jest | 22 suites | 104 | 2026-04-25 |
 | E2E Playwright | 3 spec | ~16 | 2026-04-25 |
 
@@ -393,9 +393,9 @@ function getClient() {
 | `test-e2e-writer` | Playwright E2E (`/test/login` bypass 활용) |
 | `test-coverage-auditor` | pytest/jest/playwright 집계 → `docs/COVERAGE_REPORT.md` |
 
-- `PostToolUse` hook: `src/**` 편집 시 `.claude/hooks/post_test_edit.py`가 대응 테스트 자동 실행 (비블로킹, 항상 exit 0)
+- `PostToolUse` hook: `src/**` 편집 시 `.claude/hooks/post_test_edit.py`가 대응 테스트 자동 실행 (비블로킹, 항상 exit 0). `.claude/settings.json`은 `git rev-parse --show-toplevel`로 repo root의 hook을 찾으므로 CWD와 무관. 세션 중 CWD가 하위 디렉토리인 경우를 위해 `apps/api/.claude/hooks/post_test_edit.py`와 `apps/dashboard/.claude/hooks/post_test_edit.py`에도 5단계 dirname으로 실제 hook을 위임하는 프록시 파일이 있음.
 - 스킬 참조: `.claude/skills/test-run.md`, `.claude/skills/test-patterns.md`, `.claude/skills/loop-stage-coverage.md`
 
 ---
 
-_Last updated: 2026-04-25 (CI green restoration — TypeScript lint useEffect violations fixed, E2E proxy.ts auth hardening + not-found page, SonarCloud new_coverage gate raised to 82.5% via test additions + coverage exclusions, Dependabot PR guard in ci.yml, all 16 Dependabot PRs merged) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-04-25 (HARVEST 3중 버그 수정 — harvest.py 독립 세션(ADR-014), runner.py _reset_stale harvest_sources CRAWLING 복구, queries.ts harvestJobStatus 직접 조회, PostToolUse proxy hook; 이전: CI green restoration — TypeScript lint, E2E proxy.ts, SonarCloud new_coverage 82.5%, all 16 Dependabot PRs merged) | Maintained by: Claude at end of each implementation session_
