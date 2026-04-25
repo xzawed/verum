@@ -44,6 +44,7 @@ beforeEach(() => {
   (mockDb.from as jest.Mock).mockReturnValue(mockDb);
   (mockDb.where as jest.Mock).mockReturnValue(mockDb);
   (mockDb.limit as jest.Mock).mockResolvedValue([]);
+  (mockDb.orderBy as jest.Mock).mockResolvedValue([]);
 });
 
 describe("GET /api/v1/deploy/[id]/config", () => {
@@ -80,18 +81,6 @@ describe("GET /api/v1/deploy/[id]/config", () => {
       ])
       .mockResolvedValueOnce([
         {
-          id: "var-1",
-          variant_type: "chain_of_thought",
-          content: "You are a helpful assistant.",
-        },
-        {
-          id: "var-2",
-          variant_type: "few_shot",
-          content: "Here are some examples...",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
           chunking_strategy: "recursive",
           chunk_size: 512,
           chunk_overlap: 50,
@@ -99,6 +88,18 @@ describe("GET /api/v1/deploy/[id]/config", () => {
           hybrid_alpha: 0.7,
         },
       ]);
+    (mockDb.orderBy as jest.Mock).mockResolvedValueOnce([
+      {
+        id: "var-1",
+        variant_type: "chain_of_thought",
+        content: "You are a helpful assistant.",
+      },
+      {
+        id: "var-2",
+        variant_type: "few_shot",
+        content: "Here are some examples...",
+      },
+    ]);
     mockGetVariantPrompt.mockResolvedValueOnce("You are a helpful assistant." as never);
 
     const req = makeRequest({ "x-verum-api-key": "a".repeat(41) });
@@ -131,17 +132,15 @@ describe("GET /api/v1/deploy/[id]/config", () => {
       deploymentId: "dep-1",
       userId: "user-1",
     });
-    (mockDb.limit as jest.Mock)
-      .mockResolvedValueOnce([
-        {
-          id: "dep-1",
-          status: "active",
-          traffic_split: { baseline: 0.8, variant: 0.2 },
-          generation_id: "gen-1",
-        },
-      ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+    (mockDb.limit as jest.Mock).mockResolvedValueOnce([
+      {
+        id: "dep-1",
+        status: "active",
+        traffic_split: { baseline: 0.8, variant: 0.2 },
+        generation_id: "gen-1",
+      },
+    ]);
+    // orderBy is terminal for prompt_variants; limit is terminal for rag_configs
     mockGetVariantPrompt.mockResolvedValueOnce(null);
 
     const req = makeRequest({ "x-verum-api-key": "a".repeat(41) });

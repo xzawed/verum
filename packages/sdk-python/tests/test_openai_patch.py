@@ -282,3 +282,155 @@ class TestPatchApplied(unittest.TestCase):
     def test_patched_flag_is_true_after_import(self) -> None:
         mod = _fresh_import_verum_openai()
         self.assertTrue(mod._PATCHED)
+
+
+class TestExtractDeploymentId(unittest.TestCase):
+    """Tests for _extract_deployment_id helper."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        os.environ.pop("VERUM_DEPLOYMENT_ID", None)
+
+    def test_extracts_from_extra_headers(self) -> None:
+        mod = _fresh_import_verum_openai()
+        kwargs: dict[str, Any] = {"extra_headers": {"x-verum-deployment": "dep-abc"}}
+        dep_id, new_kwargs = mod._extract_deployment_id(kwargs)
+        self.assertEqual(dep_id, "dep-abc")
+        self.assertNotIn("extra_headers", new_kwargs)
+
+    def test_falls_back_to_env_var(self) -> None:
+        mod = _fresh_import_verum_openai()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-env"
+        dep_id, _ = mod._extract_deployment_id({})
+        self.assertEqual(dep_id, "dep-env")
+
+    def test_preserves_remaining_headers(self) -> None:
+        mod = _fresh_import_verum_openai()
+        kwargs: dict[str, Any] = {
+            "extra_headers": {"x-verum-deployment": "dep-1", "x-custom": "value"}
+        }
+        dep_id, new_kwargs = mod._extract_deployment_id(kwargs)
+        self.assertEqual(dep_id, "dep-1")
+        self.assertEqual(new_kwargs["extra_headers"]["x-custom"], "value")
+
+    def test_returns_none_when_no_id(self) -> None:
+        mod = _fresh_import_verum_openai()
+        dep_id, _ = mod._extract_deployment_id({})
+        self.assertIsNone(dep_id)
+
+
+class TestExtractUsage(unittest.TestCase):
+    """Tests for _extract_usage helper."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_extracts_tokens_and_model(self) -> None:
+        from unittest.mock import MagicMock
+        mod = _fresh_import_verum_openai()
+        response = MagicMock()
+        response.usage.prompt_tokens = 20
+        response.usage.completion_tokens = 8
+        response.model = "gpt-4o"
+        inp, out, model = mod._extract_usage(response)
+        self.assertEqual(inp, 20)
+        self.assertEqual(out, 8)
+        self.assertEqual(model, "gpt-4o")
+
+    def test_fallback_when_usage_is_none(self) -> None:
+        from unittest.mock import MagicMock
+        mod = _fresh_import_verum_openai()
+        response = MagicMock()
+        response.usage = None
+        response.model = "gpt-4o"
+        inp, out, _ = mod._extract_usage(response)
+        self.assertEqual(inp, 0)
+        self.assertEqual(out, 0)
+
+
+class TestAsyncPassThrough(unittest.IsolatedAsyncioTestCase):
+    """Async wrapper passes through when no deployment_id is set."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ.pop("VERUM_DEPLOYMENT_ID", None)
+        os.environ.pop("VERUM_API_URL", None)
+        os.environ.pop("VERUM_API_KEY", None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    async def test_async_no_deployment_id_calls_original(self) -> None:
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        call_record: list[dict[str, Any]] = []
+
+        async def recording_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            call_record.append(kwargs)
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=10, completion_tokens=5),
+            )
+
+        comp_mod.AsyncCompletions.create = recording_acreate  # type: ignore[method-assign]
+        _fresh_import_verum_openai()
+
+        instance = comp_mod.AsyncCompletions()
+        await instance.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "hello async"}],
+        )
+
+        self.assertEqual(len(call_record), 1)
+        self.assertEqual(call_record[0]["messages"][0]["content"], "hello async")
+
+
+class TestAsyncFailOpen(unittest.IsolatedAsyncioTestCase):
+    """Async wrapper remains fail-open when resolver raises."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ["VERUM_DEPLOYMENT_ID"] = "dep-async-fail"
+        os.environ["VERUM_API_URL"] = "http://verum-test.local"
+        os.environ["VERUM_API_KEY"] = "test-key"
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        for v in ("VERUM_DEPLOYMENT_ID", "VERUM_API_URL", "VERUM_API_KEY"):
+            os.environ.pop(v, None)
+
+    async def test_async_resolver_exception_does_not_break_call(self) -> None:
+        from unittest.mock import AsyncMock, patch as async_patch
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        received: list[dict[str, Any]] = []
+
+        async def spy_acreate(self: Any, *args: Any, **kwargs: Any) -> MagicMock:
+            received.extend(kwargs.get("messages", []))
+            return MagicMock(
+                model="gpt-4",
+                usage=MagicMock(prompt_tokens=8, completion_tokens=4),
+            )
+
+        comp_mod.AsyncCompletions.create = spy_acreate  # type: ignore[method-assign]
+        mod = _fresh_import_verum_openai()
+
+        mock_resolver = AsyncMock()
+        mock_resolver.resolve.side_effect = RuntimeError("network error")
+
+        with async_patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            instance = comp_mod.AsyncCompletions()
+            response = await instance.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "async fail-open test"}],
+            )
+
+        self.assertIsNotNone(response)
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]["content"], "async fail-open test")
