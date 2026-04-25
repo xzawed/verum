@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python asyncio + SQLAlchemy 2 text() queries + scipy (Bayesian) + Next.js App Router + Drizzle ORM + Auth.js v5 session
 
-**Spec:** `docs/superpowers/specs/2026-04-23-phase4b-experiment-evolve-design.md`
+**Spec:** `docs/internal/workflows/specs/2026-04-23-phase4b-experiment-evolve-design.md`
 
 ---
 
@@ -1996,7 +1996,7 @@ Expected: only §9 (RAGAS, deferred) and §10 (known limitations list) lines rem
 
 ## Spec Self-Review
 
-### Coverage check against `docs/superpowers/specs/2026-04-23-phase4b-experiment-evolve-design.md`
+### Coverage check against `docs/internal/workflows/specs/2026-04-23-phase4b-experiment-evolve-design.md`
 
 | Spec requirement | Task |
 |---|---|

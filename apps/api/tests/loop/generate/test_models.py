@@ -64,7 +64,7 @@ class TestRagConfig:
         assert config.chunk_size == 512
         assert config.chunk_overlap == 50
         assert config.top_k == 5
-        assert config.hybrid_alpha == 0.7
+        assert config.hybrid_alpha == pytest.approx(0.7)
 
     def test_semantic_chunking(self):
         """Test semantic chunking configuration."""
@@ -80,12 +80,12 @@ class TestRagConfig:
     def test_vector_only_search(self):
         """Test vector-only search (hybrid_alpha=1.0)."""
         config = RagConfig(hybrid_alpha=1.0)
-        assert config.hybrid_alpha == 1.0
+        assert config.hybrid_alpha == pytest.approx(1.0)
 
     def test_text_only_search(self):
         """Test text-only search (hybrid_alpha=0.0)."""
         config = RagConfig(hybrid_alpha=0.0)
-        assert config.hybrid_alpha == 0.0
+        assert config.hybrid_alpha == pytest.approx(0.0)
 
     def test_chunk_size_bounds(self):
         """Test chunk size validation."""

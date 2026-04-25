@@ -9,14 +9,14 @@ def test_compute_traffic_split_canary():
 
 def test_compute_traffic_split_full():
     split = compute_traffic_split(1.0)
-    assert split == {"baseline": 0.0, "variant": 1.0}
+    assert split == pytest.approx({"baseline": 0.0, "variant": 1.0})
 
 
 def test_compute_traffic_split_clamps_to_zero_one():
     split = compute_traffic_split(1.5)
-    assert split["variant"] == 1.0
+    assert split["variant"] == pytest.approx(1.0)
     split2 = compute_traffic_split(-0.1)
-    assert split2["variant"] == 0.0
+    assert split2["variant"] == pytest.approx(0.0)
 
 
 def test_no_rollback_insufficient_calls():

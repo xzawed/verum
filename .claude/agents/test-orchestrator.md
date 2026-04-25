@@ -47,7 +47,7 @@ gap-analyzer 결과 표를 받은 뒤, type에 따라 writer를 병렬 디스패
 
 ```
 실행: pytest --cov=src + jest --coverage
-출력: docs/COVERAGE_REPORT.md 생성
+출력: coverage summary (CI artifact) 생성
 ```
 
 ### Step 4 — 요약 보고

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+
+import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,7 +56,7 @@ def test_service_inference_round_trip() -> None:
     dumped = infer.model_dump(mode="json")
     reloaded = ServiceInference.model_validate(dumped)
     assert reloaded.domain == "divination/tarot"
-    assert reloaded.confidence == 0.92
+    assert reloaded.confidence == pytest.approx(0.92)
     assert len(reloaded.suggested_sources) == 1
 
 

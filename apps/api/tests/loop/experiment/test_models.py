@@ -6,7 +6,7 @@ from src.loop.experiment.models import ExperimentResult, VariantStats
 
 def test_variant_stats_win_rate_no_division_by_zero():
     stats = VariantStats(variant="original", wins=0, n=0, avg_winner_score=0.0)
-    assert stats.win_rate == 0.0
+    assert stats.win_rate == pytest.approx(0.0)
 
 
 def test_variant_stats_win_rate_normal():

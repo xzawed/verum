@@ -55,8 +55,10 @@ export default function SpanWaterfall({ traceId, onClose }: Props) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40"
+      <button
+        type="button"
+        className="fixed inset-0 bg-black/50 z-40 cursor-default border-0 p-0"
+        aria-label="Close panel"
         onClick={onClose}
       />
 
