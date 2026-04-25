@@ -355,6 +355,20 @@ Inject user-approved `GeneratedAssets` into the connected service via the Verum 
 | SDK version mismatch | Surface upgrade prompt; do not block if minor version |
 | Auto-rollback triggered | Set `status = "rolled_back"`; notify user; keep baseline |
 
+### Non-Invasive Integration Modes
+
+Before deploying, the dashboard shows an **ActivationCard** (`GET /api/v1/activation/[repoId]`) summarising what Verum has learned about the service (INFER domain, GENERATE variants, HARVEST chunk count). Two integration paths are offered:
+
+**Phase 0 — OTLP env-only (zero code changes):**
+Set `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `VERUM_DEPLOYMENT_ID`, then add `import verum.openai` at startup. Verum receives traces via `POST /api/v1/otlp/v1/traces` (openinference span format). No call routing yet — observe-only.
+
+**Phase 1 — Bidirectional auto-instrument (1 line + 1 header):**
+`import verum.openai` monkey-patches the OpenAI SDK in-process. Adding `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` to an existing `client.chat.completions.create()` call activates full A/B routing. The response is a standard `ChatCompletion` — unchanged.
+
+**ADR-016 (no gateway):** Verum's servers are never in the hot path. The SDK instruments in-process only; `base_url` is never changed.
+
+**ADR-017 (fail-open):** 200ms hard timeout → circuit breaker (5 failures → 300s bypass) → 60s fresh cache → 24h stale cache → passthrough. Verum outages cannot block the user's LLM calls.
+
 ### Completion Criteria
 
 **Given** an approved `GeneratedAssets`,
@@ -664,4 +678,4 @@ Full Pydantic models for DEPLOY, OBSERVE, EXPERIMENT, EVOLVE follow the same pat
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-22_
+_Maintainer: xzawed | Last updated: 2026-04-25 (DEPLOY stage: non-invasive integration modes, ActivationCard, ADR-016/017 references)_

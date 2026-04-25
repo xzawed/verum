@@ -753,4 +753,38 @@ import { getAuthUserId, createGetByIdHandler } from "../handlers";
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25_
+### ADR-016: No LLM Proxy — Direct Call Only
+
+**Status:** Accepted | **Date:** 2026-04-25
+
+**Decision:** Verum must NEVER route user LLM calls through a proxy gateway. The SDK only instruments the call in-process (monkey-patch or OTLP exporter). Verum's servers are never in the hot path of a user's LLM call.
+
+**Why:** A gateway pattern introduces an inherent SPOF: if Verum's gateway is down, the user's service is down. This cannot be fixed with fail-open inside the SDK library — once `base_url` points to Verum's gateway, the call goes to Verum, not OpenAI. The user has no recourse. This violates the zero-invasiveness principle. Analysis across 7 invasiveness dimensions (SPOF, performance, security, cost, debugging, code changes, functional integrity) confirmed the gateway scores 5/5 on the SPOF dimension.
+
+**Trade-off accepted:** Without a proxy, Verum cannot intercept and modify LLM responses in real time. All Verum interventions happen at the system-prompt / messages level only. This is acceptable for the current use case (prompt A/B testing).
+
+**Revisit trigger:** If a future use case requires response-level intervention (e.g., output filtering), evaluate a sidecar proxy pattern where the user's service explicitly opts in (not a mandatory gateway).
+
+---
+
+### ADR-017: Fail-Open SDK — 5-Layer Safety Net
+
+**Status:** Accepted | **Date:** 2026-04-25
+
+**Decision:** Every Verum SDK operation that contacts the Verum server MUST fail open — i.e., if Verum is unreachable, slow, or returning errors, the user's original request passes through unchanged. The SDK implements 5 layers:
+
+1. **Hard timeout 200ms**: Any Verum config fetch that takes >200ms is aborted.
+2. **Circuit breaker**: After 5 consecutive failures, the circuit opens for 300 seconds. During the open window, all requests skip the Verum fetch and return `fail_open` immediately.
+3. **Fresh cache (60s TTL)**: Successful config fetches are cached for 60 seconds.
+4. **Stale cache (24h TTL)**: If the fresh cache is expired but the stale cache (24h) is still valid, the stale value is served rather than hitting the network.
+5. **Fail-open fallback**: If all layers fail (no cache, circuit open, timeout), the original messages are returned unchanged and the variant is set to "baseline".
+
+**Why:** The zero-invasiveness principle requires that Verum's availability does not affect the user's service availability. If Verum has a 30-minute outage and the SDK propagates errors, we have violated the core product promise.
+
+**Trade-off accepted:** Stale configs (up to 24h) may be served. This means a traffic split change made in the dashboard takes up to 24h to fully propagate in the worst case (fresh TTL miss + stale hit). Acceptable trade-off for reliability.
+
+**Revisit trigger:** If users report that traffic split changes are not reflected quickly enough, reduce stale TTL or add a push invalidation mechanism.
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-04-25 (ADR-016/017 추가 — Non-invasive SDK, fail-open 5-layer safety net)_
