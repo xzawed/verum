@@ -19,7 +19,7 @@ def get_wake_event() -> asyncio.Event:
     return _wake_event
 
 
-async def _listen_loop(dsn: str) -> None:
+async def _listen_loop(dsn: str) -> None:  # pragma: no cover
     """Maintain a persistent asyncpg connection and set wake_event on NOTIFY."""
     import asyncpg  # type: ignore[import-untyped]
 
