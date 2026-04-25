@@ -20,7 +20,6 @@ jest.mock("@/lib/db/queries", () => ({
 jest.mock("@/lib/db/jobs", () => ({
   getModelPricing: jest.fn(),
   insertTrace: jest.fn(),
-  insertOtlpSpanAttrs: jest.fn(),
 }));
 jest.mock("@/lib/db/quota", () => ({
   checkAndIncrementTraceQuota: jest.fn(),
@@ -36,14 +35,13 @@ import {
 } from "../route";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { getDeployment } from "@/lib/db/queries";
-import { getModelPricing, insertTrace, insertOtlpSpanAttrs } from "@/lib/db/jobs";
+import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { checkAndIncrementTraceQuota } from "@/lib/db/quota";
 
 const mockValidateApiKey = validateApiKey as jest.MockedFunction<typeof validateApiKey>;
 const mockGetDeployment = getDeployment as jest.MockedFunction<typeof getDeployment>;
 const mockGetModelPricing = getModelPricing as jest.MockedFunction<typeof getModelPricing>;
 const mockInsertTrace = insertTrace as jest.MockedFunction<typeof insertTrace>;
-const mockInsertOtlpSpanAttrs = insertOtlpSpanAttrs as jest.MockedFunction<typeof insertOtlpSpanAttrs>;
 const mockCheckQuota = checkAndIncrementTraceQuota as jest.MockedFunction<typeof checkAndIncrementTraceQuota>;
 
 // ── Pure helper unit tests ───────────────────────────────────────────────────
@@ -219,7 +217,6 @@ describe("POST /api/v1/otlp/v1/traces", () => {
       output_per_1m_usd: "15.00",
     });
     mockInsertTrace.mockResolvedValueOnce("trace-uuid-1");
-    mockInsertOtlpSpanAttrs.mockResolvedValueOnce(undefined);
 
     const res = await POST(makeOtlpRequest());
     expect(res.status).toBe(202);
@@ -227,13 +224,12 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     expect(json).toEqual({ partialSuccess: {} });
   });
 
-  it("calls insertTrace with correct extracted fields", async () => {
+  it("calls insertTrace with correct extracted fields including spanAttributes", async () => {
     mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
     mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
     mockGetModelPricing.mockResolvedValueOnce(null);
     mockInsertTrace.mockResolvedValueOnce("trace-uuid-2");
-    mockInsertOtlpSpanAttrs.mockResolvedValueOnce(undefined);
 
     await POST(makeOtlpRequest());
 
@@ -245,6 +241,7 @@ describe("POST /api/v1/otlp/v1/traces", () => {
         variant: "baseline",
         latencyMs: 1500,
         error: null,
+        spanAttributes: expect.objectContaining({ "llm.model_name": "gpt-4o" }),
       }),
     );
   });
@@ -252,13 +249,13 @@ describe("POST /api/v1/otlp/v1/traces", () => {
   it("returns 202 with empty partialSuccess when resourceSpans is empty", async () => {
     mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
-    mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
 
     const res = await POST(
       makeOtlpRequest({ body: { resourceSpans: [] } }),
     );
     expect(res.status).toBe(202);
     expect(mockInsertTrace).not.toHaveBeenCalled();
+    expect(mockCheckQuota).not.toHaveBeenCalled();
   });
 
   it("uses 'unknown' model when llm.model_name attribute is absent", async () => {
@@ -267,7 +264,6 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
     mockGetModelPricing.mockResolvedValueOnce(null);
     mockInsertTrace.mockResolvedValueOnce("trace-uuid-3");
-    mockInsertOtlpSpanAttrs.mockResolvedValueOnce(undefined);
 
     const noModelBody = {
       resourceSpans: [
@@ -300,7 +296,6 @@ describe("POST /api/v1/otlp/v1/traces", () => {
     mockCheckQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 1 });
     mockGetModelPricing.mockResolvedValueOnce(null);
     mockInsertTrace.mockResolvedValueOnce("trace-uuid-4");
-    mockInsertOtlpSpanAttrs.mockResolvedValueOnce(undefined);
 
     const errorBody = {
       resourceSpans: [

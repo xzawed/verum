@@ -10,6 +10,7 @@ Create Date: 2026-04-25
 """
 from __future__ import annotations
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0023_otlp_trace_attrs"
@@ -19,8 +20,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE spans ADD COLUMN IF NOT EXISTS span_attributes JSONB")
+    op.add_column("spans", sa.Column("span_attributes", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE spans DROP COLUMN IF EXISTS span_attributes")
+    op.drop_column("spans", "span_attributes")

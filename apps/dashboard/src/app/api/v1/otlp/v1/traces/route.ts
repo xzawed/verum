@@ -1,15 +1,5 @@
-/**
- * OTLP HTTP JSON receiver — [6] OBSERVE stage.
- *
- * Accepts POST /api/v1/otlp/v1/traces from openinference-instrumented clients
- * (Phase 0 SDK: OTEL_EXPORTER_OTLP_ENDPOINT + OTEL_EXPORTER_OTLP_HEADERS).
- *
- * Auth: Authorization: Bearer <api-key>  (same key as x-verum-api-key)
- * Body: OTLP ExportTraceServiceRequest JSON (resourceSpans array)
- * Response: 202 { partialSuccess: {} }  (OTLP HTTP spec)
- */
 import { getDeployment } from "@/lib/db/queries";
-import { getModelPricing, insertTrace, insertOtlpSpanAttrs } from "@/lib/db/jobs";
+import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkAndIncrementTraceQuota, FREE_LIMITS } from "@/lib/db/quota";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
@@ -129,10 +119,33 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { deploymentId, userId } = authResult;
 
-  // ── Verify deployment exists (quota increment guard) ───────────────────────
+  // ── Verify deployment exists ───────────────────────────────────────────────
   const dep = await getDeployment(userId, deploymentId);
   if (!dep) {
     return new Response("deployment not found", { status: 404 });
+  }
+
+  // ── Parse OTLP body ────────────────────────────────────────────────────────
+  let body: OtlpRequest;
+  try {
+    body = (await req.json()) as OtlpRequest;
+  } catch {
+    return new Response("invalid json", { status: 400 });
+  }
+
+  // Collect all spans before touching quota
+  const allSpans: OtlpSpan[] = [];
+  for (const rs of body.resourceSpans ?? []) {
+    for (const ss of rs.scopeSpans ?? []) {
+      for (const span of ss.spans ?? []) {
+        allSpans.push(span);
+      }
+    }
+  }
+
+  if (allSpans.length === 0) {
+    // Empty payload — respond 202 per OTLP spec without touching quota
+    return Response.json({ partialSuccess: {} }, { status: 202 });
   }
 
   // ── Quota ──────────────────────────────────────────────────────────────────
@@ -147,71 +160,60 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  // ── Parse OTLP body ────────────────────────────────────────────────────────
-  let body: OtlpRequest;
-  try {
-    body = (await req.json()) as OtlpRequest;
-  } catch {
-    return new Response("invalid json", { status: 400 });
+  // ── Process each span ──────────────────────────────────────────────────────
+  let failCount = 0;
+
+  for (const span of allSpans) {
+    try {
+      const attrMap = buildAttrMap(span.attributes);
+
+      const model = getStringAttr(attrMap, "llm.model_name") ?? "unknown";
+      const inputTokens = getIntAttr(attrMap, "llm.token_count.prompt");
+      const outputTokens = getIntAttr(attrMap, "llm.token_count.completion");
+      const variant = getStringAttr(attrMap, "x-verum-variant") ?? "baseline";
+      const latencyMs = calcLatencyMs(span.startTimeUnixNano, span.endTimeUnixNano);
+
+      // x-verum-deployment is advisory — fall back to the validated deploymentId
+      const spanDeploymentId = getStringAttr(attrMap, "x-verum-deployment");
+      const resolvedDeploymentId = spanDeploymentId ?? deploymentId;
+
+      const statusCode = getStringAttr(attrMap, "status_code");
+      const error = statusCode && statusCode !== "OK" ? statusCode.slice(0, 4000) : null;
+
+      // Field length guards
+      if (model.length > 200 || variant.length > 200) {
+        failCount++;
+        continue;
+      }
+
+      const pricing = await getModelPricing(model);
+      let costUsd = "0";
+      if (pricing) {
+        const inputCost = (inputTokens / 1_000_000) * Number(pricing.input_per_1m_usd);
+        const outputCost = (outputTokens / 1_000_000) * Number(pricing.output_per_1m_usd);
+        costUsd = (inputCost + outputCost).toFixed(6);
+      }
+
+      await insertTrace({
+        deploymentId: resolvedDeploymentId,
+        variant,
+        model,
+        inputTokens,
+        outputTokens,
+        latencyMs,
+        error,
+        costUsd,
+        spanAttributes: attrMap,
+      });
+    } catch (err) {
+      console.error("[OTLP] span processing error:", err);
+      failCount++;
+    }
   }
-
-  const firstSpan: OtlpSpan | undefined =
-    body.resourceSpans?.[0]?.scopeSpans?.[0]?.spans?.[0];
-
-  if (!firstSpan) {
-    // Respond 202 per OTLP spec even for empty payloads
-    return Response.json({ partialSuccess: {} }, { status: 202 });
-  }
-
-  const attrMap = buildAttrMap(firstSpan.attributes);
-
-  // ── Extract fields ─────────────────────────────────────────────────────────
-  const model = getStringAttr(attrMap, "llm.model_name") ?? "unknown";
-  const inputTokens = getIntAttr(attrMap, "llm.token_count.prompt");
-  const outputTokens = getIntAttr(attrMap, "llm.token_count.completion");
-  const variant = getStringAttr(attrMap, "x-verum-variant") ?? "baseline";
-  const latencyMs = calcLatencyMs(
-    firstSpan.startTimeUnixNano,
-    firstSpan.endTimeUnixNano,
-  );
-
-  // x-verum-deployment is advisory — fall back to the validated deploymentId
-  // so the SDK doesn't have to set it explicitly.
-  const spanDeploymentId = getStringAttr(attrMap, "x-verum-deployment");
-  const resolvedDeploymentId = spanDeploymentId ?? deploymentId;
-
-  const statusCode = getStringAttr(attrMap, "status_code");
-  const error = statusCode && statusCode !== "OK" ? statusCode : null;
-
-  // ── Field length guards (mirror existing traces route) ─────────────────────
-  if (model.length > 200 || variant.length > 200) {
-    return new Response("field too long", { status: 400 });
-  }
-
-  // ── Cost calculation ───────────────────────────────────────────────────────
-  const pricing = await getModelPricing(model);
-  let costUsd = "0";
-  if (pricing) {
-    const inputCost = (inputTokens / 1_000_000) * Number(pricing.input_per_1m_usd);
-    const outputCost = (outputTokens / 1_000_000) * Number(pricing.output_per_1m_usd);
-    costUsd = (inputCost + outputCost).toFixed(6);
-  }
-
-  // ── Insert trace + span ────────────────────────────────────────────────────
-  const traceId = await insertTrace({
-    deploymentId: resolvedDeploymentId,
-    variant,
-    model,
-    inputTokens,
-    outputTokens,
-    latencyMs,
-    error,
-    costUsd,
-  });
-
-  // ── Store raw span attributes for downstream OBSERVE queries ───────────────
-  await insertOtlpSpanAttrs(traceId, attrMap);
 
   // OTLP HTTP spec requires 202 with a partialSuccess body
-  return Response.json({ partialSuccess: {} }, { status: 202 });
+  return Response.json(
+    { partialSuccess: failCount > 0 ? { rejectedSpans: failCount } : {} },
+    { status: 202 },
+  );
 }
