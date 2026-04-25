@@ -181,6 +181,17 @@ async def test_claim_one_skip_locked_prevents_double_claim(mock_db: AsyncMock) -
 # ── _dispatch_job ─────────────────────────────────────────────────────────────
 
 
+def _make_db_ctx(session: AsyncMock):
+    """Async context manager stub that yields session, replacing get_db_for_user."""
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _inner(*_args, **_kwargs):
+        yield session
+
+    return _inner
+
+
 @pytest.mark.asyncio
 async def test_dispatch_job_success_calls_mark_done() -> None:
     """When a handler completes successfully, _mark_done is called."""
@@ -203,6 +214,7 @@ async def test_dispatch_job_success_calls_mark_done() -> None:
         patch("src.worker.runner._HANDLERS", {"analyze": mock_handler}),
         patch("src.worker.runner._PAYLOAD_SCHEMAS", {}),
         patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.get_db_for_user", _make_db_ctx(mock_session)),
         patch("src.worker.runner._mark_done", new=AsyncMock()) as mock_done,
         patch("src.worker.runner._mark_failed", new=AsyncMock()) as mock_failed,
     ):
@@ -234,6 +246,7 @@ async def test_dispatch_job_handler_exception_calls_mark_failed() -> None:
         patch("src.worker.runner._HANDLERS", {"infer": mock_handler}),
         patch("src.worker.runner._PAYLOAD_SCHEMAS", {}),
         patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.get_db_for_user", _make_db_ctx(mock_session)),
         patch("src.worker.runner._mark_done", new=AsyncMock()) as mock_done,
         patch("src.worker.runner._mark_failed", new=AsyncMock()) as mock_failed,
     ):
