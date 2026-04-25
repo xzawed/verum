@@ -1,53 +1,50 @@
+jest.mock("../rateLimitRedis", () => ({
+  checkRateLimitRedis: jest.fn().mockResolvedValue(null),
+}));
+
 import { checkRateLimit, getClientIp } from "../rateLimit";
 
-// Reset module between tests by reimporting a fresh store each time.
-// Since the store is module-level, we isolate by using unique keys per test.
-
 describe("checkRateLimit", () => {
-  it("returns null when under the limit", () => {
+  it("returns null when under the limit", async () => {
     const key = `test-under-${Date.now()}`;
-    const result = checkRateLimit(key, 5);
+    const result = await checkRateLimit(key, 5);
     expect(result).toBeNull();
   });
 
-  it("returns null on repeated requests below the limit", () => {
+  it("returns null on repeated requests below the limit", async () => {
     const key = `test-repeat-${Date.now()}`;
     for (let i = 0; i < 4; i++) {
-      expect(checkRateLimit(key, 5)).toBeNull();
+      expect(await checkRateLimit(key, 5)).toBeNull();
     }
   });
 
-  it("returns a 429 Response when the limit is reached", () => {
+  it("returns a 429 Response when the limit is reached", async () => {
     const key = `test-limit-${Date.now()}`;
-    // Exhaust the limit
     for (let i = 0; i < 3; i++) {
-      checkRateLimit(key, 3);
+      await checkRateLimit(key, 3);
     }
-    const response = checkRateLimit(key, 3);
+    const response = await checkRateLimit(key, 3);
     expect(response).not.toBeNull();
     expect(response?.status).toBe(429);
   });
 
-  it("includes Retry-After and rate-limit headers on 429", () => {
+  it("includes Retry-After and rate-limit headers on 429", async () => {
     const key = `test-headers-${Date.now()}`;
     for (let i = 0; i < 2; i++) {
-      checkRateLimit(key, 2);
+      await checkRateLimit(key, 2);
     }
-    const response = checkRateLimit(key, 2);
+    const response = await checkRateLimit(key, 2);
     expect(response?.headers.get("Retry-After")).toBeTruthy();
     expect(response?.headers.get("X-RateLimit-Limit")).toBe("2");
     expect(response?.headers.get("X-RateLimit-Remaining")).toBe("0");
   });
 
-  it("allows requests again after the window expires", () => {
+  it("allows requests again after the window expires", async () => {
     const key = `test-window-${Date.now()}`;
-    // Fill up with a 1ms window
-    checkRateLimit(key, 1, 1);
-    checkRateLimit(key, 1, 1); // hits limit
-    // After waiting (simulate by using past timestamps via a fresh key + immediate call)
-    // Use a fresh key to verify the logic resets
+    await checkRateLimit(key, 1, 1);
+    await checkRateLimit(key, 1, 1);
     const freshKey = `test-fresh-${Date.now()}`;
-    expect(checkRateLimit(freshKey, 1, 1)).toBeNull();
+    expect(await checkRateLimit(freshKey, 1, 1)).toBeNull();
   });
 });
 

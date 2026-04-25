@@ -1,3 +1,7 @@
+jest.mock("@/lib/rateLimit", () => ({
+  checkRateLimitDual: jest.fn().mockResolvedValue(null),
+  getClientIp: jest.fn().mockReturnValue("127.0.0.1"),
+}));
 jest.mock("@/lib/api/validateApiKey", () => ({
   validateApiKey: jest.fn(),
 }));
