@@ -78,6 +78,13 @@ class Client:
         Returns:
             Dict with "messages" (possibly modified), "routed_to", "deployment_id".
         """
+        import warnings
+        warnings.warn(
+            "verum.Client.chat() is deprecated. Use 'import verum.openai' for zero-invasive integration.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if not deployment_id:
             return {"messages": messages, "routed_to": "baseline", "deployment_id": None}
 
