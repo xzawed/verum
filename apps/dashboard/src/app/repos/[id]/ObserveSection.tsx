@@ -138,10 +138,11 @@ export default function ObserveSection({ deploymentId }: Props) {
           </div>
         ) : (
           traces.map((t) => (
-            <div
+            <button
               key={t.id}
+              type="button"
               onClick={() => setSelectedTraceId(t.id)}
-              className="grid grid-cols-6 gap-2 px-3 py-2 text-xs text-gray-300 border-b border-gray-900 cursor-pointer hover:bg-gray-800 transition-colors"
+              className="grid grid-cols-6 gap-2 px-3 py-2 text-xs text-gray-300 border-b border-gray-900 cursor-pointer hover:bg-gray-800 transition-colors w-full text-left"
             >
               <span className="col-span-2 font-mono text-blue-400 truncate">{t.id}</span>
               <span className={t.variant === "baseline" ? "text-gray-400" : "text-green-400"}>
@@ -159,7 +160,7 @@ export default function ObserveSection({ deploymentId }: Props) {
                 )}{" "}
                 {t.user_feedback === 1 ? "👍" : t.user_feedback === -1 ? "👎" : ""}
               </span>
-            </div>
+            </button>
           ))
         )}
       </div>

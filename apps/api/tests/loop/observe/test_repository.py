@@ -20,7 +20,7 @@ def test_trace_record_defaults():
         latency_ms=980,
     )
     assert rec.error is None
-    assert rec.cost_usd == 0.0
+    assert rec.cost_usd == pytest.approx(0.0)
 
 
 def test_span_record_cost_calculation():
@@ -32,7 +32,7 @@ def test_span_record_cost_calculation():
         latency_ms=1000,
         cost_usd=12.0,  # 2.0 input + 10.0 output
     )
-    assert rec.cost_usd == 12.0
+    assert rec.cost_usd == pytest.approx(12.0)
 
 
 def test_trace_model_import():

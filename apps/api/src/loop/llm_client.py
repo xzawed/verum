@@ -45,7 +45,7 @@ async def call_claude(
     }
     if system:
         kwargs["system"] = system
-    if temperature != 0.0:
+    if temperature > 0:
         kwargs["temperature"] = temperature
 
     msg = await client.messages.create(**kwargs)

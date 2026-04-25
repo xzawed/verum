@@ -38,6 +38,7 @@ _resolver: Any = None
 _resolver_lock = threading.Lock()
 _sync_http: Any = None
 _async_http: Any = None
+_bg_tasks: set[asyncio.Task[Any]] = set()  # prevents GC of fire-and-forget tasks
 
 
 # ── Resolver singleton ────────────────────────────────────────────────────────
@@ -384,7 +385,7 @@ def _patch_anthropic() -> None:
 
         try:
             input_tokens, output_tokens, model = _extract_usage_anthropic(response)
-            asyncio.create_task(
+            _task = asyncio.create_task(
                 _record_trace_bg_async(
                     deployment_id=deployment_id,
                     variant=variant,
@@ -394,6 +395,8 @@ def _patch_anthropic() -> None:
                     latency_ms=latency_ms,
                 )
             )
+            _bg_tasks.add(_task)
+            _task.add_done_callback(_bg_tasks.discard)
         except Exception:  # noqa: BLE001
             pass
 

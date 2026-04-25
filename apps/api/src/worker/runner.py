@@ -356,9 +356,10 @@ async def run_loop() -> None:
     logger.info("Stale job reset complete")
 
     _bg_tasks: set[asyncio.Task[None]] = set()
-    _bg_tasks.add(asyncio.create_task(_heartbeat_loop()))
-    _bg_tasks.add(asyncio.create_task(_stale_reset_loop()))
-    _bg_tasks.add(asyncio.create_task(_experiment_loop()))
+    for _coro in (_heartbeat_loop(), _stale_reset_loop(), _experiment_loop()):
+        _t = asyncio.create_task(_coro)
+        _bg_tasks.add(_t)
+        _t.add_done_callback(_bg_tasks.discard)
     logger.info(
         "Background loops started — experiment=%ds stale_reset=%ds heartbeat=%ds",
         EXPERIMENT_INTERVAL, STALE_RESET_INTERVAL, HEARTBEAT_INTERVAL,

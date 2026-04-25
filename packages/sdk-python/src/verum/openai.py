@@ -36,6 +36,7 @@ _resolver: Any = None
 _resolver_lock = threading.Lock()
 _sync_http: Any = None  # httpx.Client for sync trace posting
 _async_http: Any = None  # httpx.AsyncClient for async trace posting
+_bg_tasks: set[asyncio.Task[Any]] = set()  # prevents GC of fire-and-forget tasks
 
 
 # ── Resolver singleton ────────────────────────────────────────────────────────
@@ -359,7 +360,7 @@ def _patch_openai() -> None:
 
         try:
             input_tokens, output_tokens, model = _extract_usage(response)
-            asyncio.create_task(
+            _task = asyncio.create_task(
                 _record_trace_bg_async(
                     deployment_id=deployment_id,
                     variant=variant,
@@ -369,6 +370,8 @@ def _patch_openai() -> None:
                     latency_ms=latency_ms,
                 )
             )
+            _bg_tasks.add(_task)
+            _task.add_done_callback(_bg_tasks.discard)
         except Exception:  # noqa: BLE001
             pass
 

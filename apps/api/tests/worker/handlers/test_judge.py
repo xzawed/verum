@@ -67,7 +67,7 @@ def test_parse_judge_response_valid():
 def test_parse_judge_response_clamped():
     raw = json.dumps({"score": 1.5, "reason": "Over limit"})
     score, _ = _parse_judge_response(raw)
-    assert score == 1.0
+    assert score == pytest.approx(1.0)
 
 
 def test_parse_judge_response_invalid_returns_none():
@@ -86,7 +86,7 @@ def test_parse_judge_response_missing_score_key_returns_none():
 def test_parse_judge_response_clamps_below_zero():
     raw = json.dumps({"score": -0.5, "reason": "negative"})
     score, _ = _parse_judge_response(raw)
-    assert score == 0.0
+    assert score == pytest.approx(0.0)
 
 
 # ── handle_judge integration tests ───────────────────────────────────────────
