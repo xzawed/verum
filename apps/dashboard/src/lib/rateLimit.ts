@@ -15,6 +15,18 @@ interface Window {
 
 const store = new Map<string, Window>();
 
+// Evict entries whose last activity is older than 2× the default window (2 min).
+// Called on 1% of requests to bound Map size without per-request overhead.
+// Replace with Redis-backed store for multi-instance deployments.
+function _maybeEvict(): void {
+  if (Math.random() > 0.01) return;
+  const staleAfter = Date.now() - 120_000;
+  for (const [key, entry] of store) {
+    const last = entry.timestamps[entry.timestamps.length - 1];
+    if (last === undefined || last < staleAfter) store.delete(key);
+  }
+}
+
 /**
  * Check rate limit for a given key (sliding window).
  *
@@ -30,6 +42,8 @@ export function checkRateLimit(
 ): Response | null {
   const now = Date.now();
   const cutoff = now - windowMs;
+
+  _maybeEvict();
 
   let entry = store.get(key);
   if (!entry) {

@@ -31,6 +31,9 @@ export async function POST(req: Request) {
   if (typeof body.query !== "string" || !body.query) {
     return new Response("query required", { status: 400 });
   }
+  if (body.query.length > 2000) {
+    return new Response("query too long (max 2000 chars)", { status: 400 });
+  }
 
   const topK = typeof body.top_k === "number" ? Math.min(body.top_k, 20) : 5;
 

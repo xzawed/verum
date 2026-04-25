@@ -29,6 +29,13 @@ export async function POST(req: Request) {
   if (!body.model) {
     return new Response("bad request", { status: 400 });
   }
+  if (
+    typeof body.model !== "string" || body.model.length > 200 ||
+    (typeof body.variant === "string" && body.variant.length > 200) ||
+    (typeof body.error === "string" && body.error.length > 4000)
+  ) {
+    return new Response("field too long", { status: 400 });
+  }
 
   const auth_result = await validateApiKey(apiKey);
   if (!auth_result) {

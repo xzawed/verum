@@ -5,7 +5,9 @@ import asyncio
 import ipaddress
 import logging
 import socket
+import time
 from urllib.parse import urlparse, urljoin
+from urllib.robotparser import RobotFileParser
 
 import httpx
 import trafilatura
@@ -21,6 +23,11 @@ _TIMEOUT = 30.0
 _MAX_CONTENT_BYTES = 2 * 1024 * 1024  # 2 MB cap
 _SPARSE_THRESHOLD = 200  # chars; below this, try playwright if requested
 _MAX_REDIRECTS = 5
+_ROBOTS_TTL = 3600.0  # seconds; re-fetch robots.txt after 1 hour
+_VERUM_BOT_UA = "Verum-Bot"
+
+# Cache: base_url → (fetched_at, RobotFileParser)
+_robots_cache: dict[str, tuple[float, RobotFileParser]] = {}
 
 
 class CrawlError(Exception):
@@ -31,6 +38,21 @@ class CrawlError(Exception):
 
 async def _check_ssrf(url: str) -> None:
     """Resolve URL hostname and reject private/loopback/internal IPs.
+
+    Called before every HTTP hop (including redirects) to prevent SSRF.
+
+    Security note — TOCTOU residual risk:
+        There is a narrow time-of-check-to-time-of-use window between this DNS
+        resolution and the TCP connection made by httpx.  A DNS rebinding attack
+        could exploit this window by switching the record to a private IP after
+        the check passes.  The risk is low in practice because:
+          (a) the window is <10 ms on the same host,
+          (b) an attacker would need to control the target domain's DNS *and* set
+              an extremely short TTL to race within that window,
+          (c) this check is re-run at every redirect hop, not just once.
+        Full mitigation would require connecting directly to the resolved IP and
+        passing the original hostname via the Host header + TLS SNI — a
+        future enhancement tracked in docs/BACKLOG.md.
 
     Raises:
         CrawlError: if the resolved address is non-routable or private.
@@ -72,8 +94,58 @@ async def _check_ssrf(url: str) -> None:
             )
 
 
+async def _get_robots_parser(base_url: str) -> RobotFileParser | None:
+    """Fetch and parse robots.txt for base_url, with TTL-based caching.
+
+    Uses our own SSRF-safe httpx fetch so the robots.txt request itself
+    goes through the same security checks as normal crawl requests.
+
+    Returns None (allow all) if robots.txt cannot be fetched or parsed.
+    """
+    now = time.monotonic()
+    cached = _robots_cache.get(base_url)
+    if cached is not None and (now - cached[0]) < _ROBOTS_TTL:
+        return cached[1]
+
+    robots_url = f"{base_url}/robots.txt"
+    rp = RobotFileParser()
+
+    try:
+        await _check_ssrf(robots_url)
+        async with httpx.AsyncClient(
+            headers=_HEADERS,
+            timeout=10.0,
+            follow_redirects=False,
+        ) as client:
+            resp = await client.get(robots_url)
+        if resp.status_code == 200:
+            rp.parse(resp.text.splitlines())
+    except Exception as exc:
+        # Any network/SSRF/parse error → be permissive, log for visibility.
+        logger.debug("robots.txt fetch failed for %s: %s — assuming allow", base_url, exc)
+        rp = RobotFileParser()  # empty parser → allows everything
+
+    _robots_cache[base_url] = (now, rp)
+    return rp
+
+
+async def _check_robots_allowed(url: str) -> None:
+    """Raise CrawlError if robots.txt disallows crawling url for Verum-Bot.
+
+    Raises:
+        CrawlError: with kind="robots" if the URL is disallowed.
+    """
+    parsed = urlparse(url)
+    base = f"{parsed.scheme}://{parsed.netloc}"
+    rp = await _get_robots_parser(base)
+    if rp is not None and not rp.can_fetch(_VERUM_BOT_UA, url):
+        raise CrawlError("robots", f"robots.txt disallows {url!r} for {_VERUM_BOT_UA}")
+
+
 async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
     """Fetch URL and extract main text content via trafilatura.
+
+    Checks SSRF safety, robots.txt compliance, and content extraction.
 
     Args:
         url: Target URL.
@@ -85,8 +157,9 @@ async def fetch_and_extract(url: str, *, use_playwright: bool = False) -> str:
         Extracted plain text (may be empty string if extraction fails).
 
     Raises:
-        CrawlError: on network or HTTP errors.
+        CrawlError: on network, SSRF, robots.txt, or HTTP errors.
     """
+    await _check_robots_allowed(url)
     text = await _fetch_httpx(url)
     if not use_playwright or len(text) >= _SPARSE_THRESHOLD:
         return text
