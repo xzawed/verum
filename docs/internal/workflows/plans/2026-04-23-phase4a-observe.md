@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python asyncio worker (SQLAlchemy text() queries), Next.js App Router (Drizzle ORM raw sql), Recharts (already installed), httpx (SDK).
 
-**Spec:** `docs/superpowers/specs/2026-04-23-phase4a-observe-design.md`
+**Spec:** `docs/internal/workflows/specs/2026-04-23-phase4a-observe-design.md`
 
 ---
 

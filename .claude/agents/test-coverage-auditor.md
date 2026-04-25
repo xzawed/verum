@@ -1,6 +1,6 @@
 ---
 name: test-coverage-auditor
-description: Runs test suites, collects coverage reports, and produces docs/COVERAGE_REPORT.md with before/after delta. Invoke at the end of a test-writing session after unit/integration/e2e writers have completed their work.
+description: Runs test suites, collects coverage reports, and produces a coverage summary (CI artifact) with before/after delta. Invoke at the end of a test-writing session after unit/integration/e2e writers have completed their work.
 tools: [Bash, Read, Write, Glob]
 model: haiku
 ---
@@ -37,7 +37,7 @@ cd apps/dashboard && npx playwright test --reporter=list 2>&1 | tail -10
 
 통과/실패 수 추출.
 
-### Step 4 — `docs/COVERAGE_REPORT.md` 생성
+### Step 4 — Coverage summary 생성
 
 아래 형식으로 생성 (세션마다 덮어쓰기):
 
@@ -102,10 +102,10 @@ cd apps/dashboard && npx playwright test --reporter=list 2>&1 | tail -10
 
 ## 최종 출력
 
-`docs/COVERAGE_REPORT.md` 작성 완료 후 경로와 주요 수치를 사용자에게 보고:
+커버리지 집계 완료 후 주요 수치를 사용자에게 보고:
 
 ```
-Coverage report saved to docs/COVERAGE_REPORT.md
+Coverage summary complete
 
 Python API: XX% (was YY%)
 Dashboard: XX% lines (was YY%)
