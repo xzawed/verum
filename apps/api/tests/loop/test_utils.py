@@ -69,3 +69,28 @@ def test_json_boolean() -> None:
 
 def test_json_null() -> None:
     assert parse_json_response("null") is None
+
+
+# ── Truncation repair ────────────────────────────────────────────────────────
+
+def test_truncated_array_repaired() -> None:
+    """JSON array truncated mid-item should be repaired to the last complete item."""
+    truncated = '{"variants": [{"type": "a", "content": "hello"}, {"type": "b", "content": "trun'
+    result = parse_json_response(truncated)
+    assert "variants" in result
+    assert len(result["variants"]) >= 1
+    assert result["variants"][0]["type"] == "a"
+
+
+def test_truncated_nested_string_repaired() -> None:
+    """JSON truncated mid-string produces at least the complete preceding items."""
+    truncated = '{"pairs": [{"query": "q1", "expected": "a1"}, {"query": "q2", "expected": "mid'
+    result = parse_json_response(truncated)
+    assert "pairs" in result
+    assert result["pairs"][0]["query"] == "q1"
+
+
+def test_completely_garbled_still_raises() -> None:
+    """Text with no valid JSON structure at all must still raise JSONDecodeError."""
+    with pytest.raises(json.JSONDecodeError):
+        parse_json_response("this is just plain text with no json whatsoever !!!")
