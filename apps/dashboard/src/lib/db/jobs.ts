@@ -359,6 +359,19 @@ async function _getDeploymentOwner(deploymentId: string): Promise<string> {
   return ((rows.rows[0] as Record<string, unknown>)?.owner_user_id as string) ?? "";
 }
 
+export async function insertOtlpSpanAttrs(
+  traceId: string,
+  attrs: Record<string, unknown>,
+): Promise<void> {
+  await db.execute(
+    sql`
+      UPDATE spans
+      SET span_attributes = ${JSON.stringify(attrs)}::jsonb
+      WHERE trace_id = ${traceId}::uuid
+    `,
+  );
+}
+
 export async function updateFeedback(
   deploymentId: string,
   traceId: string,
