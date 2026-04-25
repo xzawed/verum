@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config as cfg
 import src.db.models  # noqa: F401 — ensures User+Repo register with SQLAlchemy mapper before any query
 from src.db.enums import JobStatus
-from src.db.session import AsyncSessionLocal
+from src.db.session import AsyncSessionLocal, get_db_for_user
 from src.worker.payloads import (
     AnalyzePayload,
     DeployPayload,
@@ -335,7 +335,10 @@ async def _dispatch_job(job: dict[str, Any]) -> None:
             return
 
     try:
-        async with AsyncSessionLocal() as db:
+        # RLS context: app.current_user_id set for the handler's session so
+        # that once FORCE ROW LEVEL SECURITY is active (migration 0022) the
+        # worker only sees rows owned by owner_user_id.
+        async with get_db_for_user(str(owner_user_id)) as db:
             result = await handler(db, owner_user_id, payload)
         async with AsyncSessionLocal() as db:
             await _mark_done(db, job_id, result)

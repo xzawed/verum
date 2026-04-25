@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   // 5 registrations per user per minute; 20 per IP per minute.
   // Bots registering many repos from the same IP hit the IP tier first.
   const ip = getClientIp(req);
-  const rateLimitResponse = checkRateLimitDual(uid, 5, ip, 20);
+  const rateLimitResponse = await checkRateLimitDual(uid, 5, ip, 20);
   if (rateLimitResponse) return rateLimitResponse;
 
   const parsed = CreateRepoSchema.safeParse(await req.json());

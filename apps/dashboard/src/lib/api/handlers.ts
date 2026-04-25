@@ -17,7 +17,7 @@ export function createGetByIdHandler<T>(
 
     // 60 reads/min per user; 200/min per IP (covers multiple users behind NAT).
     const ip = getClientIp(req);
-    const limited = checkRateLimitDual(uid, 60, ip, 200);
+    const limited = await checkRateLimitDual(uid, 60, ip, 200);
     if (limited) return limited;
 
     const { id } = await params;

@@ -18,6 +18,16 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: .
@@ -35,10 +45,12 @@ services:
     build: ./apps/dashboard
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"
     depends_on:
       - api
+      - redis
 
 volumes:
   db_data:

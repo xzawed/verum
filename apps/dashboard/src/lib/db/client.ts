@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
@@ -37,3 +38,26 @@ export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
     return (getDb() as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
+
+/**
+ * Execute fn inside a transaction with app.current_user_id set for RLS.
+ *
+ * Uses set_config(..., true) (transaction-scoped) so the GUC resets
+ * automatically when the transaction commits or rolls back.  Once
+ * migration 0022 (FORCE ROW LEVEL SECURITY) is applied and the app
+ * connects as verum_app, this context activates per-user row filtering.
+ *
+ * @example
+ *   const result = await withUserId(session.user.id, (tx) =>
+ *     tx.select().from(schema.repos).where(eq(schema.repos.ownerUserId, uid))
+ *   );
+ */
+export async function withUserId<T>(
+  userId: string,
+  fn: (tx: ReturnType<typeof drizzle<typeof schema>>) => Promise<T>,
+): Promise<T> {
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.current_user_id', ${userId}, true)`);
+    return fn(tx as unknown as ReturnType<typeof drizzle<typeof schema>>);
+  });
+}

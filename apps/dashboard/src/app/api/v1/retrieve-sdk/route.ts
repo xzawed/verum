@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
   // IP-level gate before expensive DB look-up: 60 retrievals/min per key, 100 per IP.
   const ip = getClientIp(req);
-  const ipGate = checkRateLimitDual(apiKey.slice(0, 16), 60, ip, 100);
+  const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), 60, ip, 100);
   if (ipGate) return ipGate;
 
   const keyResult = await validateApiKey(apiKey);

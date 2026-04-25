@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   // IP-level gate before expensive DB look-up: 200 traces/min per IP, 120 per key.
   // Quota enforcement below provides a secondary per-user bound.
   const ip = getClientIp(req);
-  const ipGate = checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
+  const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
   if (ipGate) return ipGate;
 
   const body = await req.json() as {
