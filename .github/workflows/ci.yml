@@ -253,16 +253,6 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://verum:verum@localhost:5432/verum
           PYTHONPATH: .
 
-      # pytest --cov=src from apps/api/ generates <source>src</source> (or
-      # an absolute runner path).  Codecov resolves filenames against <source>,
-      # so it can't find apps/api/src/loop/... unless we rewrite the path first.
-      - name: Fix Python coverage.xml source path for Codecov
-        if: always()
-        run: |
-          if [ -f apps/api/coverage.xml ]; then
-            sed -i 's|<source>[^<]*</source>|<source>apps/api/src</source>|g' apps/api/coverage.xml
-          fi
-
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
@@ -320,8 +310,13 @@ jobs:
           if [ -f coverage-artifacts/sdk-typescript/lcov.info ]; then
             sed -i 's|^SF:src/|SF:packages/sdk-typescript/src/|g' coverage-artifacts/sdk-typescript/lcov.info
           fi
-          # apps/api/coverage.xml is already fixed by the step above (before Codecov upload).
-          # Only the sdk-python artifact still needs fixing here.
+          # Fix Python coverage.xml: codecov-cli regenerates coverage.xml from the
+          # .coverage data file during upload, overwriting any prior path fixes.
+          # This sed must run AFTER the Codecov upload action so SonarCloud gets
+          # the correctly-remapped paths.
+          if [ -f apps/api/coverage.xml ]; then
+            sed -i 's|<source>[^<]*</source>|<source>apps/api/src</source>|g' apps/api/coverage.xml
+          fi
           if [ -f coverage-artifacts/sdk-python/coverage.xml ]; then
             sed -i 's|<source>[^<]*</source>|<source>packages/sdk-python/src</source>|g' coverage-artifacts/sdk-python/coverage.xml
           fi
