@@ -47,54 +47,50 @@ down_revision: str = "0020_row_level_security"
 branch_labels = None
 depends_on = None
 
-# Database name is read from the connection URL at runtime.
-# We use current_database() so this migration is portable across environments.
-_GRANT_SQL = """
-DO $$
-DECLARE
-  db_name text := current_database();
-BEGIN
-  -- Create role only if it does not already exist
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'verum_app') THEN
-    CREATE ROLE verum_app LOGIN;
-  END IF;
-
-  EXECUTE format('GRANT CONNECT ON DATABASE %I TO verum_app', db_name);
-END
-$$;
-
-GRANT USAGE ON SCHEMA public TO verum_app;
-
--- Existing tables and sequences
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO verum_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO verum_app;
-
--- Future tables and sequences created by the owner role
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO verum_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO verum_app;
-"""
-
-_REVOKE_SQL = """
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM verum_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  REVOKE USAGE, SELECT ON SEQUENCES FROM verum_app;
-
-REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM verum_app;
-REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM verum_app;
-REVOKE USAGE ON SCHEMA public FROM verum_app;
-
--- Note: REVOKE CONNECT and DROP ROLE intentionally omitted — if the role
--- is being used by other connections, dropping it would fail.  Remove
--- the role manually after confirming no connections use it.
-"""
-
 
 def upgrade() -> None:
-    op.execute(_GRANT_SQL)
+    # asyncpg uses the extended query protocol (prepared statements), which
+    # rejects multi-statement strings. Each DDL statement must be a separate call.
+    op.execute(
+        """
+        DO $$
+        DECLARE
+          db_name text := current_database();
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'verum_app') THEN
+            CREATE ROLE verum_app LOGIN;
+          END IF;
+          EXECUTE format('GRANT CONNECT ON DATABASE %I TO verum_app', db_name);
+        END
+        $$
+        """
+    )
+    op.execute("GRANT USAGE ON SCHEMA public TO verum_app")
+    op.execute(
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO verum_app"
+    )
+    op.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO verum_app")
+    op.execute(
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public"
+        " GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO verum_app"
+    )
+    op.execute(
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public"
+        " GRANT USAGE, SELECT ON SEQUENCES TO verum_app"
+    )
 
 
 def downgrade() -> None:
-    op.execute(_REVOKE_SQL)
+    op.execute(
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public"
+        " REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM verum_app"
+    )
+    op.execute(
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public"
+        " REVOKE USAGE, SELECT ON SEQUENCES FROM verum_app"
+    )
+    op.execute(
+        "REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM verum_app"
+    )
+    op.execute("REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM verum_app")
+    op.execute("REVOKE USAGE ON SCHEMA public FROM verum_app")
