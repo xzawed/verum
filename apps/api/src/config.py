@@ -48,7 +48,7 @@ LLM_PATH_SUFFIX_PATTERNS: list[tuple[str, list[str]]] = [
 
 # ── GENERATE stage ────────────────────────────────────────────────────────────
 GENERATE_MODEL: str = os.environ.get("GENERATE_MODEL", INFER_MODEL)
-GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "2048"))
+GENERATE_MAX_TOKENS: int = int(os.environ.get("GENERATE_MAX_TOKENS", "4096"))
 
 # ── HARVEST stage — HTTP ─────────────────────────────────────────────────────
 EMBED_HTTP_TIMEOUT_SECS: float = float(os.environ.get("EMBED_HTTP_TIMEOUT_SECS", "60.0"))

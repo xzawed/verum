@@ -6,11 +6,14 @@ jest.mock("@/lib/db/client", () => ({
     select: jest.fn().mockReturnThis(),
     from: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
   },
 }));
 jest.mock("@/lib/db/schema", () => ({
   deployments: {},
+  prompt_variants: {},
+  rag_configs: {},
 }));
 jest.mock("@/lib/db/queries", () => ({
   getVariantPrompt: jest.fn(),
@@ -41,6 +44,7 @@ beforeEach(() => {
   (mockDb.from as jest.Mock).mockReturnValue(mockDb);
   (mockDb.where as jest.Mock).mockReturnValue(mockDb);
   (mockDb.limit as jest.Mock).mockResolvedValue([]);
+  (mockDb.orderBy as jest.Mock).mockResolvedValue([]);
 });
 
 describe("GET /api/v1/deploy/[id]/config", () => {
@@ -66,11 +70,34 @@ describe("GET /api/v1/deploy/[id]/config", () => {
       deploymentId: "dep-1",
       userId: "user-1",
     });
-    (mockDb.limit as jest.Mock).mockResolvedValueOnce([
+    (mockDb.limit as jest.Mock)
+      .mockResolvedValueOnce([
+        {
+          id: "dep-1",
+          status: "active",
+          traffic_split: { baseline: 0.8, variant: 0.2 },
+          generation_id: "gen-1",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          chunking_strategy: "recursive",
+          chunk_size: 512,
+          chunk_overlap: 50,
+          top_k: 5,
+          hybrid_alpha: 0.7,
+        },
+      ]);
+    (mockDb.orderBy as jest.Mock).mockResolvedValueOnce([
       {
-        id: "dep-1",
-        status: "active",
-        traffic_split: { baseline: 0.8, variant: 0.2 },
+        id: "var-1",
+        variant_type: "chain_of_thought",
+        content: "You are a helpful assistant.",
+      },
+      {
+        id: "var-2",
+        variant_type: "few_shot",
+        content: "Here are some examples...",
       },
     ]);
     mockGetVariantPrompt.mockResolvedValueOnce("You are a helpful assistant." as never);
@@ -85,5 +112,42 @@ describe("GET /api/v1/deploy/[id]/config", () => {
       traffic_split: 0.2,
       variant_prompt: "You are a helpful assistant.",
     });
+    expect(body.prompt_variants).toHaveLength(2);
+    expect(body.prompt_variants[0]).toMatchObject({
+      id: "var-1",
+      variant_type: "chain_of_thought",
+      content: "You are a helpful assistant.",
+    });
+    expect(body.rag_config).toMatchObject({
+      chunking_strategy: "recursive",
+      chunk_size: 512,
+      chunk_overlap: 50,
+      top_k: 5,
+      hybrid_alpha: 0.7,
+    });
+  });
+
+  it("returns 200 with empty prompt_variants and null rag_config when none exist", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({
+      deploymentId: "dep-1",
+      userId: "user-1",
+    });
+    (mockDb.limit as jest.Mock).mockResolvedValueOnce([
+      {
+        id: "dep-1",
+        status: "active",
+        traffic_split: { baseline: 0.8, variant: 0.2 },
+        generation_id: "gen-1",
+      },
+    ]);
+    // orderBy is terminal for prompt_variants; limit is terminal for rag_configs
+    mockGetVariantPrompt.mockResolvedValueOnce(null);
+
+    const req = makeRequest({ "x-verum-api-key": "a".repeat(41) });
+    const res = await GET(req, { params: Promise.resolve({ id: "dep-1" }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.prompt_variants).toEqual([]);
+    expect(body.rag_config).toBeNull();
   });
 });

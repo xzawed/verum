@@ -288,7 +288,7 @@ Using the HARVEST knowledge base and ANALYZE prompt templates as seeds, automati
 1. Load `Inference` row (domain, tone, language, user_type, summary) by `inference_id`.
 2. Load `prompt_templates` from the related `analyses` row (JSONB).
 3. Fetch up to 5 sample chunks from `chunks` table for context.
-4. **Call 1 — Prompt Variants**: Claude Sonnet 4.6 generates 5 variants (original, Chain-of-Thought, few_shot, role_play, concise) from the longest detected base prompt.
+4. **Call 1 — Prompt Variants**: Claude Sonnet 4.6 generates 5 variants (original, Chain-of-Thought, few_shot, role_play, concise) from the longest detected base prompt. Token budget: `GENERATE_MAX_TOKENS=4096` (raised from 2048 to accommodate multi-variant Korean responses).
 5. **Call 2 — RAG Config**: Claude recommends chunking strategy (recursive/semantic), chunk_size, chunk_overlap, top_k, hybrid_alpha based on domain + sample chunks.
 6. **Call 3 — Eval Pairs**: Claude generates 20 diverse query/answer pairs for this domain and service summary.
 7. Persist results: update `generations` row to status=`"done"`, bulk-insert into `prompt_variants`, `rag_configs`, `eval_pairs`.
@@ -300,6 +300,7 @@ Using the HARVEST knowledge base and ANALYZE prompt templates as seeds, automati
 |---|---|
 | LLM generates fewer than 3 prompt variants | Surface warning; allow user to trigger re-generation |
 | Eval pairs quality too low (LLM self-assessed) | Retry once with higher temperature |
+| Response truncated by `max_tokens` budget | `parse_json_response` → `_repair_truncated_json`: scans backward for last complete JSON object; returns partial result or re-raises `JSONDecodeError` |
 
 ### Completion Criteria
 
@@ -343,7 +344,7 @@ Inject user-approved `GeneratedAssets` into the connected service via the Verum 
 
 1. Verify `asset_id` has `status = "approved"` by user.
 2. Register deployment in `deployments` table with initial `status = "canary"` and `traffic_split = {"baseline": 0.9, "variant": 0.1}`.
-3. SDK-side: `verum.chat()` reads current `traffic_split` from API on each call; routes accordingly.
+3. SDK-side: `import verum.openai` intercepts calls carrying `x-verum-deployment`; reads `traffic_split` from API (cached, fail-open) and routes accordingly.
 4. Expose dashboard controls: increase canary %, promote to full, rollback.
 5. Auto-rollback if error rate exceeds 5× baseline within first 100 calls.
 
@@ -355,15 +356,29 @@ Inject user-approved `GeneratedAssets` into the connected service via the Verum 
 | SDK version mismatch | Surface upgrade prompt; do not block if minor version |
 | Auto-rollback triggered | Set `status = "rolled_back"`; notify user; keep baseline |
 
+### Non-Invasive Integration Modes
+
+Before deploying, the dashboard shows an **ActivationCard** (`GET /api/v1/activation/[repoId]`) summarising what Verum has learned about the service (INFER domain, GENERATE variants, HARVEST chunk count). Two integration paths are offered:
+
+**Phase 0 — OTLP env-only (zero code changes):**
+Set `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `VERUM_DEPLOYMENT_ID`, then add `import verum.openai` at startup. Verum receives traces via `POST /api/v1/otlp/v1/traces` (openinference span format). No call routing yet — observe-only.
+
+**Phase 1 — Bidirectional auto-instrument (1 line + 1 header):**
+`import verum.openai` monkey-patches the OpenAI SDK in-process. Adding `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` to an existing `client.chat.completions.create()` call activates full A/B routing. The response is a standard `ChatCompletion` — unchanged.
+
+**ADR-016 (no gateway):** Verum's servers are never in the hot path. The SDK instruments in-process only; `base_url` is never changed.
+
+**ADR-017 (fail-open):** 200ms hard timeout → circuit breaker (5 failures → 300s bypass) → 60s fresh cache → 24h stale cache → passthrough. Verum outages cannot block the user's LLM calls.
+
 ### Completion Criteria
 
 **Given** an approved `GeneratedAssets`,
 **when** DEPLOY runs,
-**then** `Deployment` is persisted with `status = "canary"`, and the connected service's `verum.chat()` calls route to the new variant for the configured traffic percentage.
+**then** `Deployment` is persisted with `status = "canary"`, and the connected service's calls (carrying `x-verum-deployment` header) route to the new variant for the configured traffic percentage.
 
 ### ArcanaInsight Dogfood Example
 
-ArcanaInsight's tarot endpoint wraps its Grok call with `verum.chat()`. DEPLOY creates a canary with 10% of traffic routed to the Chain-of-Thought variant. The baseline remains the original prompt.
+ArcanaInsight's tarot endpoint uses `import verum.openai` with `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}`. DEPLOY creates a canary with 10% of traffic routed to the Chain-of-Thought variant. The baseline remains the original prompt.
 
 ---
 
@@ -375,7 +390,7 @@ ArcanaInsight's tarot endpoint wraps its Grok call with `verum.chat()`. DEPLOY c
 
 ### Purpose
 
-Collect OpenTelemetry-compatible traces and spans from all `verum.chat()` calls via `client.record()`. Record cost, latency, user feedback, and async LLM-as-Judge quality scores.
+Collect OpenTelemetry-compatible traces and spans from LLM calls instrumented via `import verum.openai` (or OTLP Phase 0). Record cost, latency, user feedback, and async LLM-as-Judge quality scores.
 
 ### Inputs
 
@@ -664,4 +679,4 @@ Full Pydantic models for DEPLOY, OBSERVE, EXPERIMENT, EVOLVE follow the same pat
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-22_
+_Maintainer: xzawed | Last updated: 2026-04-25 (DEPLOY stage: non-invasive integration modes, ActivationCard, ADR-016/017 references)_

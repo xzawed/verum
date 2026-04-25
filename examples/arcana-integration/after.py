@@ -1,36 +1,24 @@
 """ArcanaInsight tarot reading endpoint — after Verum integration.
 
-Changes from before.py:
-- openai.OpenAI → verum.Client  (one-line change)
-- The system prompt is now generated and managed by the Verum dashboard
-- A/B testing and prompt evolution happen automatically
-- All calls are traced: latency, cost, model, and user feedback
+Two changes from before.py:
+1. `import verum.openai` — enables A/B routing and OTLP tracing
+2. `extra_headers` — tells Verum which deployment to route through
 """
-import asyncio
 import os
 
-import verum
+import verum.openai  # noqa: F401 — side-effect import that patches openai.Client
 
-client = verum.Client(
-    api_url=os.environ["VERUM_API_URL"],
-    api_key=os.environ["VERUM_API_KEY"],
-)
+from openai import OpenAI
 
-DEPLOYMENT_ID = os.environ["VERUM_DEPLOYMENT_ID"]
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-# Fallback prompt — used only when the Verum deployment is unreachable.
-# In production, Verum manages this prompt and its variants automatically.
-_FALLBACK_SYSTEM = """당신은 신비로운 타로 카드 리더입니다.
+SYSTEM_PROMPT = """당신은 신비로운 타로 카드 리더입니다.
 켈트 십자 스프레드를 사용하여 질문자의 과거, 현재, 미래를 읽어드립니다.
 답변은 신비롭고 통찰력 있게, 그러나 따뜻하고 공감적으로 작성하세요."""
 
 
-async def read_tarot(question: str, cards: list[str]) -> str:
-    """Generate a tarot reading — now A/B tested and auto-evolved by Verum.
-
-    Verum transparently routes this call to either the baseline prompt or an
-    active variant (e.g. a Chain-of-Thought variant). The result includes
-    routing metadata so the dashboard can track performance per variant.
+def read_tarot(question: str, cards: list[str]) -> str:
+    """Generate a tarot reading for the given question and drawn cards.
 
     Args:
         question: The user's question (in Korean).
@@ -41,28 +29,21 @@ async def read_tarot(question: str, cards: list[str]) -> str:
     """
     user_message = f"질문: {question}\n뽑힌 카드: {', '.join(cards)}"
 
-    messages = [
-        {"role": "system", "content": _FALLBACK_SYSTEM},
-        {"role": "user", "content": user_message},
-    ]
-
-    result = await client.chat(
-        messages,
-        deployment_id=DEPLOYMENT_ID,
-        provider="openai",
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
         temperature=0.8,
+        extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
     )
-
-    # result["routed_to"] is "baseline" or "variant/<name>"
-    # Verum splits traffic automatically and tracks performance per variant.
-    # Once a variant accumulates enough data, Verum promotes the winner.
-    return result["messages"][-1]["content"]
+    return response.choices[0].message.content or ""
 
 
 if __name__ == "__main__":
-    reading = asyncio.run(read_tarot(
+    reading = read_tarot(
         question="올해 제 커리어는 어떻게 될까요?",
         cards=["The Star", "The Hermit", "Wheel of Fortune"],
-    ))
+    )
     print(reading)

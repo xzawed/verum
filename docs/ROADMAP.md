@@ -135,16 +135,17 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 | F-3.5 | `POST /v1/generate` + `GET /v1/generate/{id}` + `PATCH /v1/generate/{id}/approve` | ✅ |
 | F-3.6 | DEPLOY engine: canary at 10% traffic, SDK-side routing | ✅ |
 | F-3.7 | `POST /v1/deploy` + traffic split endpoints + rollback | ✅ |
-| F-3.8 | Python SDK `verum.chat()` + `verum.retrieve()` + `verum.feedback()` | ✅ |
+| F-3.8 | Python SDK `import verum.openai` auto-instrument + `verum.feedback()` | ✅ |
 | F-3.9 | TypeScript SDK `@verum/sdk` — full parity with Python SDK | ✅ |
-| F-3.10 | **ArcanaInsight SDK integration** — tarot endpoint using `verum.chat()` and `verum.retrieve()` | ✅ Verum delivers: `examples/arcana-integration/`. xzawed applies to ArcanaInsight manually. |
+| F-3.10 | **ArcanaInsight SDK integration** — tarot endpoint using `import verum.openai` + `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` via `ActivationCard` activation flow | ✅ Verum delivers: `examples/arcana-integration/`. xzawed applies to ArcanaInsight manually. |
+| F-3.11 | OTLP HTTP receiver at `POST /api/v1/otlp/v1/traces` for Phase 0 observability-only integration | ✅ |
 
 ### ArcanaInsight Validation
 
 ArcanaInsight's tarot reading endpoint must:
-1. Call `verum.chat()` (wrapping the Grok SDK call)
-2. Call `verum.retrieve()` to pull tarot knowledge context before the LLM call
-3. The canary (10% traffic) must use a Verum-generated Chain-of-Thought prompt variant
+1. Use `import verum.openai` (replacing `import openai`) — no other code change required
+2. Pass `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` on the LLM call to activate variant routing and RAG injection
+3. The canary (10% traffic) must use a Verum-generated Chain-of-Thought prompt variant, activated via the `ActivationCard` flow in the dashboard
 
 ### Metrics to Measure at Phase 3 Completion
 

@@ -26,6 +26,7 @@ jest.mock("@/lib/db/queries", () => ({
     ],
   }),
   getLatestSdkPrRequest: jest.fn().mockResolvedValue(null),
+  getLatestInference: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock("@/lib/db/jobs", () => ({

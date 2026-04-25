@@ -100,21 +100,24 @@ npm install ./packages/sdk-typescript      # TypeScript SDK
 ```
 
 ```python
-import verum
+# 1. Add one import at the top of your entrypoint (non-invasive — no other code changes)
+import verum.openai  # patches OpenAI client silently
 
-client = verum.Client(
-    api_url=os.environ["VERUM_API_URL"],
-    api_key=os.environ["VERUM_API_KEY"],
-)
+from openai import OpenAI
+import os
 
-result = await client.chat(
-    messages=[...],
-    deployment_id=os.environ["VERUM_DEPLOYMENT_ID"],
-    provider="openai",
-    model="gpt-4o-mini",
+client = OpenAI()
+
+# 2. Add x-verum-deployment header to your existing OpenAI calls
+resp = client.chat.completions.create(
+    model="grok-2-1212",
+    messages=[{"role": "user", "content": "Tell me about the Moon card"}],
+    extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
 )
-# pass result["messages"] to your LLM SDK as usual
+print(resp.choices[0].message.content)
 ```
+
+**Fail-open guarantee**: If Verum is unreachable for any reason, the call proceeds to the LLM exactly as if Verum were not there. A 5-layer safety net (200ms hard timeout → circuit breaker → 60s fresh cache → 24h stale cache → fail-open) ensures Verum never blocks or errors your service.
 
 ### Step 6 — Auto-evolution begins
 
@@ -156,37 +159,36 @@ Problems:
 - No observability (latency, cost, satisfaction untracked)
 - A/B testing infrastructure requires separate implementation
 
-### After — SDK integration
+### After — 1-line integration
 
 ```python
 # examples/arcana-integration/after.py
-import verum
+import verum.openai  # ← the only addition; patches OpenAI client automatically
 
-client = verum.Client(
-    api_url=os.environ["VERUM_API_URL"],
-    api_key=os.environ["VERUM_API_KEY"],
-)
-DEPLOYMENT_ID = os.environ["VERUM_DEPLOYMENT_ID"]
+from openai import OpenAI
+import os
 
-async def read_tarot(question, cards):
-    result = await client.chat(
+client = OpenAI()
+
+def read_tarot(question, cards):
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": _FALLBACK_SYSTEM},  # used only when Verum is unreachable
             {"role": "user", "content": f"{question} / {cards}"},
         ],
-        deployment_id=DEPLOYMENT_ID,
-        provider="openai",
-        model="gpt-4o-mini",
+        extra_headers={"x-verum-deployment": os.environ["VERUM_DEPLOYMENT_ID"]},
     )
-    # result["routed_to"]: "baseline" or "variant/<name>"
-    return result["messages"][-1]["content"]
+    return resp.choices[0].message.content
 ```
+
+The diff between "before" and "after" is exactly two changes: one `import verum.openai` line at the top, and `extra_headers` added to the existing call. Everything else — the OpenAI client, call signature, and response type — stays identical.
 
 What you get automatically:
 - ✅ Verum dashboard manages 5 system prompt variants
-- ✅ Every call auto-traced (latency, cost, model, feedback)
+- ✅ Every call auto-traced via OTLP (latency, cost, model, feedback)
 - ✅ A/B test runs automatically across variants
 - ✅ Winning prompt auto-promoted on Bayesian convergence
+- ✅ If Verum is unreachable, your service continues 100% normally (fail-open)
 
 Full code: [examples/arcana-integration/after.py](examples/arcana-integration/after.py)
 
@@ -247,33 +249,3 @@ Planned for Phase 1.5 (F-1.3). Currently only JS/TS tree-sitter-based detection 
 ### Q8. Does Verum work for domains other than tarot?
 
 Yes. The INFER stage classifies the domain automatically, and HARVEST applies a domain-appropriate crawling strategy. 20 initial domain categories are supported (tarot/divination, code review, legal Q&A, medical, etc.). For new domains, INFER maps to the closest category and the HARVEST sources are surfaced for user review and editing before crawling begins.
-
----
-
-## 🆚 How Verum Differs
-
-| Tool | What it does | What Verum adds |
-|---|---|---|
-| Langfuse / LangSmith | Observe, evaluate, and version LLM calls | Auto-generates prompts + RAG from static code analysis; evolves them from live data |
-| RAGAS | Evaluate RAG | Auto-builds the eval dataset (domain-specific Q&A pairs) |
-| PromptLayer | Version and A/B-test prompts | AI writes the prompts from your codebase and auto-promotes winners |
-| CodeRabbit / SCAManager | Code review | Uses code analysis to optimize the AI service itself |
-
-**In one sentence**: Other tools help humans operate LLM systems. Verum helps LLM systems operate themselves.
-
----
-
-## 🏗️ Tech Stack
-
-**Backend** — Python 3.13, asyncio, SQLAlchemy 2, Alembic, PostgreSQL 16 + pgvector  
-**Frontend** — Next.js 16, React 19, TypeScript strict, Auth.js v5, Drizzle ORM  
-**AI** — Claude Sonnet 4.6 (INFER + GENERATE), Voyage AI `voyage-3.5` (embeddings, 1024-dim)  
-**Infra** — Railway, Docker (single image: Node PID1 + Python worker subprocess)
-
----
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE).
-
-Every feature is open source. The only difference between self-hosted and Verum Cloud is who runs the infrastructure — there is no feature paywall.

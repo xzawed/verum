@@ -1,5 +1,3 @@
-import { VERUM_CLIENT_SOURCE, VERUM_ENV_ADDITIONS } from "./verum-inline";
-
 export interface LLMCallSite {
   file_path: string;
   line: number;
@@ -13,27 +11,80 @@ export interface FileChange {
   content: string;
 }
 
-const TS_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
-const VERUM_TODO_MARKER = "// TODO: [Verum]";
+export type PrMode = "observe" | "bidirectional";
 
-function buildTodoCommentLines(sdk: string, fn: string): string[] {
-  return [
-    `${VERUM_TODO_MARKER} Wrap this ${sdk} call (${fn}) with VerumClient for A/B prompt optimization. See: https://verum.dev/docs/sdk-integration`,
-  ];
+// ── Env vars appended in both modes ──────────────────────────────────────────
+
+const VERUM_ENV_ADDITIONS = `# Verum observability (Phase 0 — OTLP only)
+OTEL_EXPORTER_OTLP_ENDPOINT=https://verum-production.up.railway.app/api/v1/otlp
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_VERUM_API_KEY
+VERUM_API_URL=https://verum-production.up.railway.app
+VERUM_API_KEY=YOUR_VERUM_API_KEY
+VERUM_DEPLOYMENT_ID=YOUR_DEPLOYMENT_ID
+`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const PY_EXTENSIONS = /\.py$/;
+const TS_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
+
+/**
+ * Returns the 0-indexed line number just *after* the last `import openai` /
+ * `from openai` block in a Python file, or 0 if none found.
+ * Also skips past any leading `from __future__` imports.
+ */
+function findPythonInsertLine(lines: string[]): number {
+  let lastOpenaiImport = -1;
+  let lastFutureImport = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trimStart();
+    if (trimmed.startsWith("from __future__") || trimmed.startsWith("import __future__")) {
+      lastFutureImport = i;
+    }
+    if (trimmed.startsWith("import openai") || trimmed.startsWith("from openai")) {
+      lastOpenaiImport = i;
+    }
+  }
+
+  if (lastOpenaiImport >= 0) return lastOpenaiImport + 1;
+  if (lastFutureImport >= 0) return lastFutureImport + 1;
+  return 0;
 }
+
+/**
+ * Returns the 0-indexed line number just *after* the last `from "openai"` /
+ * `require("openai")` / `from 'openai'` line in a TS/JS file, or 0 if none.
+ */
+function findTsInsertLine(lines: string[]): number {
+  let lastOpenaiImport = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trimStart();
+    if (
+      /^import\s.*["']openai["']/.test(trimmed) ||
+      /^import\s+["']openai["']/.test(trimmed) ||
+      /require\(["']openai["']\)/.test(trimmed)
+    ) {
+      lastOpenaiImport = i;
+    }
+  }
+
+  return lastOpenaiImport >= 0 ? lastOpenaiImport + 1 : 0;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function buildPrFileChanges(opts: {
   callSites: LLMCallSite[];
   existingFiles: Record<string, string>;
   repoFullName: string;
+  mode: PrMode;
 }): FileChange[] {
-  const { callSites, existingFiles } = opts;
+  const { callSites, existingFiles, mode } = opts;
   const changes: FileChange[] = [];
 
-  // 1. Always add the inline Verum client
-  changes.push({ path: "src/lib/verum/client.ts", content: VERUM_CLIENT_SOURCE + "\n" });
-
-  // 2. Add/update .env.example (skip if VERUM_API_URL already present)
+  // ── 1. Always update .env.example ──────────────────────────────────────────
   const existingEnv = existingFiles[".env.example"] ?? "";
   if (!existingEnv.includes("VERUM_API_URL")) {
     const newEnv = existingEnv
@@ -42,33 +93,32 @@ export function buildPrFileChanges(opts: {
     changes.push({ path: ".env.example", content: newEnv });
   }
 
-  // 3. Insert TODO comments in TypeScript files with detected call sites
+  // ── 2. observe mode: env only, nothing else ─────────────────────────────────
+  if (mode === "observe") return changes;
+
+  // ── 3. bidirectional mode: insert one-line import per affected file ─────────
   const fileCallSites = new Map<string, LLMCallSite[]>();
   for (const site of callSites) {
-    if (!TS_EXTENSIONS.test(site.file_path)) continue;
+    if (!PY_EXTENSIONS.test(site.file_path) && !TS_EXTENSIONS.test(site.file_path)) continue;
     const existing = fileCallSites.get(site.file_path) ?? [];
     existing.push(site);
     fileCallSites.set(site.file_path, existing);
   }
 
-  for (const [filePath, sites] of fileCallSites) {
+  for (const [filePath] of fileCallSites) {
     const original = existingFiles[filePath];
     if (!original) continue;
 
-    // Sort descending by line so we insert from bottom up — preserves line numbers for earlier inserts
-    const sorted = [...sites].sort((a, b) => b.line - a.line);
-    const lines = original.split("\n");
+    const isPython = PY_EXTENSIONS.test(filePath);
+    const verum_import = isPython ? "import verum.openai" : 'import "@verum/sdk/openai";';
+    const already_present_pattern = isPython ? "import verum.openai" : "@verum/sdk/openai";
 
-    for (const site of sorted) {
-      const insertAt = site.line - 1; // convert 1-indexed to 0-indexed
-      if (insertAt < 0 || insertAt >= lines.length) continue;
-      // Skip if a TODO comment already precedes this line (idempotent)
-      if (lines[insertAt - 1]?.trimStart().startsWith(VERUM_TODO_MARKER)) continue;
-      if (lines[insertAt - 2]?.trimStart().startsWith(VERUM_TODO_MARKER)) continue;
-      if (lines[insertAt]?.trimStart().startsWith(VERUM_TODO_MARKER)) continue;
-      const commentLines = buildTodoCommentLines(site.sdk, site.function);
-      lines.splice(insertAt, 0, ...commentLines);
-    }
+    // Idempotent: skip if the import already exists
+    if (original.includes(already_present_pattern)) continue;
+
+    const lines = original.split("\n");
+    const insertAt = isPython ? findPythonInsertLine(lines) : findTsInsertLine(lines);
+    lines.splice(insertAt, 0, verum_import);
 
     changes.push({ path: filePath, content: lines.join("\n") });
   }

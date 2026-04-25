@@ -10,6 +10,63 @@ pip install verum
 
 Python 3.13+ required.
 
+## Non-Invasive Integration (Recommended)
+
+The recommended integration uses a single `import` that monkey-patches the OpenAI SDK in-place. Your existing code requires **no other changes**.
+
+### Phase 0 — Observe Only (Zero code changes)
+
+Set environment variables only. No code modification required:
+
+```bash
+pip install 'verum[instrument]'
+```
+
+```env
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-verum-instance/api/v1/otlp
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer YOUR_VERUM_API_KEY
+VERUM_DEPLOYMENT_ID=your-deployment-uuid
+```
+
+At application startup (e.g. in `main.py` before any other imports):
+
+```python
+import verum.openai  # enables OTLP auto-instrumentation
+```
+
+### Phase 1 — Bidirectional (A/B routing + traces)
+
+```python
+import verum.openai  # ← only change
+
+from openai import OpenAI
+
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello"}],
+    extra_headers={"x-verum-deployment": "your-deployment-uuid"},
+)
+# response is a standard OpenAI ChatCompletion object — unchanged
+```
+
+### Safety Guarantees
+
+- **Fail-open**: If Verum is unreachable, the original call proceeds unchanged
+- **200ms hard timeout**: Config fetches abort after 200ms; never blocks your LLM call
+- **Circuit breaker**: After 5 failures, Verum is bypassed for 300s automatically
+- **24h stale cache**: Last known good config served even during Verum outages
+
+See [ADR-016](ARCHITECTURE.md#adr-016-no-llm-proxy--direct-call-only) (no gateway) and [ADR-017](ARCHITECTURE.md#adr-017-fail-open-sdk--5-layer-safety-net) (fail-open) for the design rationale.
+
+---
+
+## Legacy API (v0)
+
+> **Note:** `verum.Client` is the v0 API. It raises `DeprecationWarning` in v1.x and will be removed in v2.0.
+> See [MIGRATION_v0_to_v1.md](MIGRATION_v0_to_v1.md) for the migration guide.
+
 ## Quick Setup
 
 Set the following environment variables before running your application:

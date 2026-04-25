@@ -313,6 +313,7 @@ export async function insertTrace(opts: {
   latencyMs: number;
   error: string | null;
   costUsd: string;
+  spanAttributes?: Record<string, unknown>;
 }): Promise<string> {
   const ownerUserId = await _getDeploymentOwner(opts.deploymentId);
 
@@ -328,9 +329,10 @@ export async function insertTrace(opts: {
 
     await tx.execute(
       sql`
-        INSERT INTO spans (trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd, error, started_at)
+        INSERT INTO spans (trace_id, model, input_tokens, output_tokens, latency_ms, cost_usd, error, span_attributes, started_at)
         VALUES (${traceId}::uuid, ${opts.model}, ${opts.inputTokens}, ${opts.outputTokens},
-                ${opts.latencyMs}, ${opts.costUsd}::numeric, ${opts.error}, NOW())
+                ${opts.latencyMs}, ${opts.costUsd}::numeric, ${opts.error},
+                ${opts.spanAttributes != null ? JSON.stringify(opts.spanAttributes) : null}::jsonb, NOW())
       `,
     );
 

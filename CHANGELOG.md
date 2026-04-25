@@ -9,6 +9,23 @@ Versioning: phases are used as milestones until the first stable release (`1.0.0
 
 ## [Unreleased]
 
+### Added
+- **Non-invasive integration Phase 0** (OTLP env-only, zero code changes): set `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_EXPORTER_OTLP_HEADERS` to stream openinference spans to `POST /api/v1/otlp/v1/traces`
+- **Non-invasive integration Phase 1** (`import verum.openai` / `import "@verum/sdk/openai"`): 1-line monkey-patch activates A/B routing + prompt injection via `extra_headers={"x-verum-deployment": ...}` with 5-layer fail-open safety net (200ms timeout / circuit breaker / 60s fresh cache / 24h stale cache / passthrough). See [ADR-016](docs/ARCHITECTURE.md), [ADR-017](docs/ARCHITECTURE.md)
+- **ActivationCard** (`GET /api/v1/activation/[repoId]`): replaces `SdkPrSection`; shows INFER domain, GENERATE variants, HARVEST chunk count, and surfaces two integration mode buttons (observe / bidirectional)
+- **OTLP HTTP receiver** (`POST /api/v1/otlp/v1/traces`): accepts openinference protobuf spans; no auth required for ingest
+
+### Changed
+- `GENERATE_MAX_TOKENS` default raised from `2048` → `4096` to prevent truncation of multi-variant Korean prompt responses
+- `parse_json_response()` now attempts best-effort truncation repair (`_repair_truncated_json`) on `JSONDecodeError` before re-raising
+- `verum.Client.chat()` now emits `DeprecationWarning` in v1.x. Migrate via [docs/MIGRATION_v0_to_v1.md](docs/MIGRATION_v0_to_v1.md)
+
+### Removed
+- `apps/dashboard/src/lib/sdk-pr/verum-inline.ts` — hardcoded 70-line `VERUM_CLIENT_SOURCE` string (replaced by `pip install verum` / `npm install @verum/sdk` instruction in PR template)
+- `apps/dashboard/src/components/repos/SdkPrSection.tsx` — replaced by `ActivationCard`
+
+---
+
 Next: Phase 4-B — EXPERIMENT + EVOLVE (F-4.5, F-4.6, F-4.8)
 
 ### Planned

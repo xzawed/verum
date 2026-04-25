@@ -339,7 +339,7 @@ class VerumClient {
 examples/arcana-integration/
   README.md        ← Step-by-step guide (Korean)
   before.py        ← ArcanaInsight tarot endpoint pattern (pre-Verum)
-  after.py         ← Same endpoint using verum.chat() + verum.retrieve()
+  after.py         ← Same endpoint using verum.chat() + verum.retrieve() [historical — superseded by import verum.openai in ADR-016/017]
   .env.example     ← VERUM_API_URL, VERUM_API_KEY, VERUM_DEPLOYMENT_ID
 ```
 
@@ -390,7 +390,7 @@ async def tarot_reading(user_message: str) -> str:
 [GENERATE approved] 
     → POST /api/v1/deploy (create canary)
     → Deployment row (status=canary, split=10%)
-    → ArcanaInsight calls verum.chat(deployment_id=X)
+    → ArcanaInsight calls verum.chat(deployment_id=X) [historical — see ADR-016/017 for new non-invasive pattern]
         → SDK fetches /api/v1/deploy/X/config (60s cache)
         → 10% → CoT variant prompt
         → 90% → original prompt
@@ -415,7 +415,7 @@ async def tarot_reading(user_message: str) -> str:
 
 | Question | Decision |
 |----------|----------|
-| SDK LLM proxy vs direct call | Direct call — lower latency; OBSERVE adds telemetry in Phase 4 |
+| SDK LLM proxy vs direct call | Direct call (no proxy) — avoids SPOF: a gateway that must route LLM calls cannot fail-open at library level. Resolved via ADR-016 (no gateway) + ADR-017 (fail-open mandatory). OBSERVE adds telemetry via OTLP. |
 | Traffic split cache TTL | 60 seconds — acceptable staleness vs API overhead |
 | Auto-rollback threshold | 5× baseline error rate after 100 calls |
 | F-1.8 scope | Expose `/v1/analyze` and `/v1/infer` as Next.js routes; `/v1/harvest` and `/v1/retrieve` also included |

@@ -23,9 +23,11 @@ status: active
 
 **Auto-evolution** — The outcome of a complete OBSERVE → EXPERIMENT → EVOLVE cycle in which the winning prompt or RAG config is promoted without human intervention. This is Verum's core value proposition. See [LOOP.md §Stage 8](LOOP.md#10-stage-8-evolve).
 
-**Connected service** — A user's application that has integrated the Verum SDK (`verum.chat()`, `verum.retrieve()`). The generic term used in non-CLAUDE.md documentation to avoid ArcanaInsight-specific language. ArcanaInsight is the reference connected service.
+**Connected service** — A user's application that has integrated Verum observability, either via auto-instrumentation (`import verum.openai` replacing `import openai`, Phase 1) or by exporting OTLP spans to Verum's receiver at `POST /api/v1/otlp/v1/traces` (Phase 0, zero code changes). The generic term used in non-CLAUDE.md documentation to avoid ArcanaInsight-specific language. ArcanaInsight is the reference connected service.
 
-**DEPLOY** — Stage [5] of The Verum Loop. Injecting user-approved GENERATE outputs into a connected service via the SDK, starting with a canary split. See [LOOP.md §Stage 5](LOOP.md#7-stage-5-deploy).
+**DEPLOY** — Stage [5] of The Verum Loop. Injecting user-approved GENERATE outputs into a connected service via in-process auto-instrumentation (`import verum.openai` + `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}`), starting with a canary split. No gateway or proxy is involved — interception happens inside the service process. See [LOOP.md §Stage 5](LOOP.md#7-stage-5-deploy).
+
+**Deployment** — A Verum deployment record that defines the `traffic_split` and the set of prompt variants (or RAG configs) that become active when a connected service passes `x-verum-deployment: <DEPLOYMENT_ID>` in the `extra_headers` of its LLM call. One connected service can have multiple deployments (e.g., `production`, `canary`). The deployment record is created in the dashboard after a human approves GENERATE outputs.
 
 **Dogfood / Dogfooding** — Applying Verum to one of xzawed's own services before any external release. ArcanaInsight is the primary dogfood target. A phase is not complete until the dogfood gate passes.
 
@@ -45,7 +47,7 @@ status: active
 
 **Loop** — Shorthand for The Verum Loop: the 8-stage cycle ANALYZE → INFER → HARVEST → GENERATE → DEPLOY → OBSERVE → EXPERIMENT → EVOLVE. Always capitalized when referring to Verum's loop. See [CLAUDE.md §🔁](../CLAUDE.md) and [LOOP.md](LOOP.md).
 
-**OBSERVE** — Stage [6] of The Verum Loop. Collecting OpenTelemetry-compatible traces and spans from the connected service's `verum.chat()` calls. See [LOOP.md §Stage 6](LOOP.md#8-stage-6-observe).
+**OBSERVE** — Stage [6] of The Verum Loop. Collecting OpenTelemetry-compatible traces and spans from a connected service, either via in-process auto-instrumentation (`import verum.openai`) or via OTLP export to `POST /api/v1/otlp/v1/traces`. See [LOOP.md §Stage 6](LOOP.md#8-stage-6-observe).
 
 **Operational knowledge** — *Deprecated as a standalone concept.* Previously used to distinguish system prompts, personas, and business rules from domain content. Since HARVEST explicitly collects both, this term no longer marks a boundary. Use "knowledge chunks" for indexed content and refer to the chunk's `metadata.kind` field for fine-grained categorization.
 
