@@ -21,8 +21,8 @@ jobs:
     name: Python lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
       - name: Install API + dev deps
@@ -40,8 +40,8 @@ jobs:
     name: TypeScript lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: "20"
       - name: tsc — sdk-typescript
@@ -61,8 +61,8 @@ jobs:
     name: SDK Python tests + coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
       - name: Install SDK + dev deps
@@ -76,7 +76,7 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=70
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
         with:
           files: packages/sdk-python/coverage.xml
           flags: python-sdk
@@ -85,7 +85,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage artifact for SonarCloud
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: sdk-python-coverage
           path: packages/sdk-python/coverage.xml
@@ -95,8 +95,8 @@ jobs:
     name: SDK TypeScript tests + coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: "20"
       - name: Install deps
@@ -104,7 +104,7 @@ jobs:
       - name: Run tests with coverage
         run: cd packages/sdk-typescript && npx jest --coverage
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
         with:
           files: packages/sdk-typescript/coverage/lcov.info
           flags: typescript-sdk
@@ -113,7 +113,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage artifact for SonarCloud
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: sdk-typescript-coverage
           path: packages/sdk-typescript/coverage/lcov.info
@@ -123,8 +123,8 @@ jobs:
     name: Dashboard unit tests + coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: "20"
       - name: Install deps
@@ -132,7 +132,7 @@ jobs:
       - name: Run Jest unit tests with coverage
         run: cd apps/dashboard && npx jest --coverage
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
         with:
           files: apps/dashboard/coverage/lcov.info
           flags: typescript-dashboard
@@ -141,7 +141,7 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage artifact for SonarCloud
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: dashboard-coverage
           path: apps/dashboard/coverage/lcov.info
@@ -167,11 +167,11 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
         with:
           node-version: "20"
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
       - name: Install deps
@@ -200,7 +200,7 @@ jobs:
           # next dev always sets NODE_ENV=development, so we use a separate flag.
           VERUM_TEST_MODE: "1"
       - name: Upload Playwright results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: playwright-results
@@ -229,11 +229,11 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 0   # SonarCloud needs full history for blame/diff
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
 
@@ -255,7 +255,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
         with:
           files: apps/api/coverage.xml
           flags: python-backend
@@ -267,7 +267,7 @@ jobs:
       # Download coverage artifacts from parallel test jobs for SonarCloud
       - name: Download SDK Python coverage
         if: always()
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         continue-on-error: true
         with:
           name: sdk-python-coverage
@@ -275,7 +275,7 @@ jobs:
 
       - name: Download SDK TypeScript coverage
         if: always()
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         continue-on-error: true
         with:
           name: sdk-typescript-coverage
@@ -283,7 +283,7 @@ jobs:
 
       - name: Download Dashboard coverage
         if: always()
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         continue-on-error: true
         with:
           name: dashboard-coverage
@@ -325,7 +325,7 @@ jobs:
       - name: SonarCloud scan
         # Skip on Dependabot PRs and fork PRs — SONAR_TOKEN is not available to those workflows
         if: always() && github.actor != 'dependabot[bot]' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: SonarSource/sonarcloud-github-action@v5
+        uses: SonarSource/sonarcloud-github-action@ffc3010689be73b8e5ae0c57ce35968afd7909e8  # v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -351,8 +351,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
       - name: Install API + dev deps

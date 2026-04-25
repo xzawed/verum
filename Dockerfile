@@ -31,12 +31,16 @@ RUN pip install --no-cache-dir --target /py-deps "hatchling" \
 # invert the base and install Node.js from NodeSource instead.
 FROM python:3.13-slim AS runtime
 
-# Install Node.js 20 from NodeSource + git (for ANALYZE repo cloning) + dumb-init (PID 1 signal handling)
+# Install Node.js 20 from NodeSource using GPG key verification (not curl|bash)
+# and git (for ANALYZE repo cloning) + dumb-init (PID 1 signal handling).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates git dumb-init \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    curl ca-certificates gnupg git dumb-init \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+       | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+       > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* /usr/share/keyrings/nodesource.gpg
 
 WORKDIR /app
 ENV NODE_ENV=production
