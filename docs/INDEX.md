@@ -110,4 +110,15 @@ Each topic has exactly one canonical owner. All other files must link, never res
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-19_
+---
+
+## Internal Audits
+
+| Document | Date | Topic |
+|---|---|---|
+| [quality-report-2026-04-22.md](internal/audits/quality-report-2026-04-22.md) | 2026-04-22 | GENERATE stage 5-agent code quality audit |
+| [coverage-98-retrospective-2026-04-26.md](internal/audits/coverage-98-retrospective-2026-04-26.md) | 2026-04-26 | Coverage 98% initiative retrospective (PR #57) |
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-04-26_
