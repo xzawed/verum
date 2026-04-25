@@ -51,6 +51,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov-fail-under=95"
 markers = [
   "requires_db: test requires a real Postgres connection (auto-skipped without reachable DB)",
 ]
