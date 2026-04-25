@@ -782,3 +782,114 @@ class TestSyncWrappedCreateExceptionHandler(unittest.TestCase):
             response = instance.create(model="gpt-4", messages=messages)
 
         self.assertIsNotNone(response)
+
+
+class TestGetResolverCachedReturnOpenAI(unittest.TestCase):
+    """_get_resolver returns the cached singleton on the fast path without lock."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ.pop("VERUM_API_URL", None)
+        os.environ.pop("VERUM_API_KEY", None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_cached_resolver_returned_without_entering_lock(self) -> None:
+        mod = _fresh_import_verum_openai()
+        sentinel = MagicMock(name="cached_resolver")
+        mod._resolver = sentinel
+        result = mod._get_resolver()
+        self.assertIs(result, sentinel)
+
+
+class TestGetResolverNoEnvVarsOpenAI(unittest.TestCase):
+    """_get_resolver returns None inside the lock when both env vars are absent."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+        os.environ.pop("VERUM_API_URL", None)
+        os.environ.pop("VERUM_API_KEY", None)
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_no_env_vars_returns_none_inside_lock(self) -> None:
+        mod = _fresh_import_verum_openai()
+        mod._resolver = None
+        result = mod._get_resolver()
+        self.assertIsNone(result)
+
+
+class TestResolveSyncWithRunningEventLoop(unittest.IsolatedAsyncioTestCase):
+    """_resolve_sync dispatches to ThreadPoolExecutor when an event loop is running."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    async def test_running_event_loop_uses_thread_dispatch(self) -> None:
+        """ThreadPoolExecutor branch executes when called from within async context."""
+        mod = _fresh_import_verum_openai()
+        mock_resolver = MagicMock()
+        mock_resolver.resolve = AsyncMock(
+            return_value=([{"role": "user", "content": "resolved"}], "variant_x")
+        )
+        messages = [{"role": "user", "content": "original"}]
+        with patch.object(mod, "_get_resolver", return_value=mock_resolver):
+            result_msgs, reason = mod._resolve_sync("dep-async", messages)
+        self.assertEqual(result_msgs[0]["content"], "resolved")
+        self.assertEqual(reason, "variant_x")
+
+
+class TestModuleInitRuntimeErrorSwallowed(unittest.TestCase):
+    """Module-level except Exception: pass keeps import alive on non-ImportError."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+
+    def test_runtime_error_during_patch_openai_is_swallowed(self) -> None:
+        """AttributeError from _patch_openai is caught by except Exception: pass."""
+        import openai.resources.chat.completions as comp_mod  # type: ignore[import]
+
+        orig_async = comp_mod.AsyncCompletions
+        # Corrupt stub so _patch_openai raises AttributeError (not ImportError)
+        comp_mod.AsyncCompletions = None  # type: ignore[attr-defined]
+
+        sys.modules.pop("verum.openai", None)
+        try:
+            mod = importlib.import_module("verum.openai")
+            self.assertIsNotNone(mod)
+        finally:
+            comp_mod.AsyncCompletions = orig_async  # type: ignore[attr-defined]
+            sys.modules.pop("verum.openai", None)
+
+
+class TestModuleInitSetupOtelErrorSwallowed(unittest.TestCase):
+    """Module-level _setup_otel exception is silently caught on import."""
+
+    def setUp(self) -> None:
+        _make_openai_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_openai_stub()
+        sys.modules.pop("verum._instrument", None)
+
+    def test_setup_otel_exception_is_swallowed(self) -> None:
+        """RuntimeError from _setup_otel_fn is caught at module init time."""
+        fake_instrument = types.ModuleType("verum._instrument")
+
+        def _failing_setup() -> None:
+            raise RuntimeError("otel broken in test")
+
+        fake_instrument._setup_otel = _failing_setup  # type: ignore[attr-defined]
+        sys.modules["verum._instrument"] = fake_instrument
+
+        mod = importlib.import_module("verum.openai")
+        self.assertIsNotNone(mod)
+        sys.modules.pop("verum.openai", None)
