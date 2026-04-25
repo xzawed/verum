@@ -338,4 +338,29 @@ describe("openai.ts — wrappedCreate and _sendTrace (virtual openai mock)", () 
     );
     expect(traceCalls).toHaveLength(0);
   });
+
+  // ── Test 9: openai not installed ─────────────────────────────────────────────
+
+  it("skips patching when openai module is not installed", async () => {
+    // Reset modules again to clear the mock that beforeEach set up.
+    // After this reset, import("openai") will throw MODULE_NOT_FOUND because
+    // we intentionally do NOT call jest.doMock("openai", ...) here.
+    jest.resetModules();
+    jest.dontMock("openai");
+
+    const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // Requiring openai.ts fires void _patchOpenAI() automatically.
+      // The dynamic import("openai") inside _patchOpenAI will throw MODULE_NOT_FOUND
+      // because openai is not a real devDependency and no virtual mock is registered.
+      require("../src/openai");
+      // Wait for the fire-and-forget async patch to complete
+      await new Promise((r) => setTimeout(r, 100));
+      // Verify the "not installed" warning was emitted
+      const warnMessages = consoleSpy.mock.calls.map((c) => c[0] as string);
+      expect(warnMessages.some((m) => m.includes("[verum] openai not installed"))).toBe(true);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
 });

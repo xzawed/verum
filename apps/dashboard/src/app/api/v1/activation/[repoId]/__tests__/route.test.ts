@@ -30,6 +30,15 @@ function makeParams(repoId: string): { params: Promise<{ repoId: string }> } {
   return { params: Promise.resolve({ repoId }) };
 }
 
+function makeSelectChain(rows: unknown[]) {
+  const chain: Record<string, jest.Mock> = {};
+  (["from", "where", "orderBy"] as const).forEach((m) => {
+    chain[m] = jest.fn().mockReturnValue(chain);
+  });
+  chain["limit"] = jest.fn().mockResolvedValue(rows);
+  return chain;
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -85,5 +94,89 @@ describe("GET /api/v1/activation/[repoId]", () => {
       generation: null,
       deployment: null,
     });
+  });
+
+  it("returns 200 with fully populated ActivationResponse (full DAG)", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+
+    // db.select is called 3 times: owner check → rag_configs → deployments
+    mockDb.select
+      .mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any)
+      .mockReturnValueOnce(
+        makeSelectChain([
+          {
+            chunking_strategy: "recursive",
+            chunk_size: 512,
+            chunk_overlap: 50,
+            top_k: 5,
+            hybrid_alpha: 0.5,
+          },
+        ]) as any,
+      )
+      .mockReturnValueOnce(
+        makeSelectChain([
+          {
+            id: "dep-1",
+            traffic_split: { baseline: 0.9, variant: 0.1 },
+          },
+        ]) as any,
+      );
+
+    mockGetLatestAnalysis.mockResolvedValue({
+      id: "analysis-1",
+      call_sites: [{ id: "cs-1" }, { id: "cs-2" }],
+    } as any);
+    mockGetLatestInference.mockResolvedValue({
+      id: "inference-1",
+      domain: "tarot",
+      tone: "mystical",
+      summary: "A tarot reading service",
+      confidence: 0.95,
+    } as any);
+    mockCountChunks.mockResolvedValue(42);
+    mockDb.execute.mockResolvedValue({
+      rows: [{ id: "gen-1", variant_count: 3, eval_count: 10 }],
+    } as any);
+
+    const res = await GET(
+      new Request("http://localhost/api/v1/activation/repo-1"),
+      makeParams("repo-1"),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.inference).toMatchObject({
+      domain: "tarot",
+      tone: "mystical",
+      confidence: 0.95,
+    });
+    expect(body.analysis).toEqual({ call_sites_count: 2 });
+    expect(body.harvest).toEqual({ chunks_count: 42 });
+    expect(body.generation).toMatchObject({
+      id: "gen-1",
+      variants_count: 3,
+      eval_pairs_count: 10,
+    });
+    expect(body.generation.rag_config).toMatchObject({
+      chunking_strategy: "recursive",
+      chunk_size: 512,
+    });
+    expect(body.deployment).toEqual({ id: "dep-1", traffic_split: 0.1 });
+  });
+
+  it("returns 500 when an unexpected error is thrown inside try block", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+
+    // Owner check succeeds
+    mockDb.select.mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any);
+
+    // getLatestAnalysis throws an unexpected error
+    mockGetLatestAnalysis.mockRejectedValue(new Error("DB connection lost"));
+
+    const res = await GET(
+      new Request("http://localhost/api/v1/activation/repo-1"),
+      makeParams("repo-1"),
+    );
+    expect(res.status).toBe(500);
   });
 });

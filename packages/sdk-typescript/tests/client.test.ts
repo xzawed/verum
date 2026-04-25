@@ -106,4 +106,148 @@ describe("VerumClient.chat", () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.messages[1]!.content).toBe("User question");
   });
+
+  it("routes to baseline and keeps messages unchanged when variant_prompt is null", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    // traffic_split = 1.0 routes to variant, but variant_prompt is null → no replacement
+    (client as unknown as { cache: DeploymentConfigCache<unknown> }).cache.set("dep-2", {
+      deployment_id: "dep-2",
+      status: "canary",
+      traffic_split: 1.0,
+      variant_prompt: null,
+    });
+
+    const messages = [
+      { role: "system" as const, content: "Original system" },
+      { role: "user" as const, content: "Question" },
+    ];
+    const result = await client.chat({ messages, deploymentId: "dep-2", model: "gpt-4" });
+    expect(result.routed_to).toBe("variant");
+    // messages unchanged because variant_prompt is null
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(result.messages[0]!.content).toBe("Original system");
+  });
+
+  it("prepends system message when no existing system message and variant_prompt set", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    (client as unknown as { cache: DeploymentConfigCache<unknown> }).cache.set("dep-3", {
+      deployment_id: "dep-3",
+      status: "canary",
+      traffic_split: 1.0,
+      variant_prompt: "New system prompt",
+    });
+
+    const messages = [{ role: "user" as const, content: "Hello" }];
+    const result = await client.chat({ messages, deploymentId: "dep-3", model: "gpt-4" });
+    expect(result.routed_to).toBe("variant");
+    expect(result.messages).toHaveLength(2);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(result.messages[0]!.role).toBe("system");
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(result.messages[0]!.content).toBe("New system prompt");
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(result.messages[1]!.content).toBe("Hello");
+  });
+});
+
+// ── retrieve() tests ─────────────────────────────────────────────────────────
+
+describe("VerumClient.retrieve", () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it("returns chunks on success", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    const chunks = [{ content: "chunk 1" }, { content: "chunk 2" }];
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ chunks }), { status: 200 })
+    ) as typeof fetch;
+    const result = await client.retrieve({ query: "test", collectionName: "my-col" });
+    expect(result).toEqual(chunks);
+  });
+
+  it("throws when response is not ok", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response("error", { status: 500 })
+    ) as typeof fetch;
+    await expect(client.retrieve({ query: "test", collectionName: "col" })).rejects.toThrow("retrieve failed: 500");
+  });
+});
+
+// ── feedback() tests ─────────────────────────────────────────────────────────
+
+describe("VerumClient.feedback", () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it("resolves without error on success", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(new Response("", { status: 200 })) as typeof fetch;
+    await expect(client.feedback({ traceId: "t-1", score: 1 })).resolves.toBeUndefined();
+  });
+
+  it("throws when response is not ok", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(new Response("", { status: 400 })) as typeof fetch;
+    await expect(client.feedback({ traceId: "t-1", score: -1 })).rejects.toThrow("feedback failed: 400");
+  });
+});
+
+// ── record() tests ───────────────────────────────────────────────────────────
+
+describe("VerumClient.record", () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it("returns trace_id on success", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ trace_id: "trace-abc" }), { status: 201 })
+    ) as typeof fetch;
+    const result = await client.record({
+      deploymentId: "dep-1", variant: "baseline", model: "gpt-4",
+      inputTokens: 100, outputTokens: 50, latencyMs: 300,
+    });
+    expect(result).toBe("trace-abc");
+  });
+
+  it("throws when response is not ok", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(new Response("", { status: 500 })) as typeof fetch;
+    await expect(client.record({
+      deploymentId: "dep-1", variant: "baseline", model: "gpt-4",
+      inputTokens: 100, outputTokens: 50, latencyMs: 300,
+    })).rejects.toThrow("record failed: 500");
+  });
+});
+
+// ── getDeploymentConfig (private, tested via chat) ────────────────────────────
+
+describe("VerumClient.chat — getDeploymentConfig cache miss", () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it("fetches config from API on cache miss and uses it", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    const config = { deployment_id: "dep-1", status: "canary", traffic_split: 0, variant_prompt: null };
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify(config), { status: 200 })
+    ) as typeof fetch;
+    const messages = [{ role: "user" as const, content: "Hi" }];
+    const result = await client.chat({ messages, deploymentId: "dep-1", model: "gpt-4" });
+    expect(result.routed_to).toBe("baseline"); // traffic_split = 0 → always baseline
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when config fetch fails", async () => {
+    const client = new VerumClient({ apiUrl: "http://test.local", apiKey: "key" });
+    globalThis.fetch = jest.fn().mockResolvedValue(new Response("", { status: 403 })) as typeof fetch;
+    const messages = [{ role: "user" as const, content: "Hi" }];
+    await expect(client.chat({ messages, deploymentId: "dep-1", model: "gpt-4" })).rejects.toThrow("config fetch failed: 403");
+  });
 });

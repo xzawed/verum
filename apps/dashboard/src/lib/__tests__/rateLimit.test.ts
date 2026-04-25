@@ -67,6 +67,13 @@ describe("getClientIp", () => {
     });
     expect(getClientIp(req)).toBe("198.51.100.5");
   });
+
+  it("returns cf-connecting-ip when present (Cloudflare/Railway header)", () => {
+    const req = new Request("https://example.com", {
+      headers: { "cf-connecting-ip": "  1.2.3.4  " },
+    });
+    expect(getClientIp(req)).toBe("1.2.3.4");
+  });
 });
 
 describe("checkRateLimitDual", () => {
