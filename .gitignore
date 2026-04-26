@@ -49,6 +49,7 @@ Verum_소개.md
 
 # Claude internal
 .claude/scheduled_tasks.lock
+.mcp.json
 
 # Git worktrees
 .worktrees/
