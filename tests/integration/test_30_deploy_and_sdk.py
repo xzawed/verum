@@ -73,7 +73,8 @@ async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
     )).mappings().first()
     assert row is not None
 
-    result_data = json.loads(row["result"])
+    raw = row["result"]
+    result_data = raw if isinstance(raw, dict) else json.loads(raw)
     deployment_id = result_data.get("deployment_id")
     assert deployment_id, "deployment_id missing from job result"
 
