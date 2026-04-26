@@ -973,3 +973,34 @@ class TestWrappedAcreateExtractUsageException(unittest.IsolatedAsyncioTestCase):
 
         # Response must still be returned — the exception was swallowed
         self.assertIsNotNone(response)
+
+
+# ---------------------------------------------------------------------------
+# VERUM_DISABLED — patch skipped entirely
+# ---------------------------------------------------------------------------
+
+
+class TestVerumDisabledAnthropic(unittest.TestCase):
+    """VERUM_DISABLED env var prevents the anthropic patch from being applied."""
+
+    def setUp(self) -> None:
+        _make_anthropic_stub()
+
+    def tearDown(self) -> None:
+        _cleanup_anthropic_stub()
+        os.environ.pop("VERUM_DISABLED", None)
+
+    def test_verum_disabled_1_skips_patch(self) -> None:
+        os.environ["VERUM_DISABLED"] = "1"
+        mod = _fresh_import_verum_anthropic()
+        self.assertFalse(mod._PATCHED)
+
+    def test_verum_disabled_true_skips_patch(self) -> None:
+        os.environ["VERUM_DISABLED"] = "true"
+        mod = _fresh_import_verum_anthropic()
+        self.assertFalse(mod._PATCHED)
+
+    def test_verum_disabled_yes_skips_patch(self) -> None:
+        os.environ["VERUM_DISABLED"] = "yes"
+        mod = _fresh_import_verum_anthropic()
+        self.assertFalse(mod._PATCHED)

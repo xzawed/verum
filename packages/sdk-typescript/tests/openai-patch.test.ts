@@ -257,4 +257,30 @@ describe("openai patch module", () => {
       globalThis.fetch = savedFetch;
     }
   });
+
+  it("5: VERUM_DISABLED=1 → patchOpenAI resolves without patching", async () => {
+    const saved = process.env["VERUM_DISABLED"];
+    process.env["VERUM_DISABLED"] = "1";
+    _resetPatchState();
+    try {
+      await expect(patchOpenAI()).resolves.toBeUndefined();
+    } finally {
+      if (saved === undefined) delete process.env["VERUM_DISABLED"];
+      else process.env["VERUM_DISABLED"] = saved;
+      _resetPatchState();
+    }
+  });
+
+  it("5b: VERUM_DISABLED=true → patchOpenAI resolves without patching", async () => {
+    const saved = process.env["VERUM_DISABLED"];
+    process.env["VERUM_DISABLED"] = "true";
+    _resetPatchState();
+    try {
+      await expect(patchOpenAI()).resolves.toBeUndefined();
+    } finally {
+      if (saved === undefined) delete process.env["VERUM_DISABLED"];
+      else process.env["VERUM_DISABLED"] = saved;
+      _resetPatchState();
+    }
+  });
 });

@@ -293,6 +293,10 @@ def _patch_openai() -> None:
     if _PATCHED:
         return
 
+    if os.environ.get("VERUM_DISABLED", "").lower() in ("1", "true", "yes"):
+        _logger.info("Verum: VERUM_DISABLED=true — openai patch skipped.")
+        return
+
     try:
         import openai.resources.chat.completions as _completions_mod
     except ImportError as exc:

@@ -1,5 +1,10 @@
-# Phase 0 stub — not runnable until apps/api and apps/dashboard are implemented.
-# Run `make dev` once Phase 0 is complete.
+# Local development compose.
+# Architecture pivot (2026-04-20): Node.js is PID 1 and spawns the Python
+# worker as a child process. There is a single combined service (verum) that
+# uses the root Dockerfile — apps/api/Dockerfile has been deleted.
+#
+# NOTE: Run `make docker-healthcheck` after any Dockerfile change to verify
+# the combined image starts correctly before pushing.
 
 services:
   db:
@@ -18,39 +23,19 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  api:
+  verum:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://verum:verum@db:5432/verum
-      ENV: development
+      DATABASE_URL: postgresql://verum:verum@db:5432/verum
+      NODE_ENV: development
+      PORT: "8080"
     ports:
-      - "8000:8000"
+      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
-
-  dashboard:
-    build: ./apps/dashboard
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      REDIS_URL: redis://redis:6379
-    ports:
-      - "3000:3000"
-    depends_on:
-      - api
-      - redis
 
 volumes:
   db_data:

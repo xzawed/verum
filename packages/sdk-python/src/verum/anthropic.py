@@ -315,6 +315,10 @@ def _patch_anthropic() -> None:
     if _PATCHED:
         return
 
+    if os.environ.get("VERUM_DISABLED", "").lower() in ("1", "true", "yes"):
+        _logger.info("Verum: VERUM_DISABLED=true — anthropic patch skipped.")
+        return
+
     try:
         import anthropic.resources.messages as _messages_mod
     except ImportError as exc:

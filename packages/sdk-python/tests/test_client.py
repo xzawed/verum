@@ -221,3 +221,55 @@ async def test_get_deployment_config_cache_hit_skips_http():
     assert config == config_payload
     # No HTTP calls should have been made
     assert mock.calls.call_count == 0
+
+
+# ── Module-level retrieve() / feedback() ─────────────────────────────────────
+# Tests the singleton _get_client() path in verum/__init__.py.
+
+@pytest.mark.asyncio
+async def test_module_retrieve_delegates_to_client(monkeypatch):
+    """verum.retrieve() delegates to the singleton Client."""
+    import verum
+
+    # Reset the singleton so we get a fresh client with our URL
+    monkeypatch.setattr(verum, "_default_client", None)
+    monkeypatch.setenv("VERUM_API_URL", "http://verum-test.local")
+    monkeypatch.setenv("VERUM_API_KEY", "test-key")
+
+    with respx.mock(base_url="http://verum-test.local") as mock:
+        mock.post("/api/v1/retrieve-sdk").mock(
+            return_value=httpx.Response(200, json={"chunks": [{"content": "chunk1"}]})
+        )
+        result = await verum.retrieve("test query", collection_name="my-col")
+
+    assert isinstance(result, list)
+    assert result[0]["content"] == "chunk1"
+
+
+@pytest.mark.asyncio
+async def test_module_feedback_delegates_to_client(monkeypatch):
+    """verum.feedback() delegates to the singleton Client."""
+    import verum
+
+    monkeypatch.setattr(verum, "_default_client", None)
+    monkeypatch.setenv("VERUM_API_URL", "http://verum-test.local")
+    monkeypatch.setenv("VERUM_API_KEY", "test-key")
+
+    with respx.mock(base_url="http://verum-test.local") as mock:
+        mock.post("/api/v1/feedback").mock(return_value=httpx.Response(204))
+        await verum.feedback("trace-abc", 1)
+        # assert inside context while mock is active
+        assert mock.calls.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_module_get_client_singleton(monkeypatch):
+    """_get_client() returns same instance on repeated calls."""
+    import verum
+
+    monkeypatch.setattr(verum, "_default_client", None)
+    monkeypatch.setenv("VERUM_API_URL", "http://verum-test.local")
+
+    client1 = verum._get_client()
+    client2 = verum._get_client()
+    assert client1 is client2

@@ -42,6 +42,8 @@ ignore:
   # Jest excludes __tests__ dirs from collectCoverageFrom; ignore in Codecov too
   # so new test files don't count as "uncovered" lines in patch analysis.
   - "apps/dashboard/src/**/__tests__/**"
+  # Drizzle ORM schema — declarative, mirrors alembic exclusion and Jest collectCoverageFrom exclusion.
+  - "apps/dashboard/src/lib/db/schema.ts"
 
 comment:
   layout: "reach,diff,flags,components"
