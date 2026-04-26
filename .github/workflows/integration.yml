@@ -44,7 +44,10 @@ jobs:
           python-version: "3.13"
 
       - name: Create artifacts directory
-        run: mkdir -p artifacts/integration
+        run: |
+          mkdir -p artifacts/integration
+          mkdir -p artifacts/integration-state
+          chmod 777 artifacts/integration-state
 
       - name: Install integration test dependencies
         run: pip install pytest pytest-asyncio httpx sqlalchemy asyncpg alembic
@@ -68,6 +71,8 @@ jobs:
         run: make integration-smoke
 
       - name: Run full integration suite
+        env:
+          INTEGRATION_STATE_DIR: ${{ github.workspace }}/artifacts/integration-state
         run: make integration-test
 
       - name: Upload artifacts

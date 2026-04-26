@@ -122,12 +122,14 @@ deploy-prod:
 # 사용법: make integration-up && make integration-test && make integration-down
 
 integration-up:
+	mkdir -p artifacts/integration-state && chmod 777 artifacts/integration-state
 	docker compose -f docker-compose.integration.yml up -d --wait
 
 integration-smoke:
 	pytest tests/integration/test_00_bootstrap.py -m integration -v
 
 integration-test:
+	INTEGRATION_STATE_DIR=$(PWD)/artifacts/integration-state \
 	pytest tests/integration -m integration -v --maxfail=1
 
 integration-debug:

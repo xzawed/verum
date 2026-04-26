@@ -9,7 +9,6 @@ networks:
 
 volumes:
   int-db-data:
-  integration-state:
 
 services:
   db:
@@ -75,7 +74,7 @@ services:
       git-http:
         condition: service_healthy
     volumes:
-      - integration-state:/integration-state
+      - ./artifacts/integration-state:/integration-state
     environment:
       PORT: "8080"
       NODE_ENV: production
@@ -127,7 +126,7 @@ services:
       OPENAI_BASE_URL: "http://mock-providers:9000/openai/v1"
       INTEGRATION_STATE_DIR: "/integration-state"
     volumes:
-      - integration-state:/integration-state
+      - ./artifacts/integration-state:/integration-state
     networks:
       - verum-int
 
@@ -149,7 +148,7 @@ services:
     volumes:
       - .:/workspace:ro
       - ./artifacts:/workspace/artifacts
-      - integration-state:/integration-state
+      - ./artifacts/integration-state:/integration-state
     working_dir: /workspace
     networks:
       - verum-int
