@@ -22,10 +22,10 @@ export interface ActivationData {
 }
 
 interface ActivationCardProps {
-  repoId: string;
-  activation: ActivationData | null;
-  existingPrUrl?: string | null;
-  existingPrNumber?: number | null;
+  readonly repoId: string;
+  readonly activation: ActivationData | null;
+  readonly existingPrUrl?: string | null;
+  readonly existingPrNumber?: number | null;
 }
 
 const SdkPrResponse = z.object({
@@ -111,6 +111,7 @@ export function ActivationCard({
           <PrButton
             label="Phase 0 — Observe only"
             description="Adds OTLP env vars to .env.example. Zero code changes."
+            buttonLabel="Add OTLP env vars"
             state={observeState}
             onReset={() => setObserveState("idle")}
             onClick={() => void handlePr("observe")}
@@ -120,6 +121,7 @@ export function ActivationCard({
           <PrButton
             label="Phase 1 — Auto-instrument"
             description="Adds `import verum.openai` near your LLM imports. 1-line change."
+            buttonLabel="Add auto-instrument"
             state={bidirectionalState}
             onReset={() => setBidirectionalState("idle")}
             onClick={() => void handlePr("bidirectional")}
@@ -131,14 +133,15 @@ export function ActivationCard({
 }
 
 interface PrButtonProps {
-  label: string;
-  description: string;
-  state: ButtonState;
-  onReset: () => void;
-  onClick: () => void;
+  readonly label: string;
+  readonly description: string;
+  readonly buttonLabel: string;
+  readonly state: ButtonState;
+  readonly onReset: () => void;
+  readonly onClick: () => void;
 }
 
-function PrButton({ label, description, state, onReset, onClick }: PrButtonProps) {
+function PrButton({ label, description, buttonLabel, state, onReset, onClick }: PrButtonProps) {
   return (
     <div className="flex flex-1 flex-col gap-2">
       <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{label}</p>
@@ -149,7 +152,7 @@ function PrButton({ label, description, state, onReset, onClick }: PrButtonProps
           onClick={onClick}
           className="mt-1 w-fit rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
-          Create PR
+          {buttonLabel}
         </button>
       )}
 
