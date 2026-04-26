@@ -225,6 +225,26 @@ def test_write_integration_state_writes_json(tmp_path) -> None:
     assert data["api_key"] == api_key
 
 
+def test_write_integration_state_calls_chmod_644(tmp_path) -> None:
+    """os.chmod(target, 0o644) must be called after the atomic replace.
+
+    tempfile.mkstemp creates files with mode 0600 by default. Without an explicit
+    chmod the CI runner (different uid than the Docker appuser) gets EPERM when
+    reading the bind-mounted file.
+    """
+    import src.worker.handlers.deploy as deploy_module
+
+    original_dir = deploy_module._INTEGRATION_STATE_DIR
+    deploy_module._INTEGRATION_STATE_DIR = tmp_path
+    try:
+        with patch("src.worker.handlers.deploy.os.chmod") as mock_chmod:
+            _write_integration_state(uuid.uuid4(), "sk-perm-test")
+    finally:
+        deploy_module._INTEGRATION_STATE_DIR = original_dir
+
+    mock_chmod.assert_called_once_with(tmp_path / "deployment_info.json", 0o644)
+
+
 
 @pytest.mark.asyncio
 async def test_handle_deploy_test_mode_writes_integration_state(tmp_path) -> None:

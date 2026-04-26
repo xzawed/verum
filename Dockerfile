@@ -63,9 +63,13 @@ ENV PYTHON_BIN=python3
 ENV HOSTNAME=0.0.0.0
 EXPOSE 8080
 
-# Non-root user for security; chown after all COPY ops complete
+# Non-root user for security; chown after all COPY ops complete.
+# /integration-state is created here so the named Docker volume is initialised
+# with appuser ownership on first mount (Docker copies image dir into the volume).
 RUN useradd -m -u 1000 appuser \
-    && chown -R appuser:appuser /app /py-deps
+    && chown -R appuser:appuser /app /py-deps \
+    && mkdir -p /integration-state \
+    && chown appuser:appuser /integration-state
 USER appuser
 
 # dumb-init as PID 1 forwards signals to Node; Node spawns Python worker via instrumentation.ts

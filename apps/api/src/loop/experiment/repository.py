@@ -99,7 +99,7 @@ async def aggregate_variant_wins(
                 " LEFT JOIN ("
                 "   SELECT trace_id, SUM(cost_usd) AS total_cost"
                 "   FROM spans"
-                "   WHERE created_at >= now() - interval '7 days'"
+                "   WHERE started_at >= now() - interval '7 days'"
                 "   GROUP BY trace_id"
                 " ) trace_cost ON trace_cost.trace_id = t.id"
                 " WHERE t.deployment_id = :did AND t.created_at >= now() - interval '7 days'"

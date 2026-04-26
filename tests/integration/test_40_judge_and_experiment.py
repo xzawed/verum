@@ -4,7 +4,7 @@ After test_30 records 200+ traces, this test:
 1. Waits for JUDGE jobs to drain (all traces get a judge_score)
 2. Injects biased judge scores: variant=0.75 (wins), original=0.45 (no win)
 3. Waits for the experiment loop to aggregate and converge
-4. Verifies experiment winner == 'cot' (challenger variant)
+4. Verifies experiment winner == 'variant' (challenger variant)
 
 Uses pipeline_state["deployment_id"] set by test_30.
 """
@@ -112,16 +112,21 @@ async def test_inject_biased_scores_and_converge(async_db, pipeline_state):
         "Check VERUM_EXPERIMENT_INTERVAL_SECONDS and MIN_SAMPLES threshold."
     )
 
-    # Verify experiment has challenger as winner
-    exp_row = (await async_db.execute(
-        text(
-            "SELECT winner_variant, confidence, status FROM experiments"
-            " WHERE deployment_id = :dep ORDER BY started_at DESC LIMIT 1"
-        ),
-        {"dep": deployment_id},
-    )).mappings().first()
-    assert exp_row is not None, "No experiment row found"
-    assert exp_row["winner_variant"] is not None, f"Experiment has no winner yet; status={exp_row['status']}"
+    # Wait for EVOLVE handler to complete and set winner_variant on the experiment.
+    # The EVOLVE job is just enqueued above; the worker needs a moment to process it.
+    async def winner_set():
+        row = (await async_db.execute(
+            text(
+                "SELECT winner_variant, confidence, status FROM experiments"
+                " WHERE deployment_id = :dep AND winner_variant IS NOT NULL"
+                " ORDER BY started_at DESC LIMIT 1"
+            ),
+            {"dep": deployment_id},
+        )).mappings().first()
+        return row
+
+    exp_row = await wait_until(winner_set, timeout=30, interval=2, label="experiment winner set")
+    assert exp_row is not None, "Experiment winner_variant was not set within 30s of EVOLVE enqueue"
     assert exp_row["winner_variant"] == "cot" or exp_row["winner_variant"] == "variant", (
         f"Expected challenger as winner, got: {exp_row['winner_variant']}"
     )
