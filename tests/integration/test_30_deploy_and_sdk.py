@@ -33,8 +33,8 @@ async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
     generation_id = pipeline_state.get("generation_id")
     assert generation_id, "pipeline_state missing generation_id — test_20 must run first"
 
-    # Approve the generation
-    resp = await dashboard_client.post(f"/api/v1/generate/{generation_id}/approve")
+    # Approve the generation (route uses PATCH, not POST)
+    resp = await dashboard_client.patch(f"/api/v1/generate/{generation_id}/approve")
     assert resp.status_code in (200, 204), f"Approve failed: {resp.status_code} {resp.text}"
 
     # Trigger DEPLOY
