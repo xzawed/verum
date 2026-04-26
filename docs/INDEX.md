@@ -67,11 +67,11 @@ status: active
 
 | Phase | Status | Completion Gate |
 |---|---|---|
-| Phase 0: Foundation | 🔲 Not started | `curl https://verum-api.up.railway.app/health` → 200 OK |
-| Phase 1: ANALYZE | 🔲 Not started | ArcanaInsight's LLM call sites auto-detected |
-| Phase 2: INFER + HARVEST | 🔲 Not started | Domain inferred; 1,000+ knowledge chunks indexed |
-| Phase 3: GENERATE + DEPLOY | 🔲 Not started | ArcanaInsight running on Verum-generated prompts + RAG |
-| Phase 4: OBSERVE + EXPERIMENT + EVOLVE | 🔲 Not started | ArcanaInsight prompt auto-improved ≥1 time with metric gain |
+| Phase 0: Foundation | ✅ Complete | `curl https://verum-production.up.railway.app/health` → 200 OK |
+| Phase 1: ANALYZE | ✅ Complete | ArcanaInsight's LLM call sites auto-detected |
+| Phase 2: INFER + HARVEST | ✅ Complete | Domain inferred; 1,000+ knowledge chunks indexed |
+| Phase 3: GENERATE + DEPLOY | ✅ Complete | ArcanaInsight running on Verum-generated prompts + RAG |
+| Phase 4: OBSERVE + EXPERIMENT + EVOLVE | ✅ Complete (gate pending prod data) | ArcanaInsight prompt auto-improved ≥1 time with metric gain |
 | Phase 5: Launch | 🔲 Not started | GitHub stars ≥ 100; ≥ 10 non-xzawed Repo connections |
 
 > xzawed updates this table as phases complete. Claude reads it to know what exists vs. what is planned.

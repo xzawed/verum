@@ -2,7 +2,7 @@
 type: architecture
 authority: tier-2
 canonical-for: [file-tree, schemas, api-contracts, sdk-surface, adrs, infra]
-last-updated: 2026-04-22
+last-updated: 2026-04-26
 status: active
 ---
 
