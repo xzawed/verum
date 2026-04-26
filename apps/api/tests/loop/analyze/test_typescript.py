@@ -44,12 +44,17 @@ async function run() {
 """
 
 # Pattern A — const client = new SDK() instance variable
+# Also includes:
+#   - const assigned from a call expression (not new_expression) → triggers skip branch
+#   - const assigned from new UnknownClass() (class not in sdk_symbols) → skipped silently
 _SDK_INSTANCE = b"""
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 
 const openaiClient = new OpenAI();
 const anthropic = new Anthropic();
+const notAnSdk = someFactory();        // call_expression, not new_expression: skipped
+const unknown = new UnknownClass();   // new_expression but class not in sdk_symbols: skipped
 
 async function run() {
   const r1 = await openaiClient.chat.completions.create({ model: "gpt-4o", messages: [] });
