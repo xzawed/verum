@@ -138,7 +138,9 @@ async def handle_judge(
     for attempt in range(cfg.JUDGE_RETRY_COUNT):
         try:
             raw_response = await call_claude(
-                cfg.JUDGE_MODEL, cfg.JUDGE_MAX_TOKENS, prompt, temperature=cfg.JUDGE_TEMPERATURE
+                cfg.JUDGE_MODEL, cfg.JUDGE_MAX_TOKENS, prompt,
+                system="You are an LLM-as-judge quality evaluator.",
+                temperature=cfg.JUDGE_TEMPERATURE
             )
             score, reason = _parse_judge_response(raw_response)
             if score is not None:
