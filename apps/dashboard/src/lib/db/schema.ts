@@ -198,6 +198,8 @@ export const spans = pgTable("spans", {
   cost_usd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   error: text("error"),
   started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  // Added migration 0023: raw OTLP span attributes for attribute-level queries
+  span_attributes: jsonb("span_attributes"),
 });
 
 export const judge_prompts = pgTable("judge_prompts", {
@@ -232,7 +234,9 @@ export const chunks = pgTable("chunks", {
   source_id: uuid("source_id")
     .notNull()
     .references(() => harvest_sources.id, { onDelete: "cascade" }),
-  inference_id: uuid("inference_id").notNull(),
+  inference_id: uuid("inference_id")
+    .notNull()
+    .references(() => inferences.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   chunk_index: integer("chunk_index").notNull().default(0),
   metadata: jsonb("metadata"),
