@@ -409,6 +409,17 @@ describe("anthropic.ts — wrappedCreate and _sendTrace (virtual @anthropic-ai/s
     const calledParams = mockModule._mockOrigCreate.mock.calls[0]?.[0] as MockAnthropicParams;
     expect(calledParams.system).toBe("env-variant-sys");
   });
+
+  // ── Test 13: idempotency — second patchAnthropic() call is a no-op ────────
+
+  it("patchAnthropic() is idempotent — calling it a second time returns immediately", async () => {
+    const { patchAnthropic } = loadPatchedModule();
+    // Wait for the auto-patch that fires on module load (_patched = true)
+    await new Promise((r) => setTimeout(r, 50));
+
+    // A second call must hit `if (_patched) return;` and not throw
+    await expect(patchAnthropic()).resolves.toBeUndefined();
+  });
 });
 
 // ── Defensive branch coverage ─────────────────────────────────────────────────
