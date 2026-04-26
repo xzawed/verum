@@ -195,6 +195,54 @@ describe("POST /api/v1/traces", () => {
     );
   });
 
+  it("uses VERUM_TRACE_RATE_LIMIT_PER_KEY env var as per-key limit", async () => {
+    const origKey = process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY;
+    process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY = "500";
+    try {
+      mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+      mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" });
+      mockCheckAndIncrementTraceQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 5 });
+      mockGetModelPricing.mockResolvedValueOnce(null);
+      mockInsertTrace.mockResolvedValueOnce("trace-env-key");
+
+      await POST(makePostReq(defaultBody));
+
+      expect(mockCheckRateLimitDual).toHaveBeenCalledWith(
+        expect.any(String),
+        500,
+        expect.any(String),
+        200,
+      );
+    } finally {
+      if (origKey === undefined) delete process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY;
+      else process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY = origKey;
+    }
+  });
+
+  it("uses VERUM_TRACE_RATE_LIMIT_PER_IP env var as per-IP limit", async () => {
+    const origIp = process.env.VERUM_TRACE_RATE_LIMIT_PER_IP;
+    process.env.VERUM_TRACE_RATE_LIMIT_PER_IP = "1000";
+    try {
+      mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+      mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" });
+      mockCheckAndIncrementTraceQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 5 });
+      mockGetModelPricing.mockResolvedValueOnce(null);
+      mockInsertTrace.mockResolvedValueOnce("trace-env-ip");
+
+      await POST(makePostReq(defaultBody));
+
+      expect(mockCheckRateLimitDual).toHaveBeenCalledWith(
+        expect.any(String),
+        120,
+        expect.any(String),
+        1000,
+      );
+    } finally {
+      if (origIp === undefined) delete process.env.VERUM_TRACE_RATE_LIMIT_PER_IP;
+      else process.env.VERUM_TRACE_RATE_LIMIT_PER_IP = origIp;
+    }
+  });
+
   it("returns 201 with correctly calculated cost when pricing is found", async () => {
     mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" });
