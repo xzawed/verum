@@ -263,31 +263,28 @@ async def _experiment_loop() -> None:
                                     f"deployment {deployment_id} has no resolvable owner_user_id"
                                 )
                             evolve_owner_user_id = owner_row["owner_user_id"]
+                            evolve_payload = json.dumps({
+                                "experiment_id": str(exp["id"]),
+                                "deployment_id": str(deployment_id),
+                                "winner_variant": result.winner_variant,
+                                "confidence": result.confidence,
+                                "current_challenger": exp["challenger_variant"],
+                            })
                             await db.execute(
                                 text(
                                     "INSERT INTO verum_jobs (kind, payload, status, owner_user_id)"
                                     " VALUES ("
                                     "   'evolve',"
-                                    "   jsonb_build_object("
-                                    "     'experiment_id', :eid::text,"
-                                    "     'deployment_id', :did::text,"
-                                    "     'winner_variant', :wv::text,"
-                                    "     'confidence', :conf::double precision,"
-                                    "     'current_challenger', :cv::text"
-                                    "   ),"
+                                    "   CAST(:payload AS jsonb),"
                                     "   'queued',"
-                                    "   :owner_uid::uuid"
+                                    "   CAST(:owner_uid AS uuid)"
                                     " )"
                                     " ON CONFLICT ((payload->>'experiment_id'))"
                                     " WHERE kind = 'evolve' AND status IN ('queued', 'running')"
                                     " DO NOTHING"
                                 ),
                                 {
-                                    "eid": str(exp["id"]),
-                                    "did": str(deployment_id),
-                                    "wv": result.winner_variant,
-                                    "conf": result.confidence,
-                                    "cv": exp["challenger_variant"],
+                                    "payload": evolve_payload,
                                     "owner_uid": str(evolve_owner_user_id),
                                 },
                             )
