@@ -225,7 +225,7 @@ async function _patchAnthropic(): Promise<void> {
     void _sys;
     const patchedParams: AnthropicMessageParams = {
       ...paramsWithoutHeaders,
-      system: resolvedSystem || undefined,
+      ...(resolvedSystem ? { system: resolvedSystem } : {}),
       ...(cleanedExtraHeaders && Object.keys(cleanedExtraHeaders).length > 0
         ? { extra_headers: cleanedExtraHeaders }
         : {}),
