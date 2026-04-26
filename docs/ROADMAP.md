@@ -2,7 +2,7 @@
 type: roadmap
 authority: tier-2
 canonical-for: [phase-timing, completion-gates, deliverable-ids]
-last-updated: 2026-04-22
+last-updated: 2026-04-26
 status: active
 ---
 
