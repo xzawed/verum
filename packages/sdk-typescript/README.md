@@ -29,7 +29,7 @@ That's it. Verum intercepts the call, records the trace, and applies any active 
 
 `import "@verum/sdk/openai"` monkey-patches the OpenAI client at import time. Every subsequent `chat.completions.create()` call is wrapped with a 5-layer safety net:
 
-1. **Circuit breaker** — opens after 3 consecutive Verum failures
+1. **Circuit breaker** — opens after 5 consecutive Verum failures
 2. **Timeout** — Verum side-channel has a hard 200 ms budget
 3. **Async fire-and-forget** — trace export never adds latency to your response
 4. **Fallback passthrough** — any exception inside Verum is caught and swallowed

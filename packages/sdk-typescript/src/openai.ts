@@ -41,6 +41,11 @@ interface OpenAIChatParams {
 async function _patchOpenAI(): Promise<void> {
   if (_patched) return;
 
+  const disabled = process.env["VERUM_DISABLED"] ?? "";
+  if (disabled === "1" || disabled.toLowerCase() === "true" || disabled.toLowerCase() === "yes") {
+    return;
+  }
+
   // Dynamic import so openai remains an optional peer dep.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let openaiModule: { default?: unknown; OpenAI?: unknown } | null = null;

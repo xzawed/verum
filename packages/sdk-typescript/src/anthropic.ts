@@ -129,6 +129,11 @@ interface AnthropicResponse {
 async function _patchAnthropic(): Promise<void> {
   if (_patched) return;
 
+  const disabled = process.env["VERUM_DISABLED"] ?? "";
+  if (disabled === "1" || disabled.toLowerCase() === "true" || disabled.toLowerCase() === "yes") {
+    return;
+  }
+
   // Dynamic import so @anthropic-ai/sdk remains an optional peer dep.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let anthropicModule: { default?: unknown; Anthropic?: unknown } | null = null;
