@@ -12,8 +12,11 @@ export async function POST(req: Request) {
 
   // IP-level gate before expensive DB look-up: 200 traces/min per IP, 120 per key.
   // Quota enforcement below provides a secondary per-user bound.
+  // Both limits are configurable via env vars for integration test environments.
+  const perKeyLimit = parseInt(process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY ?? "120");
+  const perIpLimit = parseInt(process.env.VERUM_TRACE_RATE_LIMIT_PER_IP ?? "200");
   const ip = getClientIp(req);
-  const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
+  const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), perKeyLimit, ip, perIpLimit);
   if (ipGate) return ipGate;
 
   const body = await req.json() as {
