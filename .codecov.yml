@@ -39,6 +39,9 @@ ignore:
   - "tests/fixtures/**"
   - "tests/integration/**"
   - "apps/api/tests/**"
+  # Jest excludes __tests__ dirs from collectCoverageFrom; ignore in Codecov too
+  # so new test files don't count as "uncovered" lines in patch analysis.
+  - "apps/dashboard/src/**/__tests__/**"
 
 comment:
   layout: "reach,diff,flags,components"
