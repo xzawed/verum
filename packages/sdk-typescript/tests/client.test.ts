@@ -251,3 +251,49 @@ describe("VerumClient.chat — getDeploymentConfig cache miss", () => {
     await expect(client.chat({ messages, deploymentId: "dep-1", model: "gpt-4" })).rejects.toThrow("config fetch failed: 403");
   });
 });
+
+// ── Top-level module retrieve() / feedback() ─────────────────────────────────
+// Tests the singleton _getClient() path in src/index.ts.
+
+describe("module-level retrieve() and feedback()", () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // Provide a base URL so VerumClient has something to call
+    process.env["VERUM_API_URL"] = "http://test.local";
+    process.env["VERUM_API_KEY"] = "key";
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    delete process.env["VERUM_API_URL"];
+    delete process.env["VERUM_API_KEY"];
+  });
+
+  it("retrieve() delegates to singleton VerumClient.retrieve()", async () => {
+    const { retrieve: moduleRetrieve } = await import("../src/index.js");
+
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ chunks: [{ content: "chunk text" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    const result = await moduleRetrieve({ query: "test", collectionName: "col" });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("feedback() delegates to singleton VerumClient.feedback()", async () => {
+    const { feedback: moduleFeedback } = await import("../src/index.js");
+
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    ) as typeof fetch;
+
+    await expect(
+      moduleFeedback({ traceId: "trace-1", score: 1 }),
+    ).resolves.toBeUndefined();
+  });
+});
