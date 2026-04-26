@@ -3,7 +3,7 @@
         sdk-python-build sdk-ts-build sdk-publish-dry \
         deploy-staging deploy-prod \
         loop-analyze loop-infer loop-harvest loop-full \
-        docker-healthcheck
+        docker-healthcheck patch-coverage
 
 # === Railway smoke test (run before ANY push that touches Dockerfile) ===
 # Simulates Railway's environment: PORT=8080, ENV HOSTNAME=0.0.0.0.
@@ -27,6 +27,13 @@ docker-healthcheck:
 		|| (echo "\n=== FAILED — check: docker logs verum-smoke ===" && docker logs verum-smoke && exit 1)
 	@docker rm -f verum-smoke
 	@docker rmi verum:smoke
+
+# === Pre-push coverage check ===
+# Approximates Codecov patch analysis locally before pushing.
+# Shows line coverage for each source file changed vs origin/main.
+# Use before any push that adds new source files to avoid Codecov failure cycles.
+patch-coverage:
+	@bash scripts/patch-coverage.sh $(or $(BASE),origin/main)
 
 # === Local development ===
 dev:
