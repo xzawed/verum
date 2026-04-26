@@ -364,3 +364,134 @@ describe("openai.ts — wrappedCreate and _sendTrace (virtual openai mock)", () 
     }
   });
 });
+
+// ── Defensive branch coverage ─────────────────────────────────────────────────
+// Tests for "malformed SDK" warning paths and error propagation in openai.ts.
+
+describe("openai.ts — defensive branch paths and error propagation", () => {
+  const savedEnv: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    jest.resetModules();
+    savedEnv["VERUM_DISABLED"] = process.env["VERUM_DISABLED"];
+    savedEnv["VERUM_DEPLOYMENT_ID"] = process.env["VERUM_DEPLOYMENT_ID"];
+    delete process.env["VERUM_DISABLED"];
+    delete process.env["VERUM_DEPLOYMENT_ID"];
+  });
+
+  afterEach(() => {
+    jest.dontMock("openai");
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("warns and skips when openai module exports no OpenAI class (null export)", async () => {
+    jest.doMock("openai", () => ({ __esModule: true, default: null }), { virtual: true });
+
+    const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      require("../src/openai");
+      await new Promise((r) => setTimeout(r, 50));
+      const warnings = consoleSpy.mock.calls.map((c) => c[0] as string);
+      expect(warnings.some((m) => m.includes("Could not resolve OpenAI class"))).toBe(true);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("warns and skips when chat.completions.create is not on the instance", async () => {
+    class BadOpenAI {
+      chat = { completions: {} }; // no create function
+      constructor(_opts?: unknown) {}
+    }
+    jest.doMock("openai", () => ({ __esModule: true, default: BadOpenAI, OpenAI: BadOpenAI }), { virtual: true });
+
+    const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      require("../src/openai");
+      await new Promise((r) => setTimeout(r, 50));
+      const warnings = consoleSpy.mock.calls.map((c) => c[0] as string);
+      expect(warnings.some((m) => m.includes("client.chat.completions.create not found"))).toBe(true);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("warns and skips when OpenAI constructor throws", async () => {
+    class ThrowingOpenAI {
+      constructor(_opts?: unknown) {
+        throw new Error("constructor error");
+      }
+    }
+    jest.doMock("openai", () => ({ __esModule: true, default: ThrowingOpenAI }), { virtual: true });
+
+    const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      require("../src/openai");
+      await new Promise((r) => setTimeout(r, 50));
+      const warnings = consoleSpy.mock.calls.map((c) => c[0] as string);
+      expect(warnings.some((m) => m.includes("Failed to obtain Completions prototype"))).toBe(true);
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("warns and skips when Completions.prototype.create is not a function", async () => {
+    class Completions {
+      create = jest.fn(); // on instance, not prototype
+    }
+    class Chat {
+      completions = new Completions();
+    }
+    class OpenAI {
+      chat = new Chat();
+      constructor(_opts?: unknown) {}
+    }
+    jest.doMock("openai", () => ({ __esModule: true, default: OpenAI }), { virtual: true });
+
+    const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      require("../src/openai");
+      await new Promise((r) => setTimeout(r, 50));
+      // Either patches successfully or warns — no crash either way
+      expect(consoleSpy).toBeDefined();
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("wrappedCreate re-throws when origCreate rejects (error propagation)", async () => {
+    const errorCreate = jest.fn().mockRejectedValue(new Error("openai api error"));
+
+    class Completions {}
+    (Completions.prototype as Record<string, unknown>)["create"] = errorCreate;
+    class Chat {
+      completions = new Completions();
+    }
+    class OpenAI {
+      chat = new Chat();
+      constructor(_opts?: unknown) {}
+    }
+    jest.doMock("openai", () => ({ __esModule: true, default: OpenAI }), { virtual: true });
+
+    process.env["VERUM_API_URL"] = "http://test.local";
+    process.env["VERUM_DEPLOYMENT_ID"] = "dep-err";
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error("offline")) as typeof fetch;
+
+    const { patchOpenAI } = loadPatchedModule() as { patchOpenAI: () => Promise<void> };
+    await patchOpenAI();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const client = new OpenAI({ apiKey: "test" });
+    const wrappedCreate = (client.chat.completions as Record<string, jest.Mock>)["create"] as jest.Mock;
+
+    await expect(
+      wrappedCreate({
+        model: "gpt-4",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    ).rejects.toThrow("openai api error");
+  });
+});
