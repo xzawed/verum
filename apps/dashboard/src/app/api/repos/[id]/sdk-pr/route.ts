@@ -88,7 +88,12 @@ export async function POST(
 
   const creator = new GitHubPrCreator({ accessToken, repoFullName });
 
-  const filesToRead = [".env.example", ...callSites.map((s) => s.file_path)];
+  const filesToRead = [
+    ".env.example",
+    "package.json",
+    "requirements.txt",
+    ...callSites.map((s) => s.file_path),
+  ];
   const existingFiles: Record<string, string> = {};
   await Promise.all(
     filesToRead.map(async (path) => {

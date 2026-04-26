@@ -23,16 +23,19 @@ VERUM_API_KEY=YOUR_VERUM_API_KEY
 VERUM_DEPLOYMENT_ID=YOUR_DEPLOYMENT_ID
 `;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const PY_EXTENSIONS = /\.py$/;
 const TS_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
+const VERUM_IN_REQUIREMENTS = /^\s*verum(\s|==|>=|$)/m;
 
-/**
- * Returns the 0-indexed line number just *after* the last `import openai` /
- * `from openai` block in a Python file, or 0 if none found.
- * Also skips past any leading `from __future__` imports.
- */
+function isPyFile(path: string): boolean {
+  return path.endsWith(".py");
+}
+
+function isTsFile(path: string): boolean {
+  return TS_EXTENSIONS.test(path);
+}
+
+// ── Insert-line finders ───────────────────────────────────────────────────────
+
 function findPythonInsertLine(lines: string[]): number {
   let lastOpenaiImport = -1;
   let lastFutureImport = -1;
@@ -52,10 +55,6 @@ function findPythonInsertLine(lines: string[]): number {
   return 0;
 }
 
-/**
- * Returns the 0-indexed line number just *after* the last `from "openai"` /
- * `require("openai")` / `from 'openai'` line in a TS/JS file, or 0 if none.
- */
 function findTsInsertLine(lines: string[]): number {
   let lastOpenaiImport = -1;
 
@@ -73,54 +72,97 @@ function findTsInsertLine(lines: string[]): number {
   return lastOpenaiImport >= 0 ? lastOpenaiImport + 1 : 0;
 }
 
+// ── Per-file change builders ──────────────────────────────────────────────────
+
+function buildEnvChange(existingFiles: Record<string, string>): FileChange | null {
+  const existing = existingFiles[".env.example"] ?? "";
+  if (existing.includes("VERUM_API_URL")) return null;
+  const content = existing
+    ? existing.trimEnd() + "\n\n" + VERUM_ENV_ADDITIONS
+    : VERUM_ENV_ADDITIONS;
+  return { path: ".env.example", content };
+}
+
+function buildPackageJsonChange(existingFiles: Record<string, string>): FileChange | null {
+  const raw = existingFiles["package.json"];
+  if (!raw || raw.includes("@verum/sdk")) return null;
+  try {
+    const pkg = JSON.parse(raw) as Record<string, unknown>;
+    const deps = (pkg["dependencies"] ?? {}) as Record<string, string>;
+    deps["@verum/sdk"] = "latest";
+    pkg["dependencies"] = deps;
+    return { path: "package.json", content: JSON.stringify(pkg, null, 2) + "\n" };
+  } catch {
+    // malformed package.json — skip, import line will still be added
+    return null;
+  }
+}
+
+function buildRequirementsChange(existingFiles: Record<string, string>): FileChange | null {
+  const raw = existingFiles["requirements.txt"];
+  if (raw === undefined || VERUM_IN_REQUIREMENTS.exec(raw)) return null;
+  return { path: "requirements.txt", content: raw.trimEnd() + "\nverum\n" };
+}
+
+function buildImportChange(filePath: string, original: string): FileChange | null {
+  const isPython = isPyFile(filePath);
+  const marker = isPython ? "import verum.openai" : "@verum/sdk/openai";
+  if (original.includes(marker)) return null;
+
+  const verumImport = isPython ? "import verum.openai" : 'import "@verum/sdk/openai";';
+  const lines = original.split("\n");
+  const insertAt = isPython ? findPythonInsertLine(lines) : findTsInsertLine(lines);
+  lines.splice(insertAt, 0, verumImport);
+  return { path: filePath, content: lines.join("\n") };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function buildPrFileChanges(opts: {
-  callSites: LLMCallSite[];
-  existingFiles: Record<string, string>;
-  repoFullName: string;
-  mode: PrMode;
+  readonly callSites: LLMCallSite[];
+  readonly existingFiles: Record<string, string>;
+  readonly repoFullName: string;
+  readonly mode: PrMode;
 }): FileChange[] {
   const { callSites, existingFiles, mode } = opts;
   const changes: FileChange[] = [];
 
-  // ── 1. Always update .env.example ──────────────────────────────────────────
-  const existingEnv = existingFiles[".env.example"] ?? "";
-  if (!existingEnv.includes("VERUM_API_URL")) {
-    const newEnv = existingEnv
-      ? existingEnv.trimEnd() + "\n\n" + VERUM_ENV_ADDITIONS
-      : VERUM_ENV_ADDITIONS;
-    changes.push({ path: ".env.example", content: newEnv });
-  }
+  const envChange = buildEnvChange(existingFiles);
+  if (envChange) changes.push(envChange);
 
-  // ── 2. observe mode: env only, nothing else ─────────────────────────────────
   if (mode === "observe") return changes;
 
-  // ── 3. bidirectional mode: insert one-line import per affected file ─────────
+  // Group call sites by file; track which language types are present
   const fileCallSites = new Map<string, LLMCallSite[]>();
+  let hasPyCallSites = false;
+  let hasTsCallSites = false;
   for (const site of callSites) {
-    if (!PY_EXTENSIONS.test(site.file_path) && !TS_EXTENSIONS.test(site.file_path)) continue;
-    const existing = fileCallSites.get(site.file_path) ?? [];
-    existing.push(site);
-    fileCallSites.set(site.file_path, existing);
+    if (isPyFile(site.file_path)) {
+      hasPyCallSites = true;
+    } else if (isTsFile(site.file_path)) {
+      hasTsCallSites = true;
+    } else {
+      continue;
+    }
+    const group = fileCallSites.get(site.file_path) ?? [];
+    group.push(site);
+    fileCallSites.set(site.file_path, group);
+  }
+
+  if (hasTsCallSites) {
+    const pkgChange = buildPackageJsonChange(existingFiles);
+    if (pkgChange) changes.push(pkgChange);
+  }
+  if (hasPyCallSites) {
+    const reqChange = buildRequirementsChange(existingFiles);
+    if (reqChange) changes.push(reqChange);
   }
 
   for (const [filePath] of fileCallSites) {
     const original = existingFiles[filePath];
     if (!original) continue;
-
-    const isPython = PY_EXTENSIONS.test(filePath);
-    const verum_import = isPython ? "import verum.openai" : 'import "@verum/sdk/openai";';
-    const already_present_pattern = isPython ? "import verum.openai" : "@verum/sdk/openai";
-
-    // Idempotent: skip if the import already exists
-    if (original.includes(already_present_pattern)) continue;
-
-    const lines = original.split("\n");
-    const insertAt = isPython ? findPythonInsertLine(lines) : findTsInsertLine(lines);
-    lines.splice(insertAt, 0, verum_import);
-
-    changes.push({ path: filePath, content: lines.join("\n") });
+    const importChange = buildImportChange(filePath, original);
+    if (importChange) changes.push(importChange);
   }
 
   return changes;

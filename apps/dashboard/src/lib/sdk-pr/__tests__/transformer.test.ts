@@ -129,4 +129,79 @@ describe("buildPrFileChanges", () => {
     const jsonFile = changes.find((c) => c.path === "src/config.json");
     expect(jsonFile).toBeUndefined();
   });
+
+  // ── dependency file patching ──────────────────────────────────────────────
+
+  it("bidirectional mode: adds @verum/sdk to package.json dependencies", () => {
+    const pkgJson = JSON.stringify({ name: "my-app", dependencies: { openai: "^4.0.0" } }, null, 2);
+    const changes = buildPrFileChanges({
+      callSites: oneCallSite,
+      existingFiles: { "src/services/ai.ts": sampleTsContent, "package.json": pkgJson },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const pkgChange = changes.find((c) => c.path === "package.json");
+    expect(pkgChange).toBeDefined();
+    const parsed: { dependencies: Record<string, string> } = JSON.parse(pkgChange?.content ?? "{}");
+    expect(parsed.dependencies["@verum/sdk"]).toBe("latest");
+    expect(parsed.dependencies["openai"]).toBe("^4.0.0");
+  });
+
+  it("bidirectional mode: skips package.json if @verum/sdk already present", () => {
+    const pkgJson = JSON.stringify({ dependencies: { "@verum/sdk": "^1.0.0" } }, null, 2);
+    const changes = buildPrFileChanges({
+      callSites: oneCallSite,
+      existingFiles: { "src/services/ai.ts": sampleTsContent, "package.json": pkgJson },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path === "package.json")).toBeUndefined();
+  });
+
+  it("bidirectional mode: skips package.json if it is malformed JSON", () => {
+    const changes = buildPrFileChanges({
+      callSites: oneCallSite,
+      existingFiles: { "src/services/ai.ts": sampleTsContent, "package.json": "{ not valid json" },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path === "package.json")).toBeUndefined();
+    // Import line should still be added despite malformed package.json
+    expect(changes.find((c) => c.path === "src/services/ai.ts")).toBeDefined();
+  });
+
+  it("bidirectional mode: adds verum to requirements.txt for Python files", () => {
+    const reqTxt = "openai>=1.0.0\nhttpx\n";
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.py", line: 3, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.py": samplePyContent, "requirements.txt": reqTxt },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const reqChange = changes.find((c) => c.path === "requirements.txt");
+    expect(reqChange).toBeDefined();
+    expect(reqChange?.content).toContain("verum");
+    expect(reqChange?.content).toContain("openai>=1.0.0");
+  });
+
+  it("bidirectional mode: skips requirements.txt if verum already present", () => {
+    const reqTxt = "openai>=1.0.0\nverum\n";
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.py", line: 3, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.py": samplePyContent, "requirements.txt": reqTxt },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path === "requirements.txt")).toBeUndefined();
+  });
+
+  it("bidirectional mode: skips requirements.txt if file not in repo", () => {
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.py", line: 3, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.py": samplePyContent },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path === "requirements.txt")).toBeUndefined();
+  });
 });
