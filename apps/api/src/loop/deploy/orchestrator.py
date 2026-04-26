@@ -60,7 +60,7 @@ async def deploy_and_start_experiment(
         text(
             "INSERT INTO experiments"
             " (deployment_id, baseline_variant, challenger_variant, status)"
-            " VALUES (:did, 'original', 'cot', 'running')"
+            " VALUES (:did, 'original', 'variant', 'running')"
             " RETURNING id"
         ),
         {"did": str(deployment_id)},

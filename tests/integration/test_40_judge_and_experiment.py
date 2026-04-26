@@ -4,7 +4,7 @@ After test_30 records 200+ traces, this test:
 1. Waits for JUDGE jobs to drain (all traces get a judge_score)
 2. Injects biased judge scores: variant=0.75 (wins), original=0.45 (no win)
 3. Waits for the experiment loop to aggregate and converge
-4. Verifies experiment winner == 'cot' (challenger variant)
+4. Verifies experiment winner == 'variant' (challenger variant)
 
 Uses pipeline_state["deployment_id"] set by test_30.
 """
