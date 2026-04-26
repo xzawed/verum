@@ -460,6 +460,19 @@ updates:
 
 ---
 
+### B-035: Integration test — DEPLOY job 60s timeout 조사
+**발견 위치:** `tests/integration/test_30_deploy_and_sdk.py::test_deploy_job_completes`  
+**문제:** PR #58 머지 후 test_00~test_20(9개) 통과, test_30에서 DEPLOY job이 60초 안에 완료되지 않아 timeout. approve PATCH 호출 자체는 성공하나 worker가 job을 처리하지 못함.  
+**배경:** integration test는 2026-04-24부터 실패 중이었으나 test_10(InFailedSQLTransactionError)이 먼저 막혀 test_30에 도달하지 못했음. PR #58로 test_10 수정 후 test_30 문제 노출됨.  
+**조사 포인트:**
+- `docker-compose.integration.yml` — deploy worker 서비스 설정 확인
+- `apps/api/src/loop/deploy/` — deploy handler 로직 및 타임아웃
+- `VERUM_TEST_DEPLOY_TIMEOUT` 환경변수 (기본 60s) — CI 환경에서 충분한지 검토
+- integration artifact 로그에서 worker 에러 확인  
+**예상 공수:** 2~4시간  
+
+---
+
 ## 요약 대시보드
 
 > ✅ 항목은 코드에서 처리 완료됨. 미완료 항목만 작업 단위로 처리.
@@ -470,7 +483,8 @@ updates:
 | **P1** (높음) | 8개 | 5개 (B-005~B-009) | ✅B-010, ✅B-011, ✅B-012 |
 | **P2** (중간) | 14개 | 10개 | ✅B-013, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027 |
 | **P3** (낮음) | 7개 | 7개 | — |
-| **합계** | **33개** | **22개 미완료** | **13개 완료** |
+| **신규** | 1개 | 1개 (B-035) | — |
+| **합계** | **34개** | **23개 미완료** | **13개 완료** |
 
 > 참고: B-004(CLAUDE.md 날짜 갱신)는 2026-04-24 기준 이미 반영되어 있음.
 
