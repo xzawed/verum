@@ -294,12 +294,12 @@ async def _experiment_loop() -> None:
                                 exp["id"],
                                 result.winner_variant,
                             )
-                    except Exception as exc:
+                    except Exception:
                         logger.exception(
                             "EXPERIMENT: error checking experiment %s",
                             exp.get("id"),
                         )
-        except Exception as exc:
+        except Exception:  # pragma: no cover — defensive; requires catastrophic loop failure
             logger.exception("EXPERIMENT loop error")
 
 

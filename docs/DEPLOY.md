@@ -88,8 +88,10 @@ CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 ## Pre-push checklist
 
-`apps/api/Dockerfile`, `apps/api/alembic/`, `apps/api/src/db/`, `apps/api/src/main.py`
+`Dockerfile` (root), `apps/api/alembic/`, `apps/api/src/db/`, `apps/api/src/main.py`
 변경 전 반드시 실행:
+
+> `apps/api/Dockerfile` is deleted — Railway uses only the root `Dockerfile` (Node + Python combined image).
 
 ```bash
 make verify-deploy

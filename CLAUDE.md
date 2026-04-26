@@ -662,6 +662,18 @@ Claude Code가 판단이 애매할 때 참고:
 
 위 4개가 모두 정상이면 배포 성공. 하나라도 의심되면 `make docker-healthcheck`로 로컬 재현 후 수정.
 
+### "Railway 대시보드가 잘못된 Dockerfile / start command를 보여준다?"
+
+Railway는 서비스를 처음 연결할 때 설정을 캐시하며, `railway.toml` 변경이 대시보드에 자동 반영되지 않을 수 있다.
+
+**증상**: Railway 대시보드 Configuration에 `apps/api/Dockerfile` 또는 `npm run start`가 표시됨  
+**원인**: 초기 커밋(`ab20748`) 시점의 설정이 캐시된 것. `railway.toml`이 배포 시 override하도록 설계되어 있으나 대시보드 표시는 stale할 수 있음  
+**해결**: Railway 대시보드에서 직접 수동으로 변경 필요:
+- Dockerfile path → `Dockerfile` (root)
+- Start command → `dumb-init node server.js`
+
+> **중요**: `apps/api/Dockerfile`은 삭제됨. 아키텍처 피벗(2026-04-20) 후 FastAPI + uvicorn이 제거되어 더 이상 유효하지 않은 파일이었음. 프로덕션 이미지는 루트 `Dockerfile`(3-stage: Next.js + Python + combined runtime)만 사용.
+
 ---
 
 ## 🌐 외부 리소스

@@ -1,5 +1,8 @@
 [build]
 builder = "DOCKERFILE"
+# ROOT Dockerfile only — single image: Next.js (Node PID1) + Python worker child.
+# apps/api/Dockerfile was the pre-pivot Python-only image and has been deleted.
+# If Railway dashboard shows a different path, override it here via this file.
 dockerfilePath = "Dockerfile"
 
 [deploy]
