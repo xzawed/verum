@@ -204,4 +204,48 @@ describe("buildPrFileChanges", () => {
     });
     expect(changes.find((c) => c.path === "requirements.txt")).toBeUndefined();
   });
+
+  // ── insert-at-top fallback (no openai import present) ────────────────────
+
+  it("bidirectional mode: inserts Python import at top when no openai import present", () => {
+    const noImportPy = "client = some_lib.Client()\nclient.call()\n";
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.py", line: 1, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.py": noImportPy },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const pyFile = changes.find((c) => c.path === "src/service.py");
+    expect(pyFile).toBeDefined();
+    const lines = pyFile!.content.split("\n");
+    expect(lines[0]).toBe("import verum.openai");
+  });
+
+  it("bidirectional mode: inserts Python import after __future__ when no openai import present", () => {
+    const futureOnlyPy = "from __future__ import annotations\nclient = some_lib.Client()\n";
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.py", line: 2, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.py": futureOnlyPy },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const pyFile = changes.find((c) => c.path === "src/service.py");
+    expect(pyFile).toBeDefined();
+    const lines = pyFile!.content.split("\n");
+    expect(lines[1]).toBe("import verum.openai");
+  });
+
+  it("bidirectional mode: inserts TS import at top when no openai import present", () => {
+    const noImportTs = "const client = new SomeLib();\nclient.call();\n";
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "src/service.ts", line: 1, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/service.ts": noImportTs },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const tsFile = changes.find((c) => c.path === "src/service.ts");
+    expect(tsFile).toBeDefined();
+    const lines = tsFile!.content.split("\n");
+    expect(lines[0]).toBe('import "@verum/sdk/openai";');
+  });
 });
