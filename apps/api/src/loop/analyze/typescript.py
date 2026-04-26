@@ -354,6 +354,22 @@ def _analyze_file(file_path: str, source: bytes, language: Language) -> FileAnal
                     for ident in _iter_type(clause, "identifier"):
                         sdk_symbols[_text(ident)] = sdk_label
 
+    # First-pass extension: track `const x = new ImportedSDK(...)` instance variables.
+    # Handles the common pattern: import OpenAI from "openai"; const client = new OpenAI();
+    # tree-sitter uses "lexical_declaration" for const/let, "variable_declaration" for var.
+    for var_decl in _iter_type(tree.root_node, "lexical_declaration"):
+        for declarator in _iter_type(var_decl, "variable_declarator"):
+            name_node = declarator.child_by_field_name("name")
+            value_node = declarator.child_by_field_name("value")
+            if not (name_node and value_node and value_node.type == "new_expression"):
+                continue
+            constructor = value_node.child_by_field_name("constructor")
+            if not constructor:
+                continue
+            class_name = _text(constructor)
+            if class_name in sdk_symbols:
+                sdk_symbols[_text(name_node)] = sdk_symbols[class_name]
+
     # Second pass: class declarations (Patterns B + C)
     for cls in _iter_type(tree.root_node, "class_declaration"):
         _analyze_class(cls, rel_path, result)
