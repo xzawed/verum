@@ -5,3 +5,4 @@ export { SafeConfigResolver } from "./_safe-resolver.js";
 export type { DeploymentConfig, ResolveReason, ResolveResult } from "./_safe-resolver.js";
 
 export { patchOpenAI } from "./openai.js";
+export { patchAnthropic } from "./anthropic.js";
