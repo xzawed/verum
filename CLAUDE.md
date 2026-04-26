@@ -377,9 +377,9 @@ verum/
 - [x] 대시보드 설정 자동 구성 (서비스 타입별 메트릭 선택)
 - [x] Python SDK: `import verum.openai` auto-instrument (Phase 1) + `verum.retrieve()` / `verum.feedback()`. `verum.Client.chat()` deprecated (v1.x)
 - [x] TypeScript SDK: `import "@verum/sdk/openai"` auto-instrument (Phase 1). `VerumClient.chat()` deprecated
-- [x] **ArcanaInsight에 SDK 적용** (첫 완전 dogfood)
+- [x] **ArcanaInsight Phase 0 통합** (OTLP env-only — 코드 변경 0줄. Phase 1 비침투 정책으로 미적용.)
 
-**완료 기준**: ArcanaInsight의 타로 상담이 Verum이 생성한 프롬프트와 RAG로 작동
+**완료 기준**: ArcanaInsight의 LLM 호출이 Verum OTLP로 관측되고, 생성된 프롬프트·RAG가 대시보드에서 배포 가능한 상태로 존재
 
 ---
 
@@ -531,6 +531,10 @@ test(generate): add prompt variant generation test cases
 7. **ArcanaInsight 미적용 상태로 Phase 완료 선언 금지**
    - 모든 Phase는 ArcanaInsight에서 실제 작동해야 완료
    - "이론상 작동할 것"은 완료가 아님
+   - **ArcanaInsight 통합 방식 확정 (2026-04-26)**: Phase 0 (OTLP env-only, 코드 변경 0줄) 채택.
+     Phase 1 (`import verum.openai` + `extra_headers`) 비침투적 정책에 의해 ArcanaInsight에는 미적용.
+     Phase 0 자체가 유효한 Verum 통합이므로, 이 상태를 "미적용"으로 해석하지 않는다.
+     Phase 1 SDK는 다른 서비스·사용자를 위한 기능으로 존재한다.
 
 8. **브랜드 혼동 유발 금지**
    - 정식 명칭은 **"Verum"** 단독
