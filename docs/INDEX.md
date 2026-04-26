@@ -119,6 +119,7 @@ Each topic has exactly one canonical owner. All other files must link, never res
 | [quality-report-2026-04-22.md](internal/audits/quality-report-2026-04-22.md) | 2026-04-22 | GENERATE stage 5-agent code quality audit |
 | [coverage-98-retrospective-2026-04-26.md](internal/audits/coverage-98-retrospective-2026-04-26.md) | 2026-04-26 | Coverage 98% initiative retrospective (PR #57) |
 | [ci-fix-pr60-retrospective-2026-04-26.md](internal/audits/ci-fix-pr60-retrospective-2026-04-26.md) | 2026-04-26 | Integration CI fix retrospective — asyncpg/EVOLVE pipeline (PR #60) |
+| [sdk-audit-pr68-retrospective-2026-04-26.md](internal/audits/sdk-audit-pr68-retrospective-2026-04-26.md) | 2026-04-26 | SDK comprehensive audit retrospective — Anthropic auto-instrument + Codecov patch battle (PR #68) |
 
 ---
 
