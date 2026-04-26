@@ -364,9 +364,7 @@ def _analyze_file(file_path: str, source: bytes, language: Language) -> FileAnal
             if not (name_node and value_node and value_node.type == "new_expression"):
                 continue
             constructor = value_node.child_by_field_name("constructor")
-            if not constructor:
-                continue
-            class_name = _text(constructor)
+            class_name = _text(constructor) if constructor else ""
             if class_name in sdk_symbols:
                 sdk_symbols[_text(name_node)] = sdk_symbols[class_name]
 
