@@ -43,6 +43,7 @@ def _write_integration_state(deployment_id: uuid.UUID, api_key: str) -> None:
         with os.fdopen(fd, "w") as f:
             f.write(payload)
         os.replace(tmp_path, target)
+        os.chmod(target, 0o644)
     except Exception:  # pragma: no cover
         logger.exception("DEPLOY: failed to write integration state, cleaning up %s", tmp_path)
         try:
