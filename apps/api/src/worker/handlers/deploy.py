@@ -62,6 +62,13 @@ async def handle_deploy(
     deployment, experiment_id = await deploy_and_start_experiment(
         db, generation_id, variant_fraction=_VARIANT_FRACTION
     )
+
+    if _TEST_MODE:
+        # Write api_key to shared volume BEFORE committing so that a file-write
+        # failure rolls back the DB inserts on retry instead of creating orphaned
+        # deployments. Avoids plaintext key storage in verum_jobs.result (P0-2).
+        _write_integration_state(deployment.deployment_id, deployment.api_key)
+
     await db.commit()
 
     logger.info(
@@ -70,11 +77,6 @@ async def handle_deploy(
         experiment_id,
         deployment.status,
     )
-
-    if _TEST_MODE:
-        # Write api_key to shared volume instead of DB job result to avoid
-        # plaintext key storage in verum_jobs.result (P0-2 security fix).
-        _write_integration_state(deployment.deployment_id, deployment.api_key)
 
     return {
         "deployment_id": str(deployment.deployment_id),

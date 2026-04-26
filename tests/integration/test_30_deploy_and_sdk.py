@@ -45,14 +45,18 @@ async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
     async def deploy_done():
         result = (await async_db.execute(
             text(
-                "SELECT status, result FROM verum_jobs"
+                "SELECT status, error FROM verum_jobs"
                 " WHERE kind = 'deploy' AND payload::jsonb->>'generation_id' = :gid"
                 " AND status IN ('done', 'failed')"
                 " ORDER BY created_at DESC LIMIT 1"
             ),
             {"gid": generation_id},
         )).mappings().first()
-        return result is not None and result["status"] == "done"
+        if result is None:
+            return False
+        if result["status"] == "failed":
+            pytest.fail(f"DEPLOY job permanently failed: {result.get('error', 'unknown')}")
+        return result["status"] == "done"
 
     completed = await wait_until(deploy_done, timeout=DEPLOY_TIMEOUT, label="DEPLOY job done")
     assert completed, "DEPLOY job did not complete within 60s"
