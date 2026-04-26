@@ -243,6 +243,34 @@ describe("POST /api/v1/traces", () => {
     }
   });
 
+  it("falls back to 120/200 defaults when env vars parse to NaN", async () => {
+    const origKey = process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY;
+    const origIp = process.env.VERUM_TRACE_RATE_LIMIT_PER_IP;
+    process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY = "invalid";
+    process.env.VERUM_TRACE_RATE_LIMIT_PER_IP = "bad";
+    try {
+      mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
+      mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" });
+      mockCheckAndIncrementTraceQuota.mockResolvedValueOnce({ status: "ok", tracesUsed: 5 });
+      mockGetModelPricing.mockResolvedValueOnce(null);
+      mockInsertTrace.mockResolvedValueOnce("trace-fallback");
+
+      await POST(makePostReq(defaultBody));
+
+      expect(mockCheckRateLimitDual).toHaveBeenCalledWith(
+        expect.any(String),
+        120,
+        expect.any(String),
+        200,
+      );
+    } finally {
+      if (origKey === undefined) delete process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY;
+      else process.env.VERUM_TRACE_RATE_LIMIT_PER_KEY = origKey;
+      if (origIp === undefined) delete process.env.VERUM_TRACE_RATE_LIMIT_PER_IP;
+      else process.env.VERUM_TRACE_RATE_LIMIT_PER_IP = origIp;
+    }
+  });
+
   it("returns 201 with correctly calculated cost when pricing is found", async () => {
     mockValidateApiKey.mockResolvedValueOnce({ deploymentId: "dep-1", userId: "user-1" });
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" });
