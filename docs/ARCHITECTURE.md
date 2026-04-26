@@ -183,15 +183,20 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
+| `repo_id` | `UUID` FK → repos | |
 | `analysis_id` | `UUID` FK → analyses | |
-| `domain` | `TEXT` | |
-| `subdomain` | `TEXT` | nullable |
-| `tone` | `TEXT` | |
-| `language` | `TEXT` | BCP-47 |
-| `user_type` | `TEXT` | |
-| `confidence` | `FLOAT` | |
-| `raw_llm_response` | `TEXT` | |
-| `inferred_at` | `TIMESTAMPTZ` | |
+| `status` | `VARCHAR(32)` | `pending` / `done` / `error` |
+| `domain` | `TEXT` | e.g. `"divination/tarot"` |
+| `tone` | `TEXT` | nullable |
+| `language` | `TEXT` | BCP-47, nullable |
+| `user_type` | `TEXT` | nullable |
+| `confidence` | `FLOAT` | nullable |
+| `summary` | `TEXT` | nullable — human-readable service description |
+| `raw_response` | `JSONB` | full LLM output for debugging |
+| `error` | `VARCHAR(1024)` | nullable |
+| `created_at` | `TIMESTAMPTZ` | |
+
+> **컬럼 정정 (2026-04-26):** `subdomain`, `inferred_at`, `raw_llm_response` 컬럼은 존재하지 않음. 실제 구현은 `status`, `summary`, `raw_response`, `created_at`을 사용.
 
 ### `harvest_sources`
 
@@ -214,12 +219,16 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `harvest_source_id` | `UUID` FK → harvest_sources | |
+| `source_id` | `UUID` FK → harvest_sources (ON DELETE CASCADE) | |
+| `inference_id` | `UUID` FK → inferences (ON DELETE CASCADE) | migration 0018 |
 | `content` | `TEXT` | raw chunk text |
-| `embedding` | `vector(N)` | N from `harvest_sources.embedding_dim` |
-| `tsv` | `TSVECTOR` | for BM25 hybrid search |
+| `chunk_index` | `INT` | position within source |
+| `embedding_vec` | `vector(1024)` | pgvector column — Voyage AI voyage-3.5 embeddings |
+| `ts_content` | `TSVECTOR` | for BM25 hybrid search |
 | `metadata` | `JSONB` | `{"domain": ..., "source_url": ...}` |
 | `created_at` | `TIMESTAMPTZ` | |
+
+> **컬럼 정정 (2026-04-26):** `harvest_source_id` → `source_id`. `embedding` JSONB는 migration 0016에서 제거됨; `embedding_vec` (pgvector)가 SoT. `embedding_vec`/`ts_content`는 Drizzle 스키마에서 생략됨 (JS에서 정의 불가).
 
 ### `generations`
 
@@ -659,6 +668,36 @@ Discovered in two sequential Railway build failures (2026-04-24/25):
 **Trade-off accepted:** Singleton state lives in a module-level variable. The first real request bears the one-time initialization cost. This is the standard Next.js + external client pattern and is safe in a single-process Node.js server.
 
 **Revisit trigger:** If Next.js adds a native "defer to runtime" annotation or if the app moves to Edge Runtime where module-level singletons behave differently.
+
+---
+
+### ADR-011: Codecov Action Pinned to v5
+
+**Status:** Accepted | **Date:** 2026-04-26
+
+**Decision:** `codecov/codecov-action` is pinned to **v5** in all CI workflows.
+
+**Context:** v4 bundled uploader suffered a shasum/GPG regression (2026-04-26); v5 switches to `codecov-cli` which avoids this issue. `fail_ci_if_error: true` is set so coverage upload failures block the merge — we want to know when coverage data is missing, not silently skip it.
+
+**Trade-off accepted:** Pinning to v5 means we must track Codecov major releases manually. Acceptable given that Codecov breaking changes are rare and the alternative (allowing automatic major upgrades) risks supply-chain surprises.
+
+---
+
+### ADR-012: Integration Test via Production-Image Compose + Mock Provider Stack
+
+**Status:** Accepted | **Date:** 2026-04-26
+
+**Decision:** Full-loop integration tests (`docker-compose.integration.yml`) build and run the **same root `Dockerfile`** used in Railway production, with all external APIs (Anthropic, OpenAI, GitHub, git-http) replaced by a FastAPI mock stack.
+
+**Context:** Unit tests with mocks proved insufficient — mock/prod divergence masked broken migrations and wiring issues. Running the real container image catches Dockerfile regressions, Node→Python spawn failures, and end-to-end job routing bugs that mocks miss.
+
+**Key design choices:**
+- `VERUM_TEST_MODE=1` enables 5+2 env-gated test hooks; production business logic in `apps/api/src/loop/**` is **not touched**.
+- `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `GITHUB_API_URL` env overrides redirect traffic to mock containers.
+- `/test/login` bypass endpoint is gated behind `VERUM_TEST_MODE` and returns a fixed test session.
+- CI runs nightly + `workflow_dispatch`; job is informational (non-blocking) until a 2-week stability baseline is confirmed.
+
+See `docker-compose.integration.yml` for the full service definition.
 
 ---
 

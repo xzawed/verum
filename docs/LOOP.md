@@ -154,12 +154,15 @@ Feed the ANALYZE output (extracted prompts, README, type definitions) to an LLM 
 |---|---|---|
 | `inference_id` | `UUID` | Stable identifier |
 | `domain` | `str` | e.g. `"divination/tarot"`, `"code_review"`, `"legal_qa"` |
-| `subdomain` | `str \| None` | e.g. `"celtic_spread"` within tarot |
-| `tone` | `str` | `"mystical"` / `"professional"` / `"casual"` / `"technical"` |
-| `language` | `str` | BCP-47 language code (`"ko"`, `"en"`) |
-| `user_type` | `str` | `"consumer"` / `"developer"` / `"enterprise"` |
-| `confidence` | `float` | 0.0–1.0; low confidence triggers user confirmation prompt |
-| `raw_llm_response` | `str` | Full LLM output for debugging |
+| `tone` | `str \| None` | `"mystical"` / `"professional"` / `"casual"` / `"technical"` |
+| `language` | `str \| None` | BCP-47 language code (`"ko"`, `"en"`) |
+| `user_type` | `str \| None` | `"consumer"` / `"developer"` / `"enterprise"` |
+| `confidence` | `float \| None` | 0.0–1.0; low confidence triggers user confirmation prompt |
+| `summary` | `str \| None` | Human-readable service description |
+| `suggested_sources` | `list[SuggestedSource]` | LLM-proposed crawl sources for HARVEST stage |
+| `raw_response` | `dict` | Full LLM output for debugging |
+
+> **필드 정정 (2026-04-26):** `subdomain`은 실제 구현에 없음. `raw_llm_response` → `raw_response`. `suggested_sources` 추가됨.
 
 ### Algorithm
 

@@ -399,8 +399,8 @@ function getClient() {
 
 | 구분 | 테스트 파일 수 | 테스트 수 | 최근 갱신 |
 |------|--------------|---------|----------|
-| Python API (loop + worker) | 40 | 423 passing (CI: full suite with Postgres; 로컬 Postgres 미기동 시 requires_db 자동 skip) | 2026-04-25 |
-| Dashboard Jest | 29 suites | 160 | 2026-04-25 |
+| Python API (loop + worker) | 48 | 539 passing (CI: full suite with Postgres; 로컬 Postgres 미기동 시 requires_db 자동 skip) | 2026-04-26 |
+| Dashboard Jest | 188 files | 310 | 2026-04-26 |
 | E2E Playwright | 3 spec | ~16 | 2026-04-25 |
 
 **SonarCloud Quality Gate:** PASSED ✅ — New Code Coverage **81.2%** (임계값 80%). 참조 커밋 기준 신규 라인 456/463 Python + TypeScript 합산.
