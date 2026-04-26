@@ -43,6 +43,25 @@ async function run() {
 }
 """
 
+# Pattern A — const client = new SDK() instance variable
+# Also includes:
+#   - const assigned from a call expression (not new_expression) → triggers skip branch
+#   - const assigned from new UnknownClass() (class not in sdk_symbols) → skipped silently
+_SDK_INSTANCE = b"""
+import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+
+const openaiClient = new OpenAI();
+const anthropic = new Anthropic();
+const notAnSdk = someFactory();        // call_expression, not new_expression: skipped
+const unknown = new UnknownClass();   // new_expression but class not in sdk_symbols: skipped
+
+async function run() {
+  const r1 = await openaiClient.chat.completions.create({ model: "gpt-4o", messages: [] });
+  const r2 = await anthropic.messages.create({ model: "claude-3-5-sonnet", max_tokens: 1024, messages: [] });
+}
+"""
+
 _NO_LLM = b"""
 const x = 1 + 2;
 export function add(a: number, b: number): number { return a + b; }
@@ -93,6 +112,18 @@ def test_no_llm_no_call_sites() -> None:
     r = analyze_file("src/utils/math.ts", _NO_LLM)
     assert r.call_sites == []
     assert r.model_configs == []
+
+
+def test_sdk_instance_variable_pattern_a() -> None:
+    """const client = new SDK() — instance variable must be tracked as sdk symbol."""
+    r = analyze_file("src/lib/ai.ts", _SDK_INSTANCE)
+    sdks = {cs.sdk for cs in r.call_sites}
+    assert "openai" in sdks, f"openai not detected; found: {sdks}"
+    assert "anthropic" in sdks, f"anthropic not detected; found: {sdks}"
+    openai_calls = [cs for cs in r.call_sites if cs.sdk == "openai"]
+    assert any("chat.completions.create" in cs.function for cs in openai_calls)
+    anthropic_calls = [cs for cs in r.call_sites if cs.sdk == "anthropic"]
+    assert any("messages.create" in cs.function for cs in anthropic_calls)
 
 
 def test_dedup_no_duplicate_for_same_fetch() -> None:
