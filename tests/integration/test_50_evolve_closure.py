@@ -76,7 +76,8 @@ async def test_loop_closure_assertion(async_db, pipeline_state):
     )).mappings().first()
     assert row is not None
 
-    result = json.loads(row["result"])
+    raw = row["result"]
+    result = raw if isinstance(raw, dict) else json.loads(raw)
     assert result.get("winner_variant") is not None, "EVOLVE result missing winner_variant"
 
     # Verify experiment records winner
