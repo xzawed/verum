@@ -9,7 +9,6 @@ const GITHUB_URL_RE = /^https:\/\/github\.com\/[\w.\-]+\/[\w.\-]+(\.git)?$/;
 
 // In test mode the integration stack uses an internal git-http Docker service
 // URL (e.g. http://git-http/...) — skip the github.com guard in that case.
-/* istanbul ignore next */
 const repoUrlSchema =
   process.env.VERUM_TEST_MODE === "1"
     ? z.string().url("repo_url must be a valid URL")
