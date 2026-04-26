@@ -38,6 +38,7 @@ async def dump(db: AsyncSession, path: Path) -> None:
             ]
             rows.append({"table": table, "count": count, "sample": sample})
         except Exception as exc:  # noqa: BLE001
+            await db.rollback()  # clear aborted txn so next table query works
             rows.append({"table": table, "error": str(exc)})
 
     with path.open("w") as f:
