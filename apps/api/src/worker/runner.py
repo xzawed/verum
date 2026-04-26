@@ -295,13 +295,12 @@ async def _experiment_loop() -> None:
                                 result.winner_variant,
                             )
                     except Exception as exc:
-                        logger.warning(
-                            "EXPERIMENT: error checking experiment %s: %s",
+                        logger.exception(
+                            "EXPERIMENT: error checking experiment %s",
                             exp.get("id"),
-                            exc,
                         )
         except Exception as exc:
-            logger.warning("EXPERIMENT loop error: %s", exc)
+            logger.exception("EXPERIMENT loop error")
 
 
 async def _dispatch_job(job: dict[str, Any]) -> None:

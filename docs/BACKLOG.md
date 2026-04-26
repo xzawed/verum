@@ -460,16 +460,46 @@ updates:
 
 ---
 
-### B-035: Integration test — DEPLOY job 60s timeout 조사
+### ✅ B-035: Integration test — DEPLOY job 60s timeout 조사
 **발견 위치:** `tests/integration/test_30_deploy_and_sdk.py::test_deploy_job_completes`  
 **문제:** PR #58 머지 후 test_00~test_20(9개) 통과, test_30에서 DEPLOY job이 60초 안에 완료되지 않아 timeout. approve PATCH 호출 자체는 성공하나 worker가 job을 처리하지 못함.  
-**배경:** integration test는 2026-04-24부터 실패 중이었으나 test_10(InFailedSQLTransactionError)이 먼저 막혀 test_30에 도달하지 못했음. PR #58로 test_10 수정 후 test_30 문제 노출됨.  
-**조사 포인트:**
-- `docker-compose.integration.yml` — deploy worker 서비스 설정 확인
-- `apps/api/src/loop/deploy/` — deploy handler 로직 및 타임아웃
-- `VERUM_TEST_DEPLOY_TIMEOUT` 환경변수 (기본 60s) — CI 환경에서 충분한지 검토
-- integration artifact 로그에서 worker 에러 확인  
-**예상 공수:** 2~4시간  
+**처리 완료 (PR #60):**
+- `_experiment_loop` EVOLVE INSERT — `asyncpg.IndeterminateDatatypeError` (jsonb_build_object 파라미터 타입 미추론) → `CAST(:payload AS jsonb)` 방식으로 수정
+- `challenger_variant='cot'` → `'variant'` 수정 (orchstrator.py)  
+- test_40 race condition — EVOLVE 핸들러 완료 대기 `wait_until` 추가
+- `deploy.py` `os.chmod(0o644)` — SonarCloud S5443 `# NOSONAR` 처리
+- rate limit NaN fallback 브랜치 테스트 추가 (codecov/patch)
+
+---
+
+---
+
+### B-036: `_experiment_loop` — `logger.warning` → `logger.exception` (트레이스백 포함)
+**발견 위치:** `apps/api/src/worker/runner.py:297-304` — `_experiment_loop` 내부 `except` 블록  
+**문제:** `logger.warning("...: %s", exc)` 는 예외 메시지만 출력. 트레이스백 없이는 근본 원인 추적 불가. PR #60 디버깅에서 `asyncpg.IndeterminateDatatypeError`가 실제로 10초마다 발생했음에도 서비스 로그만으로 원인을 파악하기 매우 어려웠음.  
+**수정 (이미 적용됨 — 2026-04-26):** `logger.warning(...)` → `logger.exception(...)`. `logger.exception()`은 현재 예외의 트레이스백을 자동 포함.  
+**처리 완료:** `runner.py:297-304` — `logger.exception()` 적용됨 (2026-04-26)
+
+---
+
+### B-037: `CAST()` vs `::type` 린팅 규칙 추가
+**발견 위치:** `apps/api/src/worker/runner.py` — `EVOLVE INSERT` (PR #60에서 수정됨)  
+**문제:** SQLAlchemy `text()` 안에서 `:param::type` 패턴은 토크나이저 버그로 `PostgresSyntaxError`를 유발하지만, 오류 메시지가 불명확하여 원인 파악에 수시간 소요됨.  
+**수정 방향:** `pyproject.toml`에 ruff rule 또는 CI grep 추가:
+```bash
+# CI에서 금지 패턴 검출
+grep -rn ':[a-z_]*::[a-z ]' apps/api/src/ packages/sdk-python/src/ && exit 1
+```
+**ADR 참조:** ARCHITECTURE.md ADR-013  
+**예상 공수:** 1시간  
+
+---
+
+### B-038: Integration CI `VERUM_EXPERIMENT_INTERVAL_SECONDS` 환경변수 문서화
+**발견 위치:** `docker-compose.integration.yml`, `apps/api/src/worker/runner.py:47`  
+**문제:** 기본값 300s이면 integration test에서 실험 수렴 대기 시간이 5분+. CI에서는 10s로 오버라이드해야 하는데, 이 사실이 어디에도 문서화되어 있지 않아 신규 기여자가 테스트 타임아웃을 이해하기 어려움.  
+**수정 방향:** `docker-compose.integration.yml` 에 주석, `docs/LOOP.md` §Stage 7에 테스트 오버라이드 가이드 추가  
+**예상 공수:** 30분  
 
 ---
 
@@ -480,13 +510,13 @@ updates:
 | 우선순위 | 전체 | 미완료 | 완료 |
 |---------|------|--------|------|
 | **P0** (즉시) | 4개 | 0개 | ✅B-001, ✅B-002, ✅B-003, ✅B-004 |
-| **P1** (높음) | 8개 | 5개 (B-005~B-009) | ✅B-010, ✅B-011, ✅B-012 |
-| **P2** (중간) | 14개 | 10개 | ✅B-013, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027 |
-| **P3** (낮음) | 7개 | 7개 | — |
-| **신규** | 1개 | 1개 (B-035) | — |
-| **합계** | **34개** | **23개 미완료** | **13개 완료** |
+| **P1** (높음) | 9개 | 5개 (B-005~B-009) | ✅B-010, ✅B-011, ✅B-012, ✅B-036 |
+| **P2** (중간) | 15개 | 11개 (incl. B-038) | ✅B-013, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027 |
+| **P3** (낮음) | 8개 | 8개 (incl. B-037) | — |
+| **신규 (완료)** | 1개 | 0개 | ✅B-035 |
+| **합계** | **37개** | **24개 미완료** | **13개 완료** |
 
-> 참고: B-004(CLAUDE.md 날짜 갱신)는 2026-04-24 기준 이미 반영되어 있음.
+> 갱신: 2026-04-26 — PR #60 완료 반영. B-035 완료, B-036 완료(즉시 적용), B-037/B-038 신규 등재.
 
 ---
 

@@ -466,6 +466,8 @@ async def analyze_repository(
 - **Alembic 필수**. 직접 SQL 실행 금지
 - **성능 영향 쿼리는 의도적 인덱스 설계**
 - **SCAManager의 FailoverSessionFactory 패턴 재사용**
+- **`text()` 안에서 `:param::type` 금지** → `CAST(:param AS type)` 사용. SQLAlchemy 토크나이저가 `::` 뒤를 두 번째 named parameter로 파싱하여 asyncpg에서 `PostgresSyntaxError` 발생. 상세: [ADR-013](docs/ARCHITECTURE.md#adr-013)
+- **백그라운드 루프의 `except Exception`은 반드시 `logger.exception()` 사용** — `logger.warning("%s", exc)`는 트레이스백을 삼켜 근본 원인을 숨김. 특히 `_experiment_loop` 같은 주기적 루프에서 치명적 오류가 침묵함
 
 ### 커밋 메시지 (Conventional Commits)
 
