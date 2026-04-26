@@ -218,7 +218,7 @@ Every optional-property assignment in a strict codebase should use conditional s
 |---|---|---|---|
 | F-1 | `drizzle-kit pull` in alembic checklist | P1 | Add to `CLAUDE.md` migration checklist: run `drizzle-kit pull` after each `alembic upgrade head` |
 | F-2 | `docs/STATUS.md` test count update | P2 | TS SDK now 80 tests (was 63); Python SDK test count grew by ~6 |
-| F-3 | Python SDK dogfood on real ArcanaInsight codebase | P1 | ArcanaInsight uses Grok-2 via OpenAI-compatible API. `examples/arcana-integration/after.py` shows the pattern (`import verum.openai` + `x-verum-deployment` header). The example is documentation — confirm the actual ArcanaInsight service has been updated. Anthropic auto-instrument is for future services, not ArcanaInsight. |
+| F-3 | ~~ArcanaInsight Phase 1 SDK integration~~ | **Closed** | ArcanaInsight uses **Phase 0** (OTLP env-only, zero code changes) by deliberate non-invasive policy decision (2026-04-26). Phase 1 auto-instrument is a reference example for other services. Phase 0 is a fully valid Verum integration for ArcanaInsight. |
 | F-4 | VERUM_DISABLED coverage in Dashboard/API | P3 | env flag only tested in SDK packages; API/dashboard modules not checked |
 | F-5 | `SafeConfigResolver` + `jest.doMock` combined test | P3 | `anthropic-patch.test.ts` tests resolver integration but not the full wrappedCreate path; merge the two patterns |
 | F-6 | Jest `coverageThreshold.branches` review | P3 | `anthropic.ts` branch coverage at 90.74% — `if (_patched)` adds branches; revisit threshold after Phase 5 |
@@ -246,4 +246,4 @@ Squash-merged to main: `575089a fix/feat/docs: comprehensive audit fixes — Dri
 
 _Report generated: 2026-04-26_  
 _Scope: PR #68 fix/audit-2026-04-26_  
-_Next: ArcanaInsight dogfood with Anthropic auto-instrument (F-3)_
+_F-3 closed: ArcanaInsight uses Phase 0 (OTLP) by design. Next: F-4/F-5/F-6 at Phase 5._

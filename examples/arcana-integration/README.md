@@ -1,8 +1,14 @@
 # ArcanaInsight × Verum Integration Example
 
-This example shows how ArcanaInsight (a tarot reading service using Grok 2) integrates
-Verum in a non-invasive way. It is the reference implementation for the **[5] DEPLOY**
-stage of The Verum Loop.
+> **Note (2026-04-26):** The *actual* ArcanaInsight service uses **Phase 0** (OTLP env-only,
+> zero code changes) by deliberate policy. `after.py` in this directory is a **Phase 1
+> reference example** for other services that choose bidirectional integration.
+> Phase 0 is equally valid — it enables full OBSERVE/EXPERIMENT/EVOLVE without touching
+> the production codebase.
+
+This example shows how a service using Grok 2 (via OpenAI-compatible API) can integrate
+Verum in **Phase 1 bidirectional mode**. It is the reference implementation for the
+**[5] DEPLOY** stage of The Verum Loop.
 
 ## The integration is literally 3 lines
 
