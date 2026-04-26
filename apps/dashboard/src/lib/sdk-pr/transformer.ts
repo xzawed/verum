@@ -24,7 +24,7 @@ VERUM_DEPLOYMENT_ID=YOUR_DEPLOYMENT_ID
 `;
 
 const TS_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
-const VERUM_IN_REQUIREMENTS = /^\s*verum(\s|==|>=|$)/m;
+const VERUM_IN_REQUIREMENTS = /^\s*verum\b/m;
 
 function isPyFile(path: string): boolean {
   return path.endsWith(".py");
