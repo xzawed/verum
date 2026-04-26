@@ -299,7 +299,7 @@ async def _experiment_loop() -> None:
                             "EXPERIMENT: error checking experiment %s",
                             exp.get("id"),
                         )
-        except Exception:
+        except Exception:  # pragma: no cover — defensive; requires catastrophic loop failure
             logger.exception("EXPERIMENT loop error")
 
 
