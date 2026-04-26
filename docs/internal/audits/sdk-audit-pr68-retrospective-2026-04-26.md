@@ -218,7 +218,7 @@ Every optional-property assignment in a strict codebase should use conditional s
 |---|---|---|---|
 | F-1 | `drizzle-kit pull` in alembic checklist | P1 | Add to `CLAUDE.md` migration checklist: run `drizzle-kit pull` after each `alembic upgrade head` |
 | F-2 | `docs/STATUS.md` test count update | P2 | TS SDK now 80 tests (was 63); Python SDK test count grew by ~6 |
-| F-3 | Anthropic auto-instrument dogfood on ArcanaInsight | P2 | ArcanaInsight uses Anthropic SDK — integrate `import "@verum/sdk/anthropic"` |
+| F-3 | Python SDK dogfood on real ArcanaInsight codebase | P1 | ArcanaInsight uses Grok-2 via OpenAI-compatible API. `examples/arcana-integration/after.py` shows the pattern (`import verum.openai` + `x-verum-deployment` header). The example is documentation — confirm the actual ArcanaInsight service has been updated. Anthropic auto-instrument is for future services, not ArcanaInsight. |
 | F-4 | VERUM_DISABLED coverage in Dashboard/API | P3 | env flag only tested in SDK packages; API/dashboard modules not checked |
 | F-5 | `SafeConfigResolver` + `jest.doMock` combined test | P3 | `anthropic-patch.test.ts` tests resolver integration but not the full wrappedCreate path; merge the two patterns |
 | F-6 | Jest `coverageThreshold.branches` review | P3 | `anthropic.ts` branch coverage at 90.74% — `if (_patched)` adds branches; revisit threshold after Phase 5 |
