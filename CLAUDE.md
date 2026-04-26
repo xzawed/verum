@@ -577,6 +577,8 @@ make type-check          # mypy + tsc --noEmit
 make db-migrate
 make db-revision m="설명"
 make db-reset            # 주의: 로컬 DB 초기화
+# alembic 마이그레이션 후 반드시 실행 — Drizzle 스키마 동기화
+cd apps/dashboard && pnpm drizzle-kit pull
 
 # === SDK ===
 make sdk-python-build
