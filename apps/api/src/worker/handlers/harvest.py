@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.config as cfg
 from src.db.session import AsyncSessionLocal
 from src.loop.email import send_quota_warning_email
 from src.loop.generate.repository import create_pending_generation
@@ -34,7 +35,7 @@ async def handle_harvest(
     chunking_strategy: str = payload.get("chunking_strategy", "recursive")
     use_playwright: bool = bool(payload.get("use_playwright", False))
 
-    sem = asyncio.Semaphore(3)
+    sem = asyncio.Semaphore(cfg.HARVEST_CONCURRENT_SOURCES)
 
     async def _harvest_one(source_id_str: str, url: str) -> dict[str, Any]:
         source_id = uuid.UUID(source_id_str)

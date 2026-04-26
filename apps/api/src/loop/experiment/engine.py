@@ -13,14 +13,16 @@ if TYPE_CHECKING:
 
 import numpy as np
 
+import src.config as cfg
+
 logger = logging.getLogger(__name__)
 
 # Challenger variants tried in this fixed order.
 CHALLENGER_ORDER: list[str] = ["cot", "few_shot", "role_play", "concise"]
 
-MIN_SAMPLES = 100
-CONFIDENCE_THRESHOLD = 0.95
-CONFIDENCE_FLOOR = 0.05
+MIN_SAMPLES = cfg.EXPERIMENT_MIN_SAMPLES
+CONFIDENCE_THRESHOLD = cfg.EXPERIMENT_CONFIDENCE_THRESHOLD
+CONFIDENCE_FLOOR = cfg.EXPERIMENT_CONFIDENCE_FLOOR
 
 
 def compute_winner_score(

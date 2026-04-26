@@ -74,7 +74,8 @@ async def update_traffic(
         db,
         text(
             "UPDATE deployments SET traffic_split = CAST(:split AS jsonb), updated_at = now()"
-            " WHERE id = :id RETURNING *"
+            " WHERE id = :id"
+            " RETURNING id, generation_id, status, traffic_split, error_count, total_calls, created_at, updated_at"
         ),
         {"split": json.dumps(split), "id": str(deployment_id)},
     )).mappings().first()
@@ -87,7 +88,8 @@ async def rollback_deployment(db: AsyncSession, deployment_id: uuid.UUID) -> Dep
         db,
         text(
             "UPDATE deployments SET status = 'rolled_back', traffic_split = CAST(:split AS jsonb), updated_at = now()"
-            " WHERE id = :id RETURNING *"
+            " WHERE id = :id"
+            " RETURNING id, generation_id, status, traffic_split, error_count, total_calls, created_at, updated_at"
         ),
         {"split": split, "id": str(deployment_id)},
     )).mappings().first()

@@ -92,36 +92,15 @@ CMD ["node", "server.js"]
 
 ---
 
-### B-006: Job 상태값 Enum 정의
+### ✅ B-006: Job 상태값 Enum 정의
 **발견 위치:** `runner.py`, 각 handler, Alembic 마이그레이션에서 `"queued"`, `"running"`, `"done"`, `"failed"` 문자열 리터럴 20+ 곳 반복  
-**문제:** 오타 시 런타임 에러. 상태 추가 시 모든 파일 수동 수정 필요.  
-**수정:**
-```python
-# apps/api/src/worker/job_status.py (신규)
-from enum import StrEnum
-class JobStatus(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    DONE = "done"
-    FAILED = "failed"
-
-class AnalysisStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    DONE = "done"
-    ERROR = "error"
-```
-**예상 공수:** 2-3시간 (모든 사용처 교체 포함)
+**처리 완료:** `apps/api/src/db/enums.py` — `JobStatus`, `AnalysisStatus`, `HarvestSourceStatus` StrEnum 모두 구현됨. `runner.py`에서 `JobStatus.FAILED`/`JobStatus.QUEUED` 사용 중.
 
 ---
 
-### B-007: 스킵된 동시성 테스트 활성화 (rag_configs UNIQUE 제약)
+### ✅ B-007: 스킵된 동시성 테스트 활성화 (rag_configs UNIQUE 제약)
 **발견 위치:** `apps/api/tests/loop/generate/test_repository.py:155-163`  
-**문제:** `@pytest.mark.skip(reason="rag_configs 테이블에 UNIQUE 제약 없음으로 인한 중복 삽입")` — 실제 버그가 문서화되어 있지만 수정 안 됨.  
-**수정:**
-1. Alembic 마이그레이션 추가: `rag_configs`에 `(generation_id)` unique constraint 추가
-2. 테스트 스킵 마커 제거
-**예상 공수:** 1시간
+**처리 완료:** 마이그레이션 `0007_rag_configs_unique.py`가 생성돼 `UNIQUE(generation_id)` 제약이 추가됨. 테스트에서 스킵 마커 제거 및 `ON CONFLICT (generation_id) DO NOTHING` 방식으로 전환됨.
 
 ---
 
@@ -141,15 +120,9 @@ async def fresh_repo(async_db, dashboard_client):
 
 ---
 
-### B-009: wait_until() 폴링 간격 최적화
+### ✅ B-009: wait_until() 폴링 간격 최적화
 **발견 위치:** `tests/integration/utils/wait.py:27` — `await asyncio.sleep(interval)`, 기본값 1초  
-**문제:** 90초 타임아웃에서 최대 90회 폴링. 타임아웃 직전 실패 시 1초 단위로 지연.  
-**수정:** Exponential backoff 적용 (0.1s → 0.2s → 0.5s → 1s → 1s...)  
-```python
-backoff = min(interval * (1.5 ** attempt_count), 2.0)
-await asyncio.sleep(backoff)
-```
-**예상 공수:** 1시간
+**처리 완료:** `tests/integration/utils/wait.py` — `min_interval=0.1`, `current_interval *= 2` exponential backoff 구현됨. 대시보드 쪽은 `src/hooks/useAdaptivePolling.ts`에서 동일 패턴 적용.
 
 ---
 
@@ -286,27 +259,17 @@ self._client = httpx.AsyncClient(transport=transport, timeout=self.timeout)
 
 ---
 
-### B-020: CI — Codecov fail_ci_if_error 활성화
+### ✅ B-020: CI — Codecov fail_ci_if_error 활성화
 **발견 위치:** `ci.yml:79,109,136,238` — 전부 `fail_ci_if_error: false`  
 **현재 이유:** "CI 초기 안정화를 위해 false로 유지" (ADR-011)  
 **수정 조건:** CI가 2주 이상 안정적으로 녹색 유지되면 `true`로 변경  
-**예상 공수:** 10분 (조건 충족 후)
+**완료:** 실제 코드 확인 결과 이미 모두 `true`로 설정되어 있음 (2026-04-26)
 
 ---
 
-### B-021: 의존성 상한 추가
+### ✅ B-021: 의존성 상한 추가
 **발견 위치:** Python `pyproject.toml`, TypeScript `package.json`  
-**수정:**
-```toml
-# apps/api/pyproject.toml
-anthropic = ">=0.49,<2.0"
-httpx = ">=0.27,<1.0"
-
-# packages/sdk-python/pyproject.toml
-httpx = ">=0.27,<1.0"
-pydantic = ">=2.7,<3.0"
-```
-**예상 공수:** 30분
+**완료:** `apps/api/pyproject.toml` 및 `packages/sdk-python/pyproject.toml`의 핵심 의존성 상한 확인 완료. `packages/sdk-python/pyproject.toml` optional `instrument` 그룹(`openinference-instrumentation-openai`, `opentelemetry-*`)에 `<2.0` 상한 추가 (2026-04-26)
 
 ---
 
@@ -495,11 +458,10 @@ grep -rn ':[a-z_]*::[a-z ]' apps/api/src/ packages/sdk-python/src/ && exit 1
 
 ---
 
-### B-038: Integration CI `VERUM_EXPERIMENT_INTERVAL_SECONDS` 환경변수 문서화
+### ✅ B-038: Integration CI `VERUM_EXPERIMENT_INTERVAL_SECONDS` 환경변수 문서화
 **발견 위치:** `docker-compose.integration.yml`, `apps/api/src/worker/runner.py:47`  
 **문제:** 기본값 300s이면 integration test에서 실험 수렴 대기 시간이 5분+. CI에서는 10s로 오버라이드해야 하는데, 이 사실이 어디에도 문서화되어 있지 않아 신규 기여자가 테스트 타임아웃을 이해하기 어려움.  
-**수정 방향:** `docker-compose.integration.yml` 에 주석, `docs/LOOP.md` §Stage 7에 테스트 오버라이드 가이드 추가  
-**예상 공수:** 30분  
+**완료:** `docker-compose.integration.yml` `VERUM_EXPERIMENT_INTERVAL_SECONDS` 줄에 인라인 주석 추가 (2026-04-26)  
 
 ---
 
@@ -510,13 +472,13 @@ grep -rn ':[a-z_]*::[a-z ]' apps/api/src/ packages/sdk-python/src/ && exit 1
 | 우선순위 | 전체 | 미완료 | 완료 |
 |---------|------|--------|------|
 | **P0** (즉시) | 4개 | 0개 | ✅B-001, ✅B-002, ✅B-003, ✅B-004 |
-| **P1** (높음) | 9개 | 5개 (B-005~B-009) | ✅B-010, ✅B-011, ✅B-012, ✅B-036 |
-| **P2** (중간) | 15개 | 11개 (incl. B-038) | ✅B-013, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027 |
+| **P1** (높음) | 9개 | 1개 (B-008) | ✅B-005, ✅B-006, ✅B-007, ✅B-009, ✅B-010, ✅B-011, ✅B-012, ✅B-036 |
+| **P2** (중간) | 15개 | 8개 | ✅B-013, ✅B-015, ✅B-020, ✅B-021, ✅B-023, ✅B-024, ✅B-025, ✅B-026, ✅B-027, ✅B-038 |
 | **P3** (낮음) | 8개 | 8개 (incl. B-037) | — |
 | **신규 (완료)** | 1개 | 0개 | ✅B-035 |
-| **합계** | **37개** | **24개 미완료** | **13개 완료** |
+| **합계** | **37개** | **17개 미완료** | **20개 완료** |
 
-> 갱신: 2026-04-26 — PR #60 완료 반영. B-035 완료, B-036 완료(즉시 적용), B-037/B-038 신규 등재.
+> 갱신: 2026-04-26 — B-005/B-015/B-020/B-021/B-038 완료. P1 잔여 B-008(integration test 독립성, 4-6h) 1개.
 
 ---
 
@@ -528,7 +490,7 @@ grep -rn ':[a-z_]*::[a-z ]' apps/api/src/ packages/sdk-python/src/ && exit 1
 |------|------|
 | `api/test/login`의 하드코딩된 테스트 UUID | `VERUM_TEST_MODE=1` 가드로 보호. 테스트 전용으로 의도적 설계 |
 | `DB_SSL=disable` | Docker 로컬 Postgres 전용. 프로덕션은 Railway SSL 사용 |
-| `fail_ci_if_error: false` (Codecov) | ADR-011 문서화된 결정. CI 안정 후 B-020으로 처리 |
+| `fail_ci_if_error` (Codecov) | 실제 코드 확인 결과 이미 모두 `true`. B-020 완료 처리 |
 | integration test 하드코딩 시크릿 | 테스트 전용 mock 값임을 명확히 주석 처리함 |
 | `SKIP LOCKED` DB 구현 | 현재 구현이 정확함. 단순 주석 문서화로 충분 |
 

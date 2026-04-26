@@ -106,7 +106,7 @@ async def run_infer(result: AnalysisResult, *, analysis_id: uuid.UUID) -> Servic
         cfg.INFER_MAX_TOKENS,
         _build_user_message(result),
         system=_SYSTEM_PROMPT,
-        temperature=0.2,
+        temperature=cfg.INFER_LLM_TEMPERATURE,
     )
 
     parsed: dict[str, object] = parse_json_response(raw_text)

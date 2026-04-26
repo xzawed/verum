@@ -97,7 +97,7 @@ services:
       # Integration-specific Verum flags
       VERUM_TEST_MODE: "1"
       VERUM_ALLOW_INSECURE_CLONE_HOSTS: "git-http"
-      VERUM_EXPERIMENT_INTERVAL_SECONDS: "10"
+      VERUM_EXPERIMENT_INTERVAL_SECONDS: "10"  # default 300s; lowered so experiment loop fires within test window
       VERUM_DEPLOY_VARIANT_FRACTION: "0.5"
       # Raise trace rate limits so fake-arcana can submit 200+ traces without throttling
       VERUM_TRACE_RATE_LIMIT_PER_KEY: "10000"

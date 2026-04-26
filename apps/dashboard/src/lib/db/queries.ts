@@ -4,6 +4,7 @@
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "./client";
+import { WORKER_HEARTBEAT_THRESHOLD_MS } from "@/lib/constants";
 import {
   analyses,
   deployments,
@@ -158,7 +159,7 @@ export async function getWorkerAlive(): Promise<boolean> {
   const row = rows.rows[0] as { last_seen_at: Date } | undefined;
   if (!row) return false;
   const ageMs = Date.now() - new Date(row.last_seen_at).getTime();
-  return ageMs < 90_000; // 90 s threshold
+  return ageMs < WORKER_HEARTBEAT_THRESHOLD_MS;
 }
 
 // Repo status summary used in repos dashboard

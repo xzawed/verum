@@ -31,7 +31,7 @@ async def _call_generate(prompt: str) -> Any:
         cfg.GENERATE_MAX_TOKENS,
         prompt,
         system=_SYSTEM,
-        temperature=0.7,
+        temperature=cfg.GENERATE_LLM_TEMPERATURE,
     )
     return _parse_json(raw)
 

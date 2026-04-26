@@ -176,7 +176,10 @@ async def insert_experiment(
             text(
                 "INSERT INTO experiments (deployment_id, baseline_variant, challenger_variant, status)"
                 " VALUES (:did, :bv, :cv, 'running')"
-                " RETURNING *"
+                " RETURNING id, deployment_id, baseline_variant, challenger_variant,"
+                " status, winner_variant, confidence,"
+                " baseline_wins, baseline_n, challenger_wins, challenger_n,"
+                " win_threshold, started_at"
             ),
             {"did": str(deployment_id), "bv": baseline_variant, "cv": challenger_variant},
         )

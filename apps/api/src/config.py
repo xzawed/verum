@@ -59,6 +59,18 @@ JOB_STALE_AFTER_MINUTES: int = int(os.environ.get("VERUM_JOB_STALE_AFTER_MINUTES
 HEARTBEAT_INTERVAL_SECS: int = int(os.environ.get("VERUM_HEARTBEAT_INTERVAL_SECS", "30"))
 WORKER_POLL_TIMEOUT_SECS: float = float(os.environ.get("VERUM_WORKER_POLL_TIMEOUT_SECS", "1.0"))
 
+# ── EXPERIMENT stage ─────────────────────────────────────────────────────────
+EXPERIMENT_MIN_SAMPLES: int = int(os.environ.get("VERUM_EXPERIMENT_MIN_SAMPLES", "100"))
+EXPERIMENT_CONFIDENCE_THRESHOLD: float = float(os.environ.get("VERUM_EXPERIMENT_CONFIDENCE_THRESHOLD", "0.95"))
+EXPERIMENT_CONFIDENCE_FLOOR: float = float(os.environ.get("VERUM_EXPERIMENT_CONFIDENCE_FLOOR", "0.05"))
+
+# ── INFER / GENERATE stage — LLM temperatures ────────────────────────────────
+INFER_LLM_TEMPERATURE: float = float(os.environ.get("INFER_LLM_TEMPERATURE", "0.2"))
+GENERATE_LLM_TEMPERATURE: float = float(os.environ.get("GENERATE_LLM_TEMPERATURE", "0.7"))
+
+# ── HARVEST stage — concurrency ───────────────────────────────────────────────
+HARVEST_CONCURRENT_SOURCES: int = int(os.environ.get("VERUM_HARVEST_CONCURRENT_SOURCES", "3"))
+
 # ── JUDGE handler ─────────────────────────────────────────────────────────────
 JUDGE_MODEL: str = os.environ.get("JUDGE_MODEL", "claude-sonnet-4-6")
 JUDGE_MAX_TOKENS: int = int(os.environ.get("JUDGE_MAX_TOKENS", "128"))
