@@ -152,10 +152,15 @@ async function _patchOpenAI(): Promise<void> {
       errorMsg = err instanceof Error ? err.message : String(err);
       throw err;
     } finally {
+      // Extract usage metadata from response for cost/token tracking
+      const resp = response as { model?: string; usage?: { prompt_tokens?: number; completion_tokens?: number } } | undefined;
       // Fire-and-forget trace — never throws
       _sendTrace({
         deploymentId,
-        resolveReason,
+        variant: resolveReason,
+        model: resp?.model ?? null,
+        inputTokens: resp?.usage?.prompt_tokens ?? null,
+        outputTokens: resp?.usage?.completion_tokens ?? null,
         latencyMs: Date.now() - startMs,
         error: errorMsg,
       });
@@ -171,7 +176,10 @@ async function _patchOpenAI(): Promise<void> {
 
 interface TracePayload {
   deploymentId: string;
-  resolveReason: string;
+  variant: string;
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
   latencyMs: number;
   error: string | null;
 }
@@ -186,10 +194,12 @@ function _sendTrace(payload: TracePayload): void {
     headers: { "Content-Type": "application/json", "x-verum-api-key": apiKey },
     body: JSON.stringify({
       deployment_id: payload.deploymentId,
-      resolve_reason: payload.resolveReason,
+      variant: payload.variant,
+      model: payload.model,
+      input_tokens: payload.inputTokens,
+      output_tokens: payload.outputTokens,
       latency_ms: payload.latencyMs,
       error: payload.error,
-      source: "openai-patch",
     }),
   }).catch(() => {
     // swallow all trace errors
