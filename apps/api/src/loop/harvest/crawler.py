@@ -122,8 +122,8 @@ async def _get_robots_parser(base_url: str) -> RobotFileParser | None:
         status, _headers, body = await _http_get_pinned(robots_url, ip, timeout=10.0)
         if status == 200:
             rp.parse(body.decode("utf-8", errors="replace").splitlines())
-    except Exception as exc:
-        # Any network/SSRF/parse error → be permissive, log for visibility.
+    except (CrawlError, OSError, ssl.SSLError, asyncio.TimeoutError) as exc:
+        # Network/SSRF/parse error → be permissive, log for visibility.
         logger.debug("robots.txt fetch failed for %s: %s — assuming allow", base_url, exc)
         rp = RobotFileParser()
         rp.allow_all = True  # type: ignore[attr-defined]  # explicit: uninitialized parser.can_fetch() returns False in Python 3.14+
