@@ -32,7 +32,8 @@ EVOLVE_ENQUEUE_TIMEOUT = int(os.environ.get("VERUM_TEST_EVOLVE_ENQUEUE_TIMEOUT",
 async def test_judge_jobs_drain(async_db, pipeline_state):
     """Wait for all JUDGE jobs to reach done/failed status."""
     deployment_id = pipeline_state.get("deployment_id")
-    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
+    if not deployment_id:
+        pytest.skip("pipeline_state missing deployment_id — test_30 must run first")
 
     async def judge_drained():
         # All traces for this deployment should have a JUDGE job that finished
@@ -76,7 +77,8 @@ async def test_judge_jobs_drain(async_db, pipeline_state):
 async def test_inject_biased_scores_and_converge(async_db, pipeline_state):
     """Inject variant-biased judge scores then wait for experiment loop to converge."""
     deployment_id = pipeline_state.get("deployment_id")
-    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
+    if not deployment_id:
+        pytest.skip("pipeline_state missing deployment_id — test_30 must run first")
 
     # Inject scores: variant traces win, baseline traces lose
     await async_db.execute(

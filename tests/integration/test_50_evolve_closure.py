@@ -31,7 +31,8 @@ EVOLVE_DONE_TIMEOUT = int(os.environ.get("VERUM_TEST_EVOLVE_DONE_TIMEOUT", "60")
 async def test_evolve_job_completes(async_db, pipeline_state):
     """EVOLVE job runs to completion after experiment converges."""
     deployment_id = pipeline_state.get("deployment_id")
-    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
+    if not deployment_id:
+        pytest.skip("pipeline_state missing deployment_id — test_30 must run first")
 
     async def evolve_done():
         row = (await async_db.execute(
@@ -62,7 +63,8 @@ async def test_evolve_job_completes(async_db, pipeline_state):
 async def test_loop_closure_assertion(async_db, pipeline_state):
     """Assert the full loop: initial repo → EVOLVE winner promoted."""
     deployment_id = pipeline_state.get("deployment_id")
-    assert deployment_id, "pipeline_state missing deployment_id — test_30 must run first"
+    if not deployment_id:
+        pytest.skip("pipeline_state missing deployment_id — test_30 must run first")
 
     # Verify the EVOLVE result shows winner promoted
     row = (await async_db.execute(

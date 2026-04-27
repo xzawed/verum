@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
+import { t } from "@/lib/i18n";
 
 interface Experiment {
   id: string;
@@ -68,7 +69,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
     return (
       <div style={{ borderLeft: "3px solid #7c3aed", paddingLeft: 16, marginBottom: 32 }}>
         <h2 style={{ fontSize: 15, color: "#7c3aed", margin: "0 0 12px" }}>[7] EXPERIMENT</h2>
-        <p style={{ color: "#888", fontSize: 13 }}>Loading…</p>
+        <p style={{ color: "#888", fontSize: 13 }}>{t("trace", "loading")}</p>
       </div>
     );
   }

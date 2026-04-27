@@ -68,7 +68,7 @@ export default async function DeployPage({
 
   return (
     <main className="max-w-3xl mx-auto mt-10 font-mono px-4">
-      <h1 className="text-2xl mt-4 mb-1">DEPLOY — Canary Deployment</h1>
+      <h1 className="text-2xl mt-4 mb-1">{t("deploy", "pageTitle")}</h1>
 
       <div className="flex gap-8 mb-6 mt-4">
         <div><strong>Status</strong><br />{deployment.status}</div>
