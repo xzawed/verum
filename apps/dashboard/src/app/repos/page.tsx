@@ -52,19 +52,27 @@ export default async function ReposPage({
           <h1 className="text-xl font-bold text-slate-900">Repositories</h1>
           <p className="mt-0.5 text-sm text-slate-500">Connect a repo to start the Verum Loop</p>
         </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/login" });
-          }}
-        >
-          <button
-            type="submit"
-            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+        <div className="flex items-center gap-3">
+          <a
+            href="#add-from-github"
+            className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600 transition-colors"
           >
-            Sign out
-          </button>
-        </form>
+            + Connect Repo
+          </a>
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/login" });
+            }}
+          >
+            <button
+              type="submit"
+              className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Error banners */}
@@ -187,7 +195,7 @@ export default async function ReposPage({
       )}
 
       {/* GitHub repo picker */}
-      <section>
+      <section id="add-from-github">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
           Add from GitHub
         </p>
