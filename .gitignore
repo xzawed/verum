@@ -60,3 +60,5 @@ coverage.json
 coverage/
 playwright-results.xml
 test-results/
+
+.superpowers/
