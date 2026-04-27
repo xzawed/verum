@@ -31,7 +31,6 @@ export default async function ReposPage({
   );
 
   const registeredUrls = new Set(repos.map((r) => r.github_url));
-
   const token = (u.github_access_token ?? undefined) as string | undefined;
 
   let githubRepos: Awaited<ReturnType<typeof listUserRepos>> = [];
@@ -46,9 +45,13 @@ export default async function ReposPage({
   }
 
   return (
-    <main style={{ maxWidth: 840, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>Verum — My Repos</h1>
+    <div className="p-6 max-w-3xl">
+      {/* Page header */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Repositories</h1>
+          <p className="mt-0.5 text-sm text-slate-500">Connect a repo to start the Verum Loop</p>
+        </div>
         <form
           action={async () => {
             "use server";
@@ -57,153 +60,99 @@ export default async function ReposPage({
         >
           <button
             type="submit"
-            style={{ fontSize: 12, background: "none", border: "1px solid #ccc", cursor: "pointer", padding: "4px 10px" }}
+            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
           >
             Sign out
           </button>
         </form>
       </div>
 
+      {/* Error banners */}
       {error && (
-        <p style={{ color: "red", marginBottom: 16, fontSize: 13 }}>Error: {error}</p>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
       )}
       {dbError && (
-        <p style={{ color: "#b45309", marginBottom: 16, fontSize: 13, background: "#fef3c7", padding: "8px 12px", border: "1px solid #fbbf24" }}>{dbError}</p>
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          {dbError}
+        </div>
       )}
 
-      {/* GitHub repo picker */}
-      <div style={{ marginBottom: 32 }}>
-        <h2 style={{ fontSize: 14, fontWeight: "bold", marginBottom: 10, color: "#444" }}>
-          Add a Repository
-        </h2>
+      {/* Registered repos */}
+      {repos.length > 0 && (
+        <section className="mb-8">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Connected ({repos.length})
+          </p>
+          <div className="flex flex-col gap-2">
+            {repos.map((repo, i) => {
+              const status = statuses[i];
+              const name = repo.github_url.replace("https://github.com/", "");
+              const analyze = status?.latestAnalysis;
+              const infer = status?.latestInference;
+              const isAnalyzing =
+                analyze?.status === "pending" || analyze?.status === "running";
+              const isInferring =
+                infer?.status === "pending" || infer?.status === "running";
 
-        {!token ? (
-          <div style={{ padding: "16px", background: "#fff8e1", border: "1px solid #ffe082", fontSize: 13 }}>
-            <p style={{ margin: "0 0 10px" }}>
-              Your session does not have GitHub repository access. Please sign out and sign back in to grant access.
-            </p>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/login" });
-              }}
-            >
-              <button type="submit" style={{ fontSize: 12, cursor: "pointer", padding: "4px 12px" }}>
-                Sign out &amp; re-authorize
-              </button>
-            </form>
-          </div>
-        ) : githubError ? (
-          <div style={{ padding: "12px", background: "#fdecea", border: "1px solid #f5c6c6", fontSize: 13 }}>
-            {githubError}
-          </div>
-        ) : githubRepos.length === 0 ? (
-          <p style={{ color: "#888", fontSize: 13 }}>No public repositories found on your GitHub account.</p>
-        ) : (
-          <div style={{ border: "1px solid #ddd", background: "#fafafa", maxHeight: 360, overflowY: "auto" }}>
-            {githubRepos.map((ghRepo) => {
-              const alreadyRegistered = registeredUrls.has(ghRepo.html_url);
               return (
                 <div
-                  key={ghRepo.html_url}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 16px",
-                    borderBottom: "1px solid #eee",
-                    opacity: alreadyRegistered ? 0.5 : 1,
-                  }}
+                  key={repo.id}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
                 >
-                  <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: "bold", fontSize: 13 }}>
-                        {ghRepo.full_name}
-                      </span>
-                      {ghRepo.fork && (
-                        <span style={{ fontSize: 10, color: "#888", border: "1px solid #ccc", padding: "1px 5px" }}>fork</span>
-                      )}
-                      {ghRepo.archived && (
-                        <span style={{ fontSize: 10, color: "#888", border: "1px solid #ccc", padding: "1px 5px" }}>archived</span>
-                      )}
-                      {alreadyRegistered && (
-                        <span style={{ fontSize: 10, color: "#22c55e", border: "1px solid #22c55e", padding: "1px 5px" }}>registered</span>
-                      )}
-                    </div>
-                    {ghRepo.description && (
-                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {ghRepo.description}
-                      </p>
-                    )}
-                    <p style={{ margin: "2px 0 0", fontSize: 10, color: "#aaa" }}>
-                      branch: {ghRepo.default_branch} · updated {new Date(ghRepo.updated_at).toLocaleDateString()}
-                    </p>
+                  {/* Repo icon */}
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                    <GitHubIcon className="h-4 w-4 text-indigo-500" />
                   </div>
 
-                  {!alreadyRegistered && (
-                    <form
-                      action={async () => {
-                        "use server";
-                        const s = await auth();
-                        if (!s?.user) redirect("/login");
-                        const uid = String((s.user as Record<string, unknown>).id ?? "");
-                        // redirect() throws internally — keep it outside try-catch
-                        const repo = await createRepo(uid, ghRepo.html_url, ghRepo.default_branch).catch(() => null);
-                        if (!repo) redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
-
-                        // Auto-enqueue ANALYZE immediately after repo registration
-                        const latest = await getLatestAnalysis(repo.id);
-                        if (!latest || (latest.status !== "pending" && latest.status !== "running")) {
-                          await enqueueAnalyze({
-                            userId: uid,
-                            repoId: repo.id,
-                            repoUrl: repo.github_url,
-                            branch: repo.default_branch,
-                          });
-                        }
-
-                        redirect(`/repos/${repo.id}`);
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        style={{ fontSize: 12, padding: "4px 12px", cursor: "pointer", whiteSpace: "nowrap" }}
-                      >
-                        + Register
-                      </button>
-                    </form>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Registered repos list */}
-      {repos.length === 0 ? (
-        <p style={{ color: "#888", textAlign: "center", marginTop: 60 }}>
-          No repos registered yet. Select a repo above.
-        </p>
-      ) : (
-        <>
-          <h2 style={{ fontSize: 14, fontWeight: "bold", marginBottom: 10, color: "#444" }}>
-            Registered Repos
-          </h2>
-          {repos.map((repo, i) => {
-            const status = statuses[i];
-            return (
-              <div key={repo.id} style={{ border: "1px solid #ddd", padding: "16px 20px", marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
+                  {/* Name + slug */}
+                  <div className="min-w-0 flex-1">
                     <a
                       href={`/repos/${repo.id}`}
-                      style={{ fontWeight: "bold", fontSize: 15, color: "#0066cc", textDecoration: "none" }}
+                      className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-600"
                     >
-                      {repo.github_url.replace("https://github.com/", "")}
+                      {name.split("/")[1] ?? name}
                     </a>
-                    <span style={{ marginLeft: 10, fontSize: 12, color: "#888" }}>branch: {repo.default_branch}</span>
+                    <p className="truncate font-mono text-xs text-slate-400">{name}</p>
                   </div>
+
+                  {/* Stage pills */}
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    {analyze && (
+                      <StagePill
+                        label="ANALYZE"
+                        status={analyze.status}
+                        pulsing={isAnalyzing}
+                        colorClass="bg-green-100 text-green-700"
+                      />
+                    )}
+                    {infer && (
+                      <StagePill
+                        label="INFER"
+                        status={infer.status}
+                        pulsing={isInferring}
+                        colorClass="bg-violet-100 text-violet-700"
+                      />
+                    )}
+                    {status?.harvestChunks ? (
+                      <StagePill
+                        label="HARVEST"
+                        status="done"
+                        pulsing={false}
+                        colorClass="bg-amber-100 text-amber-700"
+                      />
+                    ) : null}
+                  </div>
+
+                  {/* Chevron */}
+                  <a href={`/repos/${repo.id}`} className="flex-shrink-0 text-slate-300 hover:text-slate-500">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </a>
+
+                  {/* Delete */}
                   <form
                     action={async () => {
                       "use server";
@@ -214,63 +163,172 @@ export default async function ReposPage({
                       redirect("/repos");
                     }}
                   >
-                    <button type="submit" style={{ fontSize: 11, color: "#999", background: "none", border: "none", cursor: "pointer" }}>
-                      delete
+                    <button
+                      type="submit"
+                      className="flex-shrink-0 text-xs text-slate-300 hover:text-red-500 transition-colors"
+                      title="Remove repo"
+                    >
+                      ✕
                     </button>
                   </form>
                 </div>
-
-                <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-                  <StatusChip
-                    label="ANALYZE"
-                    status={status?.latestAnalysis?.status ?? null}
-                    detail={
-                      status?.latestAnalysis?.call_sites != null
-                        ? `${(status.latestAnalysis.call_sites as unknown[]).length} call sites`
-                        : undefined
-                    }
-                  />
-                  <StatusChip
-                    label="INFER"
-                    status={status?.latestInference?.status ?? null}
-                    detail={status?.latestInference?.domain ?? undefined}
-                  />
-                  <StatusChip
-                    label="HARVEST"
-                    status={
-                      status?.harvestJobStatus === "done" || status?.harvestJobStatus === "failed"
-                        ? "done"
-                        : status?.harvestJobStatus === "running" || status?.harvestJobStatus === "queued"
-                          ? "running"
-                          : status?.harvestChunks
-                            ? status.harvestSourcesDone >= status.harvestSourcesTotal && status.harvestSourcesTotal > 0
-                              ? "done"
-                              : "running"
-                            : null
-                    }
-                    detail={status?.harvestChunks ? `${status.harvestChunks.toLocaleString()} chunks` : undefined}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </>
+              );
+            })}
+          </div>
+        </section>
       )}
-    </main>
+
+      {/* Empty state */}
+      {repos.length === 0 && (
+        <div className="mb-8 rounded-xl border border-dashed border-slate-300 py-12 text-center">
+          <p className="text-sm text-slate-500">No repos connected yet.</p>
+          <p className="mt-1 text-xs text-slate-400">Select a repository from the list below to get started.</p>
+        </div>
+      )}
+
+      {/* GitHub repo picker */}
+      <section>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Add from GitHub
+        </p>
+
+        {!token ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="mb-3 text-sm text-amber-800">
+              Your session does not have GitHub repository access. Please sign out and sign back in.
+            </p>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login" });
+              }}
+            >
+              <button type="submit" className="text-sm font-medium text-amber-700 underline">
+                Sign out &amp; re-authorize
+              </button>
+            </form>
+          </div>
+        ) : githubError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {githubError}
+          </div>
+        ) : githubRepos.length === 0 ? (
+          <p className="text-sm text-slate-400">No public repositories found on your GitHub account.</p>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            {/* Search placeholder */}
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <span className="text-xs text-slate-400">Search repositories…</span>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+              {githubRepos.map((ghRepo) => {
+                const alreadyRegistered = registeredUrls.has(ghRepo.html_url);
+                return (
+                  <div
+                    key={ghRepo.html_url}
+                    className={`flex items-center gap-3 px-4 py-3 ${alreadyRegistered ? "opacity-50" : "hover:bg-slate-50"}`}
+                  >
+                    <GitHubIcon className="h-4 w-4 flex-shrink-0 text-slate-400" />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-sm font-medium text-slate-800 truncate">
+                          {ghRepo.full_name}
+                        </span>
+                        {ghRepo.fork && (
+                          <span className="rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-400">fork</span>
+                        )}
+                        {ghRepo.archived && (
+                          <span className="rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-400">archived</span>
+                        )}
+                        {alreadyRegistered && (
+                          <span className="rounded border border-green-200 px-1 py-0.5 text-xs text-green-600">registered</span>
+                        )}
+                      </div>
+                      {ghRepo.description && (
+                        <p className="mt-0.5 truncate text-xs text-slate-400">{ghRepo.description}</p>
+                      )}
+                    </div>
+
+                    {!alreadyRegistered && (
+                      <form
+                        action={async () => {
+                          "use server";
+                          const s = await auth();
+                          if (!s?.user) redirect("/login");
+                          const uid = String((s.user as Record<string, unknown>).id ?? "");
+                          const repo = await createRepo(uid, ghRepo.html_url, ghRepo.default_branch).catch(() => null);
+                          if (!repo) redirect(`/repos?error=${encodeURIComponent("Failed to register repo")}`);
+                          const latest = await getLatestAnalysis(repo.id);
+                          if (!latest || (latest.status !== "pending" && latest.status !== "running")) {
+                            await enqueueAnalyze({
+                              userId: uid,
+                              repoId: repo.id,
+                              repoUrl: repo.github_url,
+                              branch: repo.default_branch,
+                            });
+                          }
+                          redirect(`/repos/${repo.id}`);
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className="flex-shrink-0 rounded-md bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600 transition-colors"
+                        >
+                          Connect
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
-function StatusChip({ label, status, detail }: { label: string; status: string | null; detail?: string }) {
-  const color =
-    status === "done" ? "#22c55e" :
-    status === "error" ? "#ef4444" :
-    status === "running" || status === "pending" ? "#f59e0b" : "#ccc";
-
+function GitHubIcon({ className }: { className?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-      <span style={{ fontWeight: "bold", color: "#444" }}>{label}</span>
-      {status ? <span style={{ color: "#888" }}>{status}{detail ? ` · ${detail}` : ""}</span> : <span style={{ color: "#ccc" }}>—</span>}
-    </div>
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+    </svg>
+  );
+}
+
+function StagePill({
+  label,
+  status,
+  pulsing,
+  colorClass,
+}: {
+  label: string;
+  status: string;
+  pulsing: boolean;
+  colorClass: string;
+}) {
+  const isDone = status === "done";
+  const isError = status === "error";
+  return (
+    <span
+      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+        isError ? "bg-red-100 text-red-700" : colorClass
+      }`}
+    >
+      {pulsing ? (
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+      ) : isDone ? (
+        "✓"
+      ) : isError ? (
+        "✗"
+      ) : null}
+      {label}
+    </span>
   );
 }
