@@ -31,7 +31,8 @@ DEPLOY_TIMEOUT = int(os.environ.get("VERUM_TEST_DEPLOY_TIMEOUT", "60"))
 async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
     """Approve the latest generation and wait for DEPLOY job to complete."""
     generation_id = pipeline_state.get("generation_id")
-    assert generation_id, "pipeline_state missing generation_id — test_20 must run first"
+    if not generation_id:
+        pytest.skip("pipeline_state missing generation_id — test_20 must run first")
 
     # Approve the generation (route uses PATCH, not POST)
     resp = await dashboard_client.patch(f"/api/v1/generate/{generation_id}/approve")
@@ -105,7 +106,8 @@ async def test_deploy_job_completes(dashboard_client, async_db, pipeline_state):
 async def test_fake_arcana_records_traces(async_db, pipeline_state):
     """Verify fake-arcana recorded 200+ traces for the deployment."""
     deployment_id = pipeline_state.get("deployment_id")
-    assert deployment_id, "pipeline_state missing deployment_id — test_deploy_job_completes must run first"
+    if not deployment_id:
+        pytest.skip("pipeline_state missing deployment_id — test_deploy_job_completes must run first")
 
     async def traces_sufficient():
         row = (await async_db.execute(

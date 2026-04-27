@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t } from "@/lib/i18n";
 import {
   Bar,
   BarChart,
@@ -131,7 +132,7 @@ export default function ObserveSection({ deploymentId }: Props) {
           <span>Judge / 피드백</span>
         </div>
         {loading ? (
-          <div className="px-3 py-4 text-center text-xs text-gray-500">불러오는 중...</div>
+          <div className="px-3 py-4 text-center text-xs text-gray-500">{t("trace", "loading")}</div>
         ) : traces.length === 0 ? (
           <div className="px-3 py-4 text-center text-xs text-gray-500">
             아직 trace가 없습니다. ArcanaInsight에서 client.record()를 호출하면 여기 표시됩니다.

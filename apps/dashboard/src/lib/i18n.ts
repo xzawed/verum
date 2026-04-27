@@ -7,6 +7,7 @@ type Locale = "en" | "ko";
 
 const strings = {
   deploy: {
+    pageTitle: { en: "DEPLOY — Canary Deployment", ko: "DEPLOY — 카나리 배포" },
     rolledBackLabel: { en: "Rolled back", ko: "롤백됨" },
     rolledBackDesc: { en: "Reverted to baseline prompt.", ko: "기본 프롬프트로 복원되었습니다." },
     trafficSplitHeading: { en: "Traffic Split", ko: "트래픽 조정" },

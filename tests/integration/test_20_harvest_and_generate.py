@@ -25,7 +25,8 @@ GENERATE_TIMEOUT = int(os.environ.get("VERUM_TEST_GENERATE_TIMEOUT", "90"))
 async def test_harvest_pipeline(async_db, mock_control, pipeline_state):
     """HARVEST completes with > 10 chunks stored."""
     inference_id = pipeline_state.get("inference_id")
-    assert inference_id, "pipeline_state missing inference_id — test_10 must run first"
+    if not inference_id:
+        pytest.skip("pipeline_state missing inference_id — test_10 must run first")
 
     async def harvest_done():
         try:
@@ -69,7 +70,8 @@ async def test_harvest_pipeline(async_db, mock_control, pipeline_state):
 async def test_generate_pipeline(async_db, pipeline_state):
     """GENERATE completes with prompt variants and eval pairs."""
     inference_id = pipeline_state.get("inference_id")
-    assert inference_id, "pipeline_state missing inference_id — test_10 must run first"
+    if not inference_id:
+        pytest.skip("pipeline_state missing inference_id — test_10 must run first")
 
     async def generate_done():
         try:
