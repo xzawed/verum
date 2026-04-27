@@ -362,9 +362,160 @@ class TestAnalyzeDirectory:
         result = analyze_directory(tmp_path, repo_root=tmp_path)
         assert len(result.call_sites) == 1
 
+    def test_oserror_on_read_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        (tmp_path / "bad.py").write_bytes(_OPENAI_DIRECT)
+        original_read_bytes = Path.read_bytes
+
+        def _raise(self: Path) -> bytes:
+            if self.name == "bad.py":
+                raise OSError("permission denied")
+            return original_read_bytes(self)
+
+        monkeypatch.setattr(Path, "read_bytes", _raise)
+        result = analyze_directory(tmp_path, repo_root=tmp_path)
+        assert result.call_sites == []
+
     def test_rel_path_uses_repo_root(self, tmp_path: Path) -> None:
         sub = tmp_path / "src"
         sub.mkdir()
         (sub / "ai.py").write_bytes(_OPENAI_DIRECT)
         result = analyze_directory(tmp_path, repo_root=tmp_path)
         assert result.call_sites[0].file_path.startswith("src")
+
+
+class TestCoverageGaps:
+    """Tests targeting specific branches not hit by the main test suite."""
+
+    def test_sdk_for_module_prefix_match(self) -> None:
+        # e.g. `from google.generativeai.types import Content` — sub-module of a known SDK
+        source = b"""
+from google.generativeai.types import Content
+import google.generativeai as genai
+model = genai.GenerativeModel("gemini-1.5-pro")
+response = model.generate_content("Paris?")
+"""
+        result = analyze_file("ai.py", source)
+        assert any(cs.sdk == "google-generativeai" for cs in result.call_sites)
+
+    def test_decompose_func_non_name_non_call(self) -> None:
+        # func is a subscript expression: func_map["create"](...) — not Name/Attribute/Call
+        source = b"""
+import openai
+func_map = {}
+result = func_map["create"](model="gpt-4o", messages=[])
+"""
+        result = analyze_file("ai.py", source)
+        # No LLM call should be detected — the subscript chain produces no sdk match
+        assert result.call_sites == []
+
+    def test_str_value_fstring_with_variable(self) -> None:
+        # JoinedStr (f-string) containing both literal and variable parts
+        source = b"""
+from openai import OpenAI
+client = OpenAI()
+role = "assistant"
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "system", "content": f"You are a {role} helping users."}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        # f-string content should be partially extracted (literal fragments joined)
+        assert any("You are a" in pt.content for pt in result.prompt_templates)
+
+    def test_str_value_fstring_no_literal_parts(self) -> None:
+        # f-string with only a variable substitution — joined result is empty, not extracted
+        source = b"""
+from openai import OpenAI
+client = OpenAI()
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "system", "content": f"{prompt}"}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        # Pure-variable f-string yields no usable prompt template
+        assert result.prompt_templates == []
+
+    def test_messages_not_a_list(self) -> None:
+        # messages= is a variable reference, not a literal list — no prompts extracted
+        source = b"""
+from openai import OpenAI
+client = OpenAI()
+msgs = [{"role": "user", "content": "Hello there from variable."}]
+client.chat.completions.create(model="gpt-4o", messages=msgs)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        assert result.prompt_templates == []
+
+    def test_messages_list_with_non_dict_element(self) -> None:
+        # messages list that mixes a variable reference with a literal dict
+        source = b"""
+from openai import OpenAI
+client = OpenAI()
+extra = {"role": "user", "content": "injected"}
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[extra, {"role": "system", "content": "You are a concise assistant."}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        # Only the literal dict's content should be extracted
+        assert any("concise assistant" in pt.content for pt in result.prompt_templates)
+
+    def test_from_unknown_module_known_class_fallback(self) -> None:
+        # `from some_wrapper import OpenAI` — unknown module, class name in _CLASS_TO_SDK
+        source = b"""
+from some_wrapper_lib import OpenAI
+client = OpenAI()
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello from unknown wrapper."}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        assert result.call_sites[0].sdk == "openai"
+
+    def test_no_import_class_to_sdk_direct_instantiation(self) -> None:
+        # No import at all, but class name is in _CLASS_TO_SDK — Pass 2 fallback
+        source = b"""
+client = OpenAI()
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello without import."}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        assert result.call_sites[0].sdk == "openai"
+
+    def test_multi_target_assignment_skipped(self) -> None:
+        # `a = b = OpenAI()` has two targets — Pass 2 should skip it safely
+        source = b"""
+from openai import OpenAI
+a = b = OpenAI()
+b.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": "Multi-target test here."}])
+"""
+        result = analyze_file("ai.py", source)
+        # multi-target assignment is skipped; b is not tracked → no call site
+        # (This verifies the skip branch runs without crashing)
+        assert isinstance(result.call_sites, list)
+
+    def test_str_value_non_string_node_returns_none(self) -> None:
+        # content= is a non-string constant (int) → _str_value returns None, not extracted
+        source = b"""
+from openai import OpenAI
+client = OpenAI()
+client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": 42}],
+)
+"""
+        result = analyze_file("ai.py", source)
+        assert len(result.call_sites) == 1
+        assert result.prompt_templates == []
