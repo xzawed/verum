@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from .cloner import cloned_repo
 from .models import AnalysisResult, PromptTemplate
 from .prompts import extract_prompt_templates, resolve_prompt_refs
+from .python_analyzer import analyze_directory as analyze_python_directory
 from .typescript import analyze_directory
 
 _TS_EXTENSIONS = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
@@ -41,7 +42,7 @@ async def run_analysis(
     Clones the repo, detects LLM call sites and prompt templates,
     resolves cross-file prompt references, and returns an AnalysisResult.
 
-    Phase 1 supports TypeScript/JavaScript only. Python (F-1.3) is deferred.
+    Supports TypeScript/JavaScript (tree-sitter) and Python (ast) call-site detection.
 
     Raises:
         RepoCloneError: if the clone fails.
@@ -67,6 +68,9 @@ def _analyze_sync(repo_path: Path, repo_id: UUID) -> AnalysisResult:
     # TypeScript / JS detection (patterns A, B, C)
     ts_result = analyze_directory(repo_path, repo_root=repo_path)
 
+    # Python detection (F-1.3)
+    py_result = analyze_python_directory(repo_path, repo_root=repo_path)
+
     # Prompt extraction — collect from all TS files
     prompt_templates: list[PromptTemplate] = []
     source_cache: dict[str, bytes] = {}
@@ -83,19 +87,26 @@ def _analyze_sync(repo_path: Path, repo_id: UUID) -> AnalysisResult:
             pts = extract_prompt_templates(rel, source)
             prompt_templates.extend(pts)
 
-    # Cross-file prompt_ref resolution (one hop)
-    resolved_sites = resolve_prompt_refs(
+    # Merge Python prompt templates (already extracted in py_result)
+    prompt_templates.extend(py_result.prompt_templates)
+
+    # Cross-file prompt_ref resolution (one hop) — TS call sites only
+    resolved_ts_sites = resolve_prompt_refs(
         ts_result.call_sites,
         prompt_templates,
         repo_root=repo_path,
         source_cache=source_cache,
     )
 
+    # Combine call sites and model configs from both languages
+    all_call_sites = resolved_ts_sites + py_result.call_sites
+    all_model_configs = ts_result.model_configs + py_result.model_configs
+
     return AnalysisResult(
         repo_id=repo_id,
-        call_sites=resolved_sites,
+        call_sites=all_call_sites,
         prompt_templates=prompt_templates,
-        model_configs=ts_result.model_configs,
+        model_configs=all_model_configs,
         language_breakdown=language_breakdown,
         analyzed_at=datetime.now(tz=timezone.utc),
     )

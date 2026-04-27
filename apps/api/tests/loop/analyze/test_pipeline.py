@@ -80,6 +80,28 @@ class TestCountLanguages:
         assert result["typescript"] == 6
 
 
+_OPENAI_PY = b"""
+from openai import OpenAI
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "system", "content": "You are a helpful assistant."}],
+    temperature=0.5,
+)
+"""
+
+_XAI_GROK_PY = b"""
+from xai_grok import OpenAI
+client = OpenAI(base_url="https://api.x.ai/v1")
+response = client.chat.completions.create(
+    model="grok-3",
+    messages=[{"role": "system", "content": "You are a tarot reader."}],
+    temperature=0.9,
+    max_tokens=4000,
+)
+"""
+
+
 class TestAnalyzeSync:
     def test_returns_analysis_result(self, tmp_path: Path) -> None:
         (tmp_path / "ai.ts").write_bytes(_GROK_PROVIDER)
@@ -115,6 +137,34 @@ class TestAnalyzeSync:
         assert result.call_sites == []
         assert result.prompt_templates == []
         assert result.language_breakdown == {}
+
+    def test_python_call_sites_included(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_bytes(_OPENAI_PY)
+        result = _analyze_sync(tmp_path, uuid4())
+        assert any(cs.sdk == "openai" for cs in result.call_sites)
+
+    def test_xai_grok_python_detected(self, tmp_path: Path) -> None:
+        (tmp_path / "arcana.py").write_bytes(_XAI_GROK_PY)
+        result = _analyze_sync(tmp_path, uuid4())
+        assert any(cs.sdk == "grok" for cs in result.call_sites)
+
+    def test_mixed_ts_and_py_call_sites(self, tmp_path: Path) -> None:
+        (tmp_path / "frontend.ts").write_bytes(_GROK_PROVIDER)
+        (tmp_path / "backend.py").write_bytes(_OPENAI_PY)
+        result = _analyze_sync(tmp_path, uuid4())
+        sdks = {cs.sdk for cs in result.call_sites}
+        assert "grok" in sdks
+        assert "openai" in sdks
+
+    def test_python_model_configs_included(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_bytes(_XAI_GROK_PY)
+        result = _analyze_sync(tmp_path, uuid4())
+        assert any(mc.model == "grok-3" for mc in result.model_configs)
+
+    def test_python_prompt_templates_included(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_bytes(_XAI_GROK_PY)
+        result = _analyze_sync(tmp_path, uuid4())
+        assert any("tarot reader" in pt.content for pt in result.prompt_templates)
 
 
 @pytest.mark.asyncio

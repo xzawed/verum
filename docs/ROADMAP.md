@@ -58,7 +58,7 @@ Do not implement any loop stage logic. Infrastructure only.
 |---|---|---|
 | F-1.1 | GitHub OAuth integration (user grants repo access) | ✅ |
 | F-1.2 | Repo clone to isolated temp environment | ✅ |
-| F-1.3 | Python AST-based LLM call detection (`openai`, `anthropic`, `xai_grok`, `google.generativeai`) | 🔲 deferred to Phase 1.5 — `pipeline.py` TypeScript-only; `tests/fixtures/sample-repo/app/daily.py` calls not detected |
+| F-1.3 | Python AST-based LLM call detection (`openai`, `anthropic`, `xai_grok`, `google.generativeai`) | ✅ `python_analyzer.py` — 5 patterns (A-E), 33 unit tests + 6 pipeline integration tests |
 | F-1.4 | TypeScript/JavaScript `tree-sitter` based LLM call detection | ✅ |
 | F-1.5 | Prompt string extraction (string literals, f-strings, template literals) | ✅ |
 | F-1.6 | Model + parameter extraction (`model`, `temperature`, `max_tokens`) | ✅ |
