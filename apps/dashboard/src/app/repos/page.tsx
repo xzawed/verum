@@ -45,9 +45,9 @@ export default async function ReposPage({
   }
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 sm:p-6 max-w-3xl">
       {/* Page header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Repositories</h1>
           <p className="mt-0.5 text-sm text-slate-500">Connect a repo to start the Verum Loop</p>

@@ -27,7 +27,7 @@ export default async function InferPage({
   const sources = data.status === "done" ? await getHarvestSources(inference_id) : [];
 
   return (
-    <main style={{ maxWidth: 720, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
+    <main className="max-w-[720px] mx-auto mt-10 font-mono px-4">
       <a href={`/analyses/${analysis_id}`} style={{ fontSize: 12, color: "#666" }}>← Back to analysis</a>
       <h1 style={{ fontSize: 22, margin: "16px 0 4px" }}>INFER — Service Domain</h1>
 

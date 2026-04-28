@@ -42,10 +42,10 @@ export default async function HarvestPage({
   const runningSources = sources.filter((s) => s.status === "crawling");
 
   return (
-    <main style={{ maxWidth: 720, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
+    <main className="max-w-[720px] mx-auto mt-10 font-mono px-4">
       <h1 style={{ fontSize: 22, margin: "16px 0 4px" }}>HARVEST — Knowledge Collection</h1>
 
-      <div style={{ display: "flex", gap: 32, marginBottom: 24, marginTop: 16 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 24, marginTop: 16 }}>
         <Stat label="Total chunks" value={totalChunks} />
         <Stat label="Done" value={doneSources.length} />
         <Stat label="Running" value={runningSources.length} />

@@ -40,7 +40,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
 
   if (data.status === "pending" || data.status === "running") {
     return (
-      <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
+      <main className="max-w-[700px] mx-auto mt-20 font-mono px-4">
         <h1 style={{ fontSize: 24, marginBottom: 8 }}>Analysis in progress</h1>
         <p style={{ color: "#666" }}>Status: {data.status}</p>
         {data.started_at && <p style={{ color: "#666" }}>Started: {new Date(data.started_at).toLocaleString()}</p>}
@@ -53,7 +53,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
 
   if (data.status === "error") {
     return (
-      <main style={{ maxWidth: 700, margin: "80px auto", fontFamily: "monospace", padding: "0 16px" }}>
+      <main className="max-w-[700px] mx-auto mt-20 font-mono px-4">
         <h1 style={{ fontSize: 24, marginBottom: 8, color: "red" }}>Analysis failed</h1>
         <pre style={{ background: "#fee", padding: 12, overflowX: "auto" }}>{data.error}</pre>
         <p><a href="/repos">Back to repos</a></p>
@@ -72,7 +72,7 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   }, {});
 
   return (
-    <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "monospace", padding: "0 16px" }}>
+    <main className="max-w-[800px] mx-auto mt-10 font-mono px-4">
       <a href="/repos" style={{ fontSize: 12, color: "#666" }}>← My Repos</a>
       <h1 style={{ fontSize: 24, margin: "16px 0 4px" }}>Analysis complete</h1>
       <p style={{ color: "#666", marginBottom: 24 }}>
