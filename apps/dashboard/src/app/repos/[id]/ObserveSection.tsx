@@ -85,7 +85,7 @@ export default function ObserveSection({ deploymentId }: Props) {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <MetricCard label="총 비용" value={`$${totalCost.toFixed(4)}`} color="green" />
         <MetricCard label="P95 지연" value={`${p95.toLocaleString()}ms`} color="indigo" />
         <MetricCard label="호출 수" value={totalCalls.toLocaleString()} color="yellow" />
@@ -123,8 +123,8 @@ export default function ObserveSection({ deploymentId }: Props) {
       )}
 
       {/* Trace Table */}
-      <div className="border border-gray-800 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-6 gap-2 bg-gray-900 px-3 py-2 text-xs text-gray-500 border-b border-gray-800">
+      <div className="border border-gray-800 rounded-lg overflow-x-auto">
+        <div className="grid grid-cols-6 gap-2 bg-gray-900 px-3 py-2 text-xs text-gray-500 border-b border-gray-800 min-w-[560px]">
           <span className="col-span-2">Trace ID</span>
           <span>Variant</span>
           <span>지연</span>
@@ -143,7 +143,7 @@ export default function ObserveSection({ deploymentId }: Props) {
               key={t.id}
               type="button"
               onClick={() => setSelectedTraceId(t.id)}
-              className="grid grid-cols-6 gap-2 px-3 py-2 text-xs text-gray-300 border-b border-gray-900 cursor-pointer hover:bg-gray-800 transition-colors w-full text-left"
+              className="grid grid-cols-6 gap-2 px-3 py-2 text-xs text-gray-300 border-b border-gray-900 cursor-pointer hover:bg-gray-800 transition-colors w-full text-left min-w-[560px]"
             >
               <span className="col-span-2 font-mono text-blue-400 truncate">{t.id}</span>
               <span className={t.variant === "baseline" ? "text-gray-400" : "text-green-400"}>
