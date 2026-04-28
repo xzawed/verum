@@ -82,7 +82,7 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=70
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6.0.0
         with:
           files: packages/sdk-python/coverage.xml
           flags: python-sdk
@@ -110,7 +110,7 @@ jobs:
       - name: Run tests with coverage
         run: cd packages/sdk-typescript && npx jest --coverage
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6.0.0
         with:
           files: packages/sdk-typescript/coverage/lcov.info
           flags: typescript-sdk
@@ -138,7 +138,7 @@ jobs:
       - name: Run Jest unit tests with coverage
         run: cd apps/dashboard && npx jest --coverage
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6.0.0
         with:
           files: apps/dashboard/coverage/lcov.info
           flags: typescript-dashboard
@@ -261,7 +261,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6.0.0
         with:
           files: apps/api/coverage.xml
           flags: python-backend
