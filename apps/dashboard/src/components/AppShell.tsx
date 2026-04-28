@@ -23,7 +23,7 @@ export function AppShell({ children, username }: Props) {
   return (
     <div className="flex h-screen flex-col overflow-hidden sm:flex-row">
       <Sidebar pathname={pathname} username={username} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 min-h-0 min-w-0 overflow-auto">{children}</main>
     </div>
   );
 }
