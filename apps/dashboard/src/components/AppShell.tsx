@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
+import { Header } from "./Header";
 
 interface Props {
   children: React.ReactNode;
@@ -23,7 +24,10 @@ export function AppShell({ children, username }: Props) {
   return (
     <div className="flex h-screen flex-col overflow-hidden sm:flex-row">
       <Sidebar pathname={pathname} username={username} />
-      <main className="flex-1 min-h-0 min-w-0 overflow-auto">{children}</main>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Header />
+        <main className="flex-1 min-h-0 min-w-0 overflow-auto">{children}</main>
+      </div>
     </div>
   );
 }

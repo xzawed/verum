@@ -50,6 +50,8 @@ const config: Config = {
     "!src/lib/rateLimitRedis.ts",
     // React hooks — require browser environment (jsdom), covered by Playwright E2E
     "!src/hooks/**",
+    // i18n barrel file — re-export getters counted as functions by V8, no testable logic
+    "!src/lib/i18n/index.ts",
   ],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov", "json-summary"],

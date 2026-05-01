@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
+import { useLocale } from "@/context/LocaleContext";
 import { t } from "@/lib/i18n";
 
 interface Experiment {
@@ -32,6 +34,7 @@ const CHALLENGER_ORDER = ["cot", "few_shot", "role_play", "concise"];
 
 export default function ExperimentSection({ deploymentId }: Props) {
   const [data, setData] = useState<ExperimentsResponse | null>(null);
+  const { locale } = useLocale();
 
   const fetchData = useCallback(async () => {
     try {
@@ -69,7 +72,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
     return (
       <div style={{ borderLeft: "3px solid #7c3aed", paddingLeft: 16, marginBottom: 32 }}>
         <h2 style={{ fontSize: 15, color: "#7c3aed", margin: "0 0 12px" }}>[7] EXPERIMENT</h2>
-        <p style={{ color: "#888", fontSize: 13 }}>{t("trace", "loading")}</p>
+        <p style={{ color: "#888", fontSize: 13 }}>{t("trace", "loading", locale)}</p>
       </div>
     );
   }
@@ -120,8 +123,11 @@ export default function ExperimentSection({ deploymentId }: Props) {
           <p style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>History</p>
           <div style={{ border: "1px solid #222", borderRadius: 6, overflow: "hidden" }}>
             {converged.map((e, i) => (
-              <div
+              <motion.div
                 key={e.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.2, delay: i * 0.05 }}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "40px 1fr 1fr 1fr 80px",
@@ -139,7 +145,7 @@ export default function ExperimentSection({ deploymentId }: Props) {
                   {e.winner_variant ?? "—"}
                 </span>
                 <span>{e.confidence != null ? `${(e.confidence * 100).toFixed(1)}%` : "—"}</span>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -147,10 +153,15 @@ export default function ExperimentSection({ deploymentId }: Props) {
 
       {/* All done */}
       {!current && allExps.length > 0 && allExps[0]?.status === "converged" && (
-        <p style={{ fontSize: 13, color: "#4ade80", marginTop: 8 }}>
+        <motion.p
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          style={{ fontSize: 13, color: "#4ade80", marginTop: 8 }}
+        >
           Done — winner:{" "}
           <strong style={{ fontFamily: "monospace" }}>{allExps[0].winner_variant}</strong>
-        </p>
+        </motion.p>
       )}
     </div>
   );
@@ -203,7 +214,12 @@ function ConfidenceBar({ confidence }: { confidence: number }) {
         <span style={{ color }}>{pct}%</span>
       </div>
       <div style={{ background: "#222", borderRadius: 4, height: 6, overflow: "hidden", position: "relative" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, transition: "width 0.5s" }} />
+        <motion.div
+          style={{ height: "100%", background: color }}
+          initial={{ width: "0%" }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        />
         {/* threshold markers at 5% and 95% */}
         <div style={{ position: "absolute", top: 0, left: "5%", width: 1, height: "100%", background: "#facc15", opacity: 0.5 }} />
         <div style={{ position: "absolute", top: 0, left: "95%", width: 1, height: "100%", background: "#facc15", opacity: 0.5 }} />
