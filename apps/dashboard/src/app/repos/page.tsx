@@ -3,6 +3,7 @@ import { signOut, auth } from "@/auth";
 import { createRepo, deleteRepo, enqueueAnalyze } from "@/lib/db/jobs";
 import { getRepos, getRepoStatus, getLatestAnalysis } from "@/lib/db/queries";
 import { listUserRepos } from "@/lib/github/repos";
+import { ReposHeader } from "./ReposHeader";
 
 export default async function ReposPage({
   searchParams,
@@ -48,10 +49,7 @@ export default async function ReposPage({
     <div className="p-4 sm:p-6 max-w-3xl">
       {/* Page header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Repositories</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Connect a repo to start the Verum Loop</p>
-        </div>
+        <ReposHeader repoCount={repos.length} />
         <div className="flex items-center gap-3">
           <a
             href="#add-from-github"
@@ -107,7 +105,8 @@ export default async function ReposPage({
               return (
                 <div
                   key={repo.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                  className="animate-[fadeSlideUp_0.3s_ease-out_both] flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 duration-200"
                 >
                   {/* Repo icon */}
                   <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100">
@@ -188,8 +187,14 @@ export default async function ReposPage({
 
       {/* Empty state */}
       {repos.length === 0 && (
-        <div className="mb-8 rounded-xl border border-dashed border-slate-300 py-12 text-center">
-          <p className="text-sm text-slate-500">No repos connected yet.</p>
+        <div className="mb-8 rounded-xl border border-dashed border-slate-300 py-12 text-center animate-[fadeSlideUp_0.4s_ease-out_both]">
+          <div className="mb-3 flex justify-center">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="text-slate-200">
+              <rect x="1" y="1" width="38" height="38" rx="8" stroke="currentColor" strokeWidth="2" strokeDasharray="6 4" className="animate-dash-march" />
+              <path d="M13 20h14M20 13v14" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-500">No repos connected yet</p>
           <p className="mt-1 text-xs text-slate-400">Select a repository from the list below to get started.</p>
         </div>
       )}

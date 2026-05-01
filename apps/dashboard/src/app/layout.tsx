@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { auth } from "@/auth";
 import { AppShell } from "@/components/AppShell";
+import { LocaleProvider } from "@/context/LocaleContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className="bg-slate-50 text-slate-900 antialiased">
-        <AppShell username={username}>{children}</AppShell>
+        <LocaleProvider>
+          <AppShell username={username}>{children}</AppShell>
+        </LocaleProvider>
       </body>
     </html>
   );
