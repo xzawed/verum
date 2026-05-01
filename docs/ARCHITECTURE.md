@@ -140,7 +140,7 @@ verum/
 
 | Stage | Directory | Primary Dependencies |
 |---|---|---|
-| [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast`, `libcst`, `tree-sitter` |
+| [1] ANALYZE | `apps/api/src/loop/analyze/` | `ast` (stdlib), `tree-sitter` |
 | [2] INFER | `apps/api/src/loop/infer/` | `anthropic` (Claude Sonnet 4.6+) |
 | [3] HARVEST | `apps/api/src/loop/harvest/` | `httpx`, `trafilatura`, `playwright` (opt-in, soft import) |
 | [4] GENERATE | `apps/api/src/loop/generate/` | `anthropic` (Claude Sonnet 4.6+), `pgvector` — default `GENERATE_MAX_TOKENS=4096`; JSON truncation handled by best-effort repair in `loop/utils.py` |
@@ -359,7 +359,7 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 |---|---|---|---|
 | POST | `/api/v1/analyze` | Start analysis job for a repo | ✅ |
 | GET | `/api/v1/analyze/{analysis_id}` | Get analysis result | ✅ |
-| GET | `/api/v1/repos/{repo_id}/analyses` | List analyses for a repo | ✅ |
+| GET | `/api/v1/repos/{repo_id}/analyses` | List analyses for a repo | 🚧 planned |
 
 ### [2] INFER
 
@@ -371,11 +371,13 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 
 ### [3] HARVEST
 
+> **Note:** HARVEST is driven by the job queue (Server Action → `verum_jobs`). There are no direct `/api/v1/harvest/` HTTP endpoints — source proposal, approval, and crawl are handled via job payloads and status polling through the ANALYZE/INFER polling routes.
+
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/api/v1/harvest/propose` | LLM proposes sources; returns list for user approval | ✅ |
-| POST | `/api/v1/harvest/start` | Start crawl with approved sources | ✅ |
-| GET | `/api/v1/harvest/{harvest_id}` | Get harvest status + result | ✅ |
+| POST | `/api/v1/harvest/propose` | LLM proposes sources; returns list for user approval | 🚧 planned |
+| POST | `/api/v1/harvest/start` | Start crawl with approved sources | 🚧 planned |
+| GET | `/api/v1/harvest/{harvest_id}` | Get harvest status + result | 🚧 planned |
 | POST | `/api/v1/retrieve-sdk` | Hybrid search over chunks (SDK endpoint) | ✅ |
 
 ### [4] GENERATE
@@ -391,9 +393,9 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 | Method | Path | Description | Status |
 |---|---|---|---|
 | POST | `/api/v1/deploy` | Deploy approved assets | ✅ |
-| GET | `/api/v1/deployments/{deployment_id}` | Get deployment status | ✅ |
-| PATCH | `/api/v1/deployments/{deployment_id}/traffic` | Adjust traffic split | ✅ |
-| POST | `/api/v1/deployments/{deployment_id}/rollback` | Rollback to baseline | ✅ |
+| GET | `/api/v1/deploy/{deployment_id}/config` | Get deployment config (SDK polling) | ✅ |
+| POST | `/api/v1/deploy/{deployment_id}/traffic` | Adjust traffic split | ✅ |
+| POST | `/api/v1/deploy/{deployment_id}/rollback` | Rollback to baseline | ✅ |
 
 ### [6] OBSERVE
 
@@ -406,10 +408,12 @@ Base path: `/api/v1` (Next.js route). All endpoints return JSON. Authentication:
 
 ### [7] EXPERIMENT
 
+> **Note:** Experiments are created by the Python worker automatically (via `_experiment_loop()` in `runner.py`), not by a direct HTTP POST. There is no `POST /api/v1/experiments` endpoint.
+
 | Method | Path | Description | Status |
 |---|---|---|---|
-| POST | `/api/v1/experiments` | Create experiment across deployments | ✅ |
-| GET | `/api/v1/experiments/{experiment_id}` | Get experiment result | ✅ |
+| GET | `/api/v1/experiments` | List experiments for a deployment | ✅ |
+| GET | `/api/v1/experiments/{experiment_id}` | Get experiment result + Bayesian confidence | ✅ |
 
 ### [8] EVOLVE
 

@@ -221,7 +221,7 @@ Given a `ServiceInference`, automatically propose and (after user approval) exec
 | `source_count` | `int` | Number of sources crawled |
 | `chunk_count` | `int` | Total knowledge chunks stored |
 | `collection_name` | `str` | pgvector collection identifier |
-| `embedding_model` | `str` | Model used (e.g. `"text-embedding-3-small"`) |
+| `embedding_model` | `str` | Model used (e.g. `"voyage-3.5"`) |
 | `embedding_dim` | `int` | Dimension stored in `collections.embedding_dim` — never hardcoded |
 
 ### Algorithm
