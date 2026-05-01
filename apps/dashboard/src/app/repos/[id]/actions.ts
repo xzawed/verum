@@ -57,5 +57,6 @@ export async function rerunGenerate(inferenceId: string) {
     sql`SELECT repo_id::text FROM inferences WHERE id = ${inferenceId}::uuid`
   );
   const repoId = (rows.rows[0] as Record<string, string>)?.repo_id;
+  if (!repoId) redirect("/repos");
   redirect(`/repos/${repoId}`);
 }

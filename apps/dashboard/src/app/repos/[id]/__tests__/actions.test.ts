@@ -241,7 +241,7 @@ describe("rerunGenerate", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/repos/repo-1");
   });
 
-  it("redirects to /repos/undefined when SELECT returns no rows", async () => {
+  it("redirects to /repos when SELECT returns no rows", async () => {
     mockAuth.mockResolvedValue(SESSION);
     mockDbExecute
       .mockResolvedValueOnce({ rows: [] })
@@ -249,7 +249,6 @@ describe("rerunGenerate", () => {
       .mockResolvedValueOnce({ rows: [] }); // no matching inference row
     await runAction(() => rerunGenerate("inference-missing"));
     expect(mockDbExecute).toHaveBeenCalledTimes(3);
-    // repoId resolves to undefined, so redirect goes to /repos/undefined
-    expect(mockRedirect).toHaveBeenCalledWith("/repos/undefined");
+    expect(mockRedirect).toHaveBeenCalledWith("/repos");
   });
 });
