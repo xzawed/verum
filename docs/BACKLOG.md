@@ -1,7 +1,7 @@
 ---
 type: backlog
 authority: tier-2
-last-updated: 2026-04-24
+last-updated: 2026-05-01
 generated-by: 6-agent codebase audit
 ---
 
@@ -10,6 +10,20 @@ generated-by: 6-agent codebase audit
 > 6개 에이전트(Python Loop Core, Python Worker/DB, Next.js Dashboard, 테스트, 문서, 인프라/SDK/CI)가 전체 코드베이스를 동시 감사한 결과를 우선순위별로 정리한 일감 목록입니다.
 >
 > **작업 순서:** P0 → P1 → P2 → P3. 각 항목은 독립적으로 처리 가능합니다.
+
+---
+
+## 📋 백로그 현황 (2026-05-01)
+
+**2026-04-24 감사** 38개 항목 전원 완료.
+
+**2026-05-01 추가 감사** (6-agent: 전문 4 + 교차검증 2):
+- ✅ PR #101: SDK trace posting 묵음 예외 → `_logger.debug` (openai.py, anthropic.py 각 4곳)
+- ✅ PR #101: `rerunGenerate` `/repos/undefined` 리다이렉트 → null guard + `/repos` fallback
+- 보류(P2): API 키 파일 권한 0o644 — 주석에 설계 의도 명시(`world-readable: integration test runner reads as different UID`), 변경 시 통합 테스트 깨짐
+- 보류(P2): Drizzle raw SQL column ref 스타일 — 동작 이상 없음, 향후 리팩터링 기회에 처리
+
+**다음 감사 시점:** Phase 5 Launch 직전 (Phase 5 작업 착수 전 전체 감사 1회 권장)
 
 ---
 
