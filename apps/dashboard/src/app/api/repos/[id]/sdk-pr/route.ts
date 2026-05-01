@@ -103,6 +103,14 @@ export async function POST(
   );
 
   const fileChanges = buildPrFileChanges({ callSites, existingFiles, repoFullName, mode });
+
+  if (fileChanges.length === 0) {
+    return Response.json(
+      { message: "nothing to change — repo already contains Verum configuration" },
+      { status: 200 },
+    );
+  }
+
   const branchName = `verum/sdk-integration-${Date.now()}`;
   const requestId = await createSdkPrRequest({ userId, repoId, analysisId: analysis.id });
 
