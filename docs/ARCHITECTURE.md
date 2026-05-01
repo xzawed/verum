@@ -863,4 +863,48 @@ Both implementations:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-01 (ADR-018 추가 — Zero-code-change SDK auto-patch via .pth + NODE_OPTIONS)_
+### ADR-019: ActivationCard v2 — No-PR One-Click Activation
+
+**Status:** Accepted — 2026-05-01
+
+**Context:**
+
+ActivationCard v1 (pre-PR #104) offered two integration paths by automatically creating GitHub Pull Requests to the user's repository — one adding OTLP env vars (Phase 0) and another adding `import verum.openai` + `extra_headers` (Phase 1). This approach had several problems:
+
+- Required elevated GitHub OAuth scopes (`repo` write access) just to show a "getting started" UI.
+- Created commits in the user's service repository without explicit per-commit consent.
+- The PR-based flow was complicated to implement and fragile: branch naming, file path sanitization, Git Data API 7-step pipeline.
+- Many users just want env vars — they do not want Verum touching their repo at all.
+
+**Decision:**
+
+Remove GitHub PR creation from the activation flow entirely. Replace with a synchronous one-click endpoint:
+
+- `POST /api/repos/[id]/activate` (JWT session auth):
+  1. Verifies repo ownership.
+  2. Finds the latest approved generation.
+  3. 409 if a deployment already exists for that generation.
+  4. Generates `api_key = "vk_" + crypto.randomBytes(32).hex()`.
+  5. Stores only `SHA-256(api_key)` in `deployments.api_key_hash` — plaintext never persisted (GitHub PAT model).
+  6. Inserts `deployments` + `experiments` rows atomically.
+  7. Returns `{ deployment_id, api_key, verum_api_url }` with HTTP 201.
+
+- ActivationCard 5-state machine: `no-generation → ready → activated → waiting → connected`.
+  - `activated`: key shown once in Python/Node.js env-var tabs with "Copy all" button.
+  - `waiting`: polls `GET /api/v1/activation/[repoId]` every 5 s; transitions to `connected` when `deployment.trace_count > 0`.
+
+**Alternatives Rejected:**
+
+- Keep PR flow — creates GitHub commits without fine-grained user consent; requires write OAuth scope.
+- Show key inline without state machine — key would be lost on page reload; need explicit "I've saved these" acknowledgment.
+
+**Consequences:**
+
+- `sdk_pr_requests` table and associated routes (`/api/repos/[id]/sdk-pr`) remain in the codebase but are no longer surfaced in the ActivationCard UI. They can be removed in a future cleanup PR.
+- Users get credentials in ~200ms (synchronous DB insert) vs. the previous 5-30s GitHub API round-trip.
+- The activation flow no longer requires GitHub write access — reduces OAuth scope surface.
+- Tested: 6 unit tests for activate route (401, 404, 422, 409, 201, key uniqueness) + 5 tests for activation data route (including `trace_count: 0` partial branch).
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-05-01 (ADR-018 추가 — Zero-code-change SDK auto-patch via .pth + NODE_OPTIONS; ADR-019 추가 — ActivationCard v2 no-PR one-click activation)_

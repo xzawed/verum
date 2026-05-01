@@ -361,7 +361,10 @@ Inject user-approved `GeneratedAssets` into the connected service via the Verum 
 
 ### Non-Invasive Integration Modes
 
-Before deploying, the dashboard shows an **ActivationCard** (`GET /api/v1/activation/[repoId]`) summarising what Verum has learned about the service (INFER domain, GENERATE variants, HARVEST chunk count). Two integration paths are offered:
+Before deploying, the dashboard shows an **ActivationCard** (`GET /api/v1/activation/[repoId]`) summarising what Verum has learned about the service (INFER domain, GENERATE variants, HARVEST chunk count).
+
+**One-click Activate (`POST /api/repos/[id]/activate` — PR #104):**
+Once a generation exists, the user clicks **Activate**. The endpoint atomically creates a `deployments` row and an `experiments` row, then returns a one-time plaintext `api_key` (`vk_<64 hex chars>`) alongside `deployment_id` and `verum_api_url`. The key is shown once (only SHA-256 hash stored in DB — GitHub PAT model). The card displays Python and Node.js tabs with the three env vars needed. After the user saves credentials and clicks "Done", the card polls `GET /api/v1/activation/[repoId]` every 5 seconds; when `deployment.trace_count > 0`, it transitions to the Connected state.
 
 **Phase 0 — OTLP env-only (zero code changes):**
 Set `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `VERUM_DEPLOYMENT_ID`, then add `import verum.openai` at startup. Verum receives traces via `POST /api/v1/otlp/v1/traces` (openinference span format). No call routing yet — observe-only.
