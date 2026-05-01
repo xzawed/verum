@@ -95,8 +95,8 @@ async def handle_generate(
                     domain=inference.domain or "unknown",
                     repo_url=user_row[1] or "",
                 )
-        except Exception as exc:
-            logger.debug("Failed to send generate-complete email: %s", exc)
+        except Exception:
+            logger.exception("Failed to send generate-complete email")
 
         return {
             "generation_id": str(generation_id),

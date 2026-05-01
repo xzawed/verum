@@ -22,7 +22,7 @@ export default async function RootLayout({
 }) {
   const session = await auth();
   const username =
-    ((session?.user as Record<string, unknown>)?.name as string)?.[0]?.toUpperCase() ?? "?";
+    (session?.user?.github_login as string | undefined)?.[0]?.toUpperCase() ?? "?";
 
   return (
     <html lang="en">

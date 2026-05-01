@@ -127,9 +127,9 @@ last-updated: 2026-05-01
 | Method | Path | 설명 |
 |--------|------|------|
 | GET | `/health` | 헬스체크 (인증 없음) |
-| GET | `/api/v1/repos` | 사용자 repo 목록 |
-| POST | `/api/v1/repos` | 신규 repo 연결 |
-| DELETE | `/api/v1/repos/[id]` | Repo 삭제 |
+| GET | `/api/repos` | 사용자 repo 목록 |
+| POST | `/api/repos` | 신규 repo 연결 |
+| *(Server Action)* | *`/api/repos/[id]` delete* | Repo 삭제 (HTTP 엔드포인트 아님 — Next.js Server Action) |
 | POST | `/api/v1/analyze` | Analyze 잡 큐 등록 |
 | GET | `/api/v1/analyze/[id]` | Analyze 상태 폴링 |
 | POST | `/api/v1/infer` | Infer 잡 큐 등록 |
@@ -301,6 +301,7 @@ trace_id = await client.record(
 | `apps/dashboard/src/app/api/v1/experiments/route.ts` | GET 실험 목록 (배포별) |
 | `apps/dashboard/src/app/api/v1/experiments/[id]/route.ts` | GET 실험 상세 |
 | `apps/dashboard/src/app/repos/[id]/ExperimentSection.tsx` | EXPERIMENT 섹션 UI (5초 폴링, Bayesian 신뢰도 바) |
+| `apps/dashboard/src/hooks/useAdaptivePolling.ts` | 지수 백오프 폴링 훅 — 잡 활성 중 빠른 폴링, 유휴 시 백오프. `StagesView.tsx`·`ExperimentSection.tsx`에서 사용 |
 | `apps/dashboard/src/app/api/repos/[id]/status/route.ts` | Repo 잡 상태 폴링 (미들웨어 matcher `api/repos` 제외) |
 | `apps/dashboard/src/app/api/test/login/route.ts` | CI/E2E JWT 세션 발급 (`VERUM_TEST_MODE=1`만 활성화). DB upsert는 best-effort (try/catch) — Postgres 없는 E2E 환경에서도 JWT 반환 |
 | `apps/dashboard/src/app/api/test/set-config-fault/route.ts` | ADR-017 통합테스트용 fault injection 제어 엔드포인트 (POST: fault 횟수 설정, DELETE: 초기화) |

@@ -63,11 +63,11 @@ describe("POST /api/v1/feedback", () => {
     mockUpdateFeedback.mockResolvedValueOnce(true as never);
 
     const req = makeRequest(
-      { trace_id: "trace-abc", score: 1 },
+      { trace_id: "00000000-0000-0000-0000-000000000002", score: 1 },
       { "x-verum-api-key": "a".repeat(41) },
     );
     const res = await POST(req);
     expect(res.status).toBe(204);
-    expect(mockUpdateFeedback).toHaveBeenCalledWith("dep-1", "trace-abc", 1);
+    expect(mockUpdateFeedback).toHaveBeenCalledWith("dep-1", "00000000-0000-0000-0000-000000000002", 1);
   });
 });

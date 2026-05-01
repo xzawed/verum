@@ -96,7 +96,7 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 | F-2.6 | Crawling: `httpx` (static) + `playwright` (JS-rendered) | ✅ |
 | F-2.7 | Text extraction with `trafilatura` | ✅ |
 | F-2.8 | Recursive chunking (mandatory) + Semantic chunking (Phase 2) | ✅ |
-| F-2.9 | Embedding pipeline: OpenAI `text-embedding-3-small` (default) | ✅ |
+| F-2.9 | Embedding pipeline: Voyage AI `voyage-3.5` (1024-dim, default) | ✅ |
 | F-2.10 | pgvector storage + `tsvector` column for hybrid search | ✅ |
 | F-2.11 | `POST /v1/harvest/propose` + `POST /v1/harvest/start` + `POST /v1/retrieve` | 🚧 note: job-queue based |
 | F-2.12 | Dashboard: INFER result visualization + HARVEST progress + chunk search UI | ✅ |

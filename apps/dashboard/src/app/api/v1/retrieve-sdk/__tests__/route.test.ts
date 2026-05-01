@@ -5,22 +5,15 @@ jest.mock("@/lib/rateLimit", () => ({
 jest.mock("@/lib/db/client", () => ({
   db: { execute: jest.fn() },
 }));
-jest.mock("openai");
 jest.mock("@/lib/api/validateApiKey");
 
 import { POST } from "../route";
 import { db } from "@/lib/db/client";
 import { validateApiKey } from "@/lib/api/validateApiKey";
-import OpenAI from "openai";
 
 const mockExecute = db.execute as jest.Mock;
 const mockValidateApiKey = validateApiKey as jest.Mock;
-
-// Mock OpenAI embeddings
-const mockEmbeddingsCreate = jest.fn();
-(OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(() => ({
-  embeddings: { create: mockEmbeddingsCreate },
-}) as unknown as OpenAI);
+const mockFetch = jest.fn();
 
 function makeRequest(body: unknown, apiKey = "valid-key"): Request {
   return new Request("http://localhost/api/v1/retrieve-sdk", {
@@ -36,6 +29,7 @@ function makeRequest(body: unknown, apiKey = "valid-key"): Request {
 beforeEach(() => {
   jest.clearAllMocks();
   mockValidateApiKey.mockResolvedValue({ userId: "user-1" });
+  global.fetch = mockFetch;
 });
 
 describe("POST /api/v1/retrieve-sdk", () => {
@@ -53,10 +47,19 @@ describe("POST /api/v1/retrieve-sdk", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 502 when Voyage AI embedding call fails", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+    const res = await POST(makeRequest({ query: "tarot meaning" }));
+
+    expect(res.status).toBe(502);
+  });
+
   it("returns chunks on successful pgvector query", async () => {
-    const fakeEmbedding = Array.from({ length: 1536 }, () => 0.1);
-    mockEmbeddingsCreate.mockResolvedValue({
-      data: [{ embedding: fakeEmbedding }],
+    const fakeEmbedding = Array.from({ length: 1024 }, () => 0.1);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: [{ embedding: fakeEmbedding }] }),
     });
 
     mockExecute.mockResolvedValue({
@@ -73,6 +76,10 @@ describe("POST /api/v1/retrieve-sdk", () => {
     expect(json.chunks).toHaveLength(2);
     expect(json.chunks[0]).toMatchObject({ content: "Tarot card meanings", score: 0.92 });
     expect(json.chunks[1].metadata).toEqual({});
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.voyageai.com/v1/embeddings",
+      expect.objectContaining({ method: "POST" }),
+    );
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 });

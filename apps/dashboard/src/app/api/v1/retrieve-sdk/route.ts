@@ -3,13 +3,6 @@ import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-import OpenAI from "openai";
-
-let _openai: OpenAI | null = null;
-function getOpenAI() {
-  if (!_openai) _openai = new OpenAI();
-  return _openai;
-}
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
@@ -37,14 +30,22 @@ export async function POST(req: Request) {
 
   const topK = typeof body.top_k === "number" ? Math.min(body.top_k, 20) : 5;
 
-  const embeddingRes = await getOpenAI().embeddings.create({
-    model: "text-embedding-3-small",
-    input: body.query,
+  const embResp = await fetch("https://api.voyageai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+    },
+    body: JSON.stringify({ input: [body.query], model: "voyage-3.5" }),
   });
-  const vec = embeddingRes.data[0]?.embedding;
+  if (!embResp.ok) {
+    return NextResponse.json({ error: "embedding failed" }, { status: 502 });
+  }
+  const embData = await embResp.json() as { data: { embedding: number[] }[] };
+  const vec = embData.data[0]?.embedding;
   if (!vec) return new Response("embedding failed", { status: 500 });
 
-  // vec is float[] from OpenAI — safe to stringify as a numeric literal list.
+  // vec is float[] (1024-dim voyage-3.5) — safe to stringify as a numeric literal list.
   const vecLiteral = `[${vec.map((v) => Number(v).toFixed(8)).join(",")}]`;
 
   const rows = await db.execute(

@@ -29,7 +29,7 @@ test.describe("Smoke — authentication guard", () => {
   test("POST /api/v1/traces without X-Verum-API-Key returns 401", async ({ request }) => {
     const response = await request.post("/api/v1/traces", {
       headers: { "Content-Type": "application/json" },
-      data: { deployment_id: "test", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
+      data: { deployment_id: "00000000-0000-0000-0000-000000000001", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
     });
     expect(response.status()).toBe(401);
   });
@@ -40,7 +40,7 @@ test.describe("Smoke — authentication guard", () => {
         "Content-Type": "application/json",
         "X-Verum-API-Key": "invalid-key-32-chars-long-xxxxxxxxx",
       },
-      data: { deployment_id: "test", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
+      data: { deployment_id: "00000000-0000-0000-0000-000000000001", variant: "baseline", model: "gpt-4", input_tokens: 10, output_tokens: 5, latency_ms: 100 },
     });
     expect(response.status()).toBe(401);
   });
