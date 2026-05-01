@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 import { type Locale, DEFAULT_LOCALE, LOCALES } from "@/lib/i18n/types";
 
 const STORAGE_KEY = "verum-locale";
@@ -15,16 +15,14 @@ const LocaleContext = createContext<LocaleContextValue>({
   setLocale: () => undefined,
 });
 
-export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+function readStoredLocale(): Locale {
+  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  const stored = localStorage.getItem(STORAGE_KEY) as Locale | null;
+  return stored && (LOCALES as readonly string[]).includes(stored) ? stored : DEFAULT_LOCALE;
+}
 
-  // Hydrate from localStorage on mount (client only)
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Locale | null;
-    if (stored && (LOCALES as readonly string[]).includes(stored)) {
-      setLocaleState(stored);
-    }
-  }, []);
+export function LocaleProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(readStoredLocale);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
