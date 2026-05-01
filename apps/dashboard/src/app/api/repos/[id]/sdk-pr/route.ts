@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { auth } from "@/auth";
 import { getAuthUserId } from "@/lib/api/handlers";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -6,7 +7,17 @@ import { getRepo, getLatestAnalysis, getLatestInference, getLatestSdkPrRequest }
 import { createSdkPrRequest, updateSdkPrRequest } from "@/lib/db/jobs";
 import { GitHubPrCreator } from "@/lib/github/pr-creator";
 import { buildPrFileChanges } from "@/lib/sdk-pr/transformer";
-import type { LLMCallSite, PrMode } from "@/lib/sdk-pr/transformer";
+import type { PrMode } from "@/lib/sdk-pr/transformer";
+
+const LLMCallSiteSchema = z.object({
+  file_path: z.string().min(1),
+  line: z.number().int().nonnegative(),
+  sdk: z.string(),
+  function: z.string(),
+  prompt_ref: z.string().nullable(),
+});
+
+const CallSitesSchema = z.array(LLMCallSiteSchema);
 
 const PR_BODY_OBSERVE = `## Verum Observability (Phase 0)
 
@@ -83,24 +94,46 @@ export async function POST(
   // inference is fetched for future use (e.g. domain context in PR body); unused fields are intentionally ignored
   void inference;
 
-  const callSites = (analysis.call_sites ?? []) as LLMCallSite[];
-  const repoFullName = repo.github_url.replace("https://github.com/", "");
+  // Fix-C: validate call_sites shape at runtime before use
+  const callSitesRaw = CallSitesSchema.safeParse(analysis.call_sites ?? []);
+  if (!callSitesRaw.success) {
+    return Response.json(
+      { error: `call_sites schema invalid: ${callSitesRaw.error.message}` },
+      { status: 422 },
+    );
+  }
+  const callSites = callSitesRaw.data;
+
+  // Normalize github_url: strip trailing .git, handle SSH URLs
+  const repoFullName = repo.github_url
+    .replace(/^git@github\.com:/, "")
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\.git$/, "")
+    .replace(/\/$/, "");
 
   const creator = new GitHubPrCreator({ accessToken, repoFullName });
 
-  const filesToRead = [
-    ".env.example",
-    "package.json",
-    "requirements.txt",
-    ...callSites.map((s) => s.file_path),
-  ];
-  const existingFiles: Record<string, string> = {};
-  await Promise.all(
-    filesToRead.map(async (path) => {
-      const content = await creator.readFile(path);
-      if (content !== null) existingFiles[path] = content;
-    }),
-  );
+  // Fix-B: wrap file reads in try/catch — readFile re-throws non-404 GitHub errors
+  let existingFiles: Record<string, string>;
+  try {
+    const filesToRead = [
+      ".env.example",
+      "package.json",
+      "requirements.txt",
+      ...callSites.map((s) => s.file_path),
+    ];
+    const entries: Record<string, string> = {};
+    await Promise.all(
+      filesToRead.map(async (path) => {
+        const content = await creator.readFile(path);
+        if (content !== null) entries[path] = content;
+      }),
+    );
+    existingFiles = entries;
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `Failed to read repo files: ${error}` }, { status: 502 });
+  }
 
   const fileChanges = buildPrFileChanges({ callSites, existingFiles, repoFullName, mode });
 
@@ -111,14 +144,15 @@ export async function POST(
     );
   }
 
+  // Fix-B: createSdkPrRequest only after file reads succeed, inside the PR try/catch
   const branchName = `verum/sdk-integration-${Date.now()}`;
-  const requestId = await createSdkPrRequest({ userId, repoId, analysisId: analysis.id });
-
   const prTitle =
     mode === "observe"
       ? "Add Verum observability (Phase 0 — env only)"
       : "Add Verum SDK integration (Phase 1 — auto-instrument)";
   const prBody = mode === "observe" ? PR_BODY_OBSERVE : PR_BODY_BIDIRECTIONAL;
+
+  const requestId = await createSdkPrRequest({ userId, repoId, analysisId: analysis.id });
 
   try {
     const { pr_url, pr_number } = await creator.createPr({

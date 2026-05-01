@@ -9,15 +9,23 @@ const NEW_BLOB_SHA = "111bbb";
 const NEW_TREE_SHA = "222ccc";
 const NEW_COMMIT_SHA = "333ddd";
 
+function ok(data: unknown) {
+  return { ok: true, status: 200, text: async () => JSON.stringify(data) };
+}
+
+function err(status: number, body: string) {
+  return { ok: false, status, text: async () => body };
+}
+
 function mockGitHubResponses() {
   mockFetch
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ object: { sha: BASE_SHA } }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: TREE_SHA } }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: NEW_BLOB_SHA }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: NEW_TREE_SHA }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: NEW_COMMIT_SHA }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ html_url: "https://github.com/owner/repo/pull/42", number: 42 }) });
+    .mockResolvedValueOnce(ok({ object: { sha: BASE_SHA } }))
+    .mockResolvedValueOnce(ok({ tree: { sha: TREE_SHA } }))
+    .mockResolvedValueOnce(ok({ sha: NEW_BLOB_SHA }))
+    .mockResolvedValueOnce(ok({ sha: NEW_TREE_SHA }))
+    .mockResolvedValueOnce(ok({ sha: NEW_COMMIT_SHA }))
+    .mockResolvedValueOnce(ok({}))
+    .mockResolvedValueOnce(ok({ html_url: "https://github.com/owner/repo/pull/42", number: 42 }));
 }
 
 describe("GitHubPrCreator", () => {
@@ -40,21 +48,28 @@ describe("GitHubPrCreator", () => {
   });
 
   it("throws a descriptive error on 404 from GitHub", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: "Not Found",
-      text: async () => '{"message":"Not Found"}',
-      json: async () => ({}),
-    });
+    mockFetch.mockResolvedValueOnce(err(404, '{"message":"Not Found"}'));
     const creator = new GitHubPrCreator({ accessToken: "ghp_bad", repoFullName: "owner/repo" });
     await expect(
       creator.createPr({ branchName: "verum/x", baseBranch: "main", title: "t", body: "b", files: [] }),
     ).rejects.toThrow("GitHub API 404");
   });
 
+  it("error message includes GitHub response body, not just statusText", async () => {
+    mockFetch.mockResolvedValueOnce(err(422, '{"message":"tree must not be empty","documentation_url":"https://docs.github.com"}'));
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    await expect(creator.readFile("file.txt")).rejects.toThrow("tree must not be empty");
+  });
+
+  it("throws GitHubApiError with parse error when response is not JSON", async () => {
+    // Simulate GitHub returning HTML (e.g. during an incident) — text() returns raw HTML, not JSON
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: async () => "<html>GitHub is down</html>" });
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    await expect(creator.readFile("file.txt")).rejects.toThrow("GitHub API response parse error");
+  });
+
   it("readFile returns null when file does not exist (404)", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 404, statusText: "Not Found", text: async () => '{"message":"Not Found"}', json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce(err(404, '{"message":"Not Found"}'));
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     const content = await creator.readFile(".env.example");
     expect(content).toBeNull();
@@ -62,10 +77,7 @@ describe("GitHubPrCreator", () => {
 
   it("readFile decodes base64 content", async () => {
     const encoded = Buffer.from("EXISTING_VAR=hello\n").toString("base64");
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ content: encoded + "\n", encoding: "base64" }),
-    });
+    mockFetch.mockResolvedValueOnce(ok({ content: encoded + "\n", encoding: "base64" }));
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     const content = await creator.readFile(".env.example");
     expect(content).toBe("EXISTING_VAR=hello\n");
@@ -78,28 +90,13 @@ describe("GitHubPrCreator", () => {
   });
 
   it("readFile re-throws non-404 GitHub errors", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden", text: async () => '{"message":"Forbidden"}', json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce(err(403, '{"message":"Forbidden"}'));
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     await expect(creator.readFile("secrets.txt")).rejects.toThrow("GitHub API 403");
   });
 
-  it("falls back to statusText when text() rejects on error response", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      text: async () => { throw new Error("body consumed"); },
-      json: async () => ({}),
-    });
-    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
-    await expect(creator.readFile("file.txt")).rejects.toThrow("Service Unavailable");
-  });
-
   it("readFile returns raw content when not base64-encoded", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ content: "plain text content", encoding: "utf-8" }),
-    });
+    mockFetch.mockResolvedValueOnce(ok({ content: "plain text content", encoding: "utf-8" }));
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     const content = await creator.readFile("README.md");
     expect(content).toBe("plain text content");
