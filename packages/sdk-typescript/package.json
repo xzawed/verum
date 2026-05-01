@@ -4,6 +4,12 @@
   "description": "Verum SDK — connect your AI service to The Verum Loop",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./openai": "./dist/openai.js",
+    "./anthropic": "./dist/anthropic.js",
+    "./auto": "./dist/auto.js"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
