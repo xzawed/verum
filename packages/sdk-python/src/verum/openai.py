@@ -173,8 +173,8 @@ def _record_trace_bg(
                 headers={"x-verum-api-key": api_key},
                 timeout=5.0,
             )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            _logger.debug("Verum: trace post failed (sync): %s", exc)
 
     t = threading.Thread(target=_post, daemon=True)
     t.start()
@@ -217,8 +217,8 @@ async def _record_trace_bg_async(
             headers={"x-verum-api-key": api_key},
             timeout=5.0,
         )
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        _logger.debug("Verum: trace post failed (async): %s", exc)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -337,8 +337,8 @@ def _patch_openai() -> None:
                 output_tokens=output_tokens,
                 latency_ms=latency_ms,
             )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            _logger.debug("Verum: failed to dispatch trace thread: %s", exc)
 
         return response
 
@@ -376,8 +376,8 @@ def _patch_openai() -> None:
             )
             _bg_tasks.add(_task)
             _task.add_done_callback(_bg_tasks.discard)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            _logger.debug("Verum: failed to dispatch async trace task: %s", exc)
 
         return response
 
