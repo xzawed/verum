@@ -152,7 +152,7 @@ export async function POST(
       : "Add Verum SDK integration (Phase 1 — auto-instrument)";
   const prBody = mode === "observe" ? PR_BODY_OBSERVE : PR_BODY_BIDIRECTIONAL;
 
-  const requestId = await createSdkPrRequest({ userId, repoId, analysisId: analysis.id });
+  const requestId = await createSdkPrRequest({ userId, repoId, analysisId: analysis.id, mode });
 
   try {
     const { pr_url, pr_number } = await creator.createPr({

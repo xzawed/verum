@@ -26,6 +26,8 @@ interface ActivationCardProps {
   readonly activation: ActivationData | null;
   readonly existingPrUrl?: string | null;
   readonly existingPrNumber?: number | null;
+  readonly existingBidirectionalPrUrl?: string | null;
+  readonly existingBidirectionalPrNumber?: number | null;
 }
 
 const SdkPrResponse = z.object({
@@ -52,14 +54,21 @@ export function ActivationCard({
   activation,
   existingPrUrl,
   existingPrNumber,
+  existingBidirectionalPrUrl,
+  existingBidirectionalPrNumber,
 }: ActivationCardProps) {
-  const initialDone =
+  const initialObserve =
     existingPrUrl != null && existingPrNumber != null
       ? ({ prUrl: existingPrUrl, prNumber: existingPrNumber } as ButtonState)
       : ("idle" as ButtonState);
 
-  const [observeState, setObserveState] = useState<ButtonState>(initialDone);
-  const [bidirectionalState, setBidirectionalState] = useState<ButtonState>("idle");
+  const initialBidirectional =
+    existingBidirectionalPrUrl != null && existingBidirectionalPrNumber != null
+      ? ({ prUrl: existingBidirectionalPrUrl, prNumber: existingBidirectionalPrNumber } as ButtonState)
+      : ("idle" as ButtonState);
+
+  const [observeState, setObserveState] = useState<ButtonState>(initialObserve);
+  const [bidirectionalState, setBidirectionalState] = useState<ButtonState>(initialBidirectional);
 
   async function handlePr(mode: "observe" | "bidirectional") {
     const setState = mode === "observe" ? setObserveState : setBidirectionalState;

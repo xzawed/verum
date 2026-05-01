@@ -478,3 +478,23 @@ export async function getLatestSdkPrRequest(userId: string, repoId: string) {
     .limit(1);
   return rows[0] ?? null;
 }
+
+export async function getLatestSdkPrRequestByMode(
+  userId: string,
+  repoId: string,
+  mode: "observe" | "bidirectional",
+) {
+  const rows = await db
+    .select()
+    .from(sdk_pr_requests)
+    .where(
+      and(
+        eq(sdk_pr_requests.repo_id, repoId),
+        eq(sdk_pr_requests.owner_user_id, userId),
+        eq(sdk_pr_requests.mode, mode),
+      ),
+    )
+    .orderBy(desc(sdk_pr_requests.created_at))
+    .limit(1);
+  return rows[0] ?? null;
+}

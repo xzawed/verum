@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getRepoStatus, getWorkerAlive, getLatestSdkPrRequest } from "@/lib/db/queries";
+import { getRepoStatus, getWorkerAlive, getLatestSdkPrRequestByMode } from "@/lib/db/queries";
 import StagesView from "./StagesView";
 import { ActivationCard } from "@/components/repo/ActivationCard";
 import type { ActivationData } from "@/components/repo/ActivationCard";
@@ -26,10 +26,13 @@ export default async function RepoDashboardPage({
   const fullName = status.repo.github_url.replace("https://github.com/", "");
   const repoDisplayName = fullName.split("/")[1] ?? fullName;
 
-  const sdkPrRequest =
+  const [sdkPrObserve, sdkPrBidirectional] =
     status.latestAnalysis != null
-      ? await getLatestSdkPrRequest(userId, repoId)
-      : null;
+      ? await Promise.all([
+          getLatestSdkPrRequestByMode(userId, repoId, "observe"),
+          getLatestSdkPrRequestByMode(userId, repoId, "bidirectional"),
+        ])
+      : [null, null];
 
   const activation: ActivationData = {
     inference: status.latestInference
@@ -107,8 +110,10 @@ export default async function RepoDashboardPage({
           <ActivationCard
             repoId={repoId}
             activation={activation}
-            existingPrUrl={sdkPrRequest?.pr_url ?? null}
-            existingPrNumber={sdkPrRequest?.pr_number ?? null}
+            existingPrUrl={sdkPrObserve?.pr_url ?? null}
+            existingPrNumber={sdkPrObserve?.pr_number ?? null}
+            existingBidirectionalPrUrl={sdkPrBidirectional?.pr_url ?? null}
+            existingBidirectionalPrNumber={sdkPrBidirectional?.pr_number ?? null}
           />
         </div>
       )}

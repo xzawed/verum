@@ -563,14 +563,14 @@ describe("getModelPricing", () => {
 describe("createSdkPrRequest", () => {
   it("returns the new request id on success", async () => {
     mockInsert.mockReturnValue(makeInsertChain([{ id: "pr-req-1" }]));
-    const id = await createSdkPrRequest({ userId: USER_A, repoId: "repo-1", analysisId: "analysis-1" });
+    const id = await createSdkPrRequest({ userId: USER_A, repoId: "repo-1", analysisId: "analysis-1", mode: "observe" });
     expect(id).toBe("pr-req-1");
   });
 
   it("throws when INSERT returns no row", async () => {
     mockInsert.mockReturnValue(makeInsertChain([]));
     await expect(
-      createSdkPrRequest({ userId: USER_A, repoId: "repo-1", analysisId: "analysis-1" }),
+      createSdkPrRequest({ userId: USER_A, repoId: "repo-1", analysisId: "analysis-1", mode: "bidirectional" }),
     ).rejects.toThrow("createSdkPrRequest: INSERT returned no row");
   });
 });
