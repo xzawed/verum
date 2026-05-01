@@ -6,15 +6,14 @@ import logging
 import uuid
 from typing import Any
 
-_log = logging.getLogger(__name__)
-
-_EVAL_PAIRS_MIN = 10
-
 import src.config as cfg
 from src.loop.llm_client import call_claude
 from src.loop.utils import parse_json_response
 from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
+
+_log = logging.getLogger(__name__)
+_EVAL_PAIRS_MIN = 10
 
 _SYSTEM = "You are an expert prompt engineer and AI quality specialist. Respond ONLY with valid JSON. No markdown, no explanation."
 
