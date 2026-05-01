@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { RepoStatus } from "@/lib/db/queries";
 import { useAdaptivePolling } from "@/hooks/useAdaptivePolling";
+import { useLocale } from "@/context/LocaleContext";
+import { t } from "@/lib/i18n";
+import { useCountUp } from "@/hooks/useCountUp";
 import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
 import ObserveSection from "./ObserveSection";
 import ExperimentSection from "./ExperimentSection";
@@ -15,14 +19,14 @@ interface Props {
 
 // Stage metadata for the stepper
 const STAGES = [
-  { key: "analyze", label: "ANALYZE" },
-  { key: "infer", label: "INFER" },
-  { key: "harvest", label: "HARVEST" },
-  { key: "generate", label: "GENERATE" },
-  { key: "deploy", label: "DEPLOY" },
-  { key: "observe", label: "OBSERVE" },
-  { key: "experiment", label: "EXPERIMENT" },
-  { key: "evolve", label: "EVOLVE" },
+  { key: "analyze",    label: "ANALYZE",    tk: "stageAnalyze"    },
+  { key: "infer",      label: "INFER",      tk: "stageInfer"      },
+  { key: "harvest",    label: "HARVEST",    tk: "stageHarvest"    },
+  { key: "generate",   label: "GENERATE",   tk: "stageGenerate"   },
+  { key: "deploy",     label: "DEPLOY",     tk: "stageDeploy"     },
+  { key: "observe",    label: "OBSERVE",    tk: "stageObserve"    },
+  { key: "experiment", label: "EXPERIMENT", tk: "stageExperiment" },
+  { key: "evolve",     label: "EVOLVE",     tk: "stageEvolve"     },
 ] as const;
 
 const STAGE_COLORS: Record<string, { dot: string; bg: string; text: string; leftBorder: string; progress: string }> = {
@@ -50,6 +54,8 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
     latestDeploymentId,
     latestDeploymentExperimentStatus,
   } = status;
+
+  const { locale } = useLocale();
 
   const isRunning = (s: string | null | undefined) => s === "pending" || s === "running";
 
@@ -110,12 +116,15 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
     ? (latestAnalysis.call_sites as unknown[]).length
     : null;
 
+  const callSitesDisplay = useCountUp(callSitesCount ?? 0);
+  const chunksDisplay = useCountUp(harvestChunks);
+
   return (
     <div className="space-y-4">
       {/* ── Loop Progress Stepper ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Verum Loop Progress
+          {t("stages", "loopProgress", locale)}
         </p>
         <div className="flex items-center">
           {STAGES.map((stage, i) => {
@@ -126,13 +135,24 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
               <div key={stage.key} className="flex flex-1 items-center">
                 <div className="flex flex-col items-center gap-1.5">
                   {state === "done" ? (
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full ${colors.dot}`}>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full ${colors.dot}`}
+                    >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                        <polyline points="20 6 9 17 4 12" />
+                        <motion.polyline
+                          points="20 6 9 17 4 12"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+                        />
                       </svg>
-                    </div>
+                    </motion.div>
                   ) : state === "active" ? (
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${colors.dot.replace("bg-", "border-")} ${colors.bg}`}>
+                    <div className={`relative flex h-7 w-7 items-center justify-center rounded-full border-2 ${colors.dot.replace("bg-", "border-")} ${colors.bg}`}>
+                      <span className={`absolute inset-0 rounded-full ${colors.dot} animate-breathe opacity-25`} />
                       <span className={`h-2 w-2 animate-pulse rounded-full ${colors.dot}`} />
                     </div>
                   ) : (
@@ -150,15 +170,19 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
                     }`}
                     style={{ width: "40px" }}
                   >
-                    {stage.label}
+                    {t("stages", stage.tk, locale)}
                   </span>
                 </div>
                 {!isLast && (
-                  <div
-                    className={`mb-5 h-0.5 flex-1 ${
-                      stepStates[i] === "done" ? colors.dot.replace("bg-", "bg-") : "bg-slate-200"
-                    }`}
-                  />
+                  <div className="relative mb-5 h-0.5 flex-1 bg-slate-200">
+                    <motion.div
+                      className={`absolute inset-y-0 left-0 right-0 ${colors.dot}`}
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: stepStates[i] === "done" ? 1 : 0 }}
+                      style={{ transformOrigin: "left" }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
                 )}
               </div>
             );
@@ -167,24 +191,33 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
       </div>
 
       {/* ── Active Stage Card ── */}
-      {activeStageKey && activeColors && (
-        <div className={`rounded-xl border border-slate-200 border-l-4 ${activeColors.leftBorder} ${activeColors.bg} p-4`}>
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${activeColors.bg} ${activeColors.text}`}>
-                {STAGES[activeStageIdx].label}
-              </span>
-              <span className={`flex items-center gap-1.5 text-xs ${activeColors.text}`}>
-                <span className={`inline-block h-1.5 w-1.5 animate-pulse rounded-full ${activeColors.dot}`} />
-                Running
-              </span>
+      <AnimatePresence>
+        {activeStageKey && activeColors && (
+          <motion.div
+            key={activeStageKey}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className={`rounded-xl border border-slate-200 border-l-4 ${activeColors.leftBorder} ${activeColors.bg} p-4`}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${activeColors.bg} ${activeColors.text}`}>
+                  {STAGES[activeStageIdx].label}
+                </span>
+                <span className={`flex items-center gap-1.5 text-xs ${activeColors.text}`}>
+                  <span className={`inline-block h-1.5 w-1.5 animate-pulse rounded-full ${activeColors.dot}`} />
+                  {t("common", "running", locale)}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/50">
-            <div className={`h-full w-1/3 rounded-full ${activeColors.progress}`} />
-          </div>
-        </div>
-      )}
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/50">
+              <div className={`h-full w-1/3 rounded-full ${activeColors.progress}`} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Quick Stats ── */}
       {(callSitesCount !== null || latestInference?.domain || harvestChunks > 0) && (
@@ -192,7 +225,7 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
           {callSitesCount !== null && (
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="mb-1 text-xs text-slate-400">Call Sites</p>
-              <p className="text-xl font-bold text-slate-900">{callSitesCount}</p>
+              <p className="text-xl font-bold text-slate-900">{callSitesDisplay}</p>
               <p className="mt-0.5 font-mono text-xs text-slate-500">
                 {latestAnalysis?.call_sites != null &&
                   [...new Set(
@@ -217,7 +250,7 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
           {harvestChunks > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="mb-1 text-xs text-slate-400">Chunks</p>
-              <p className="text-xl font-bold text-slate-900">{harvestChunks.toLocaleString()}</p>
+              <p className="text-xl font-bold text-slate-900">{chunksDisplay.toLocaleString()}</p>
               <p className="mt-0.5 text-xs text-slate-500">
                 {harvestSourcesDone}/{harvestSourcesTotal} sources
               </p>
