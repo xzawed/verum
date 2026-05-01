@@ -1,12 +1,12 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
-import { deployments, rag_configs, repos } from "@/lib/db/schema";
+import { deployments, rag_configs, repos, traces } from "@/lib/db/schema";
 import {
   countChunks,
   getLatestAnalysis,
   getLatestInference,
 } from "@/lib/db/queries";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 
 interface RagConfig {
   chunking_strategy: string;
@@ -38,6 +38,7 @@ interface ActivationResponse {
   deployment: {
     id: string;
     traffic_split: number;
+    trace_count: number;
   } | null;
 }
 
@@ -138,6 +139,16 @@ export async function GET(
       }
     }
 
+    let traceCount = 0;
+    if (depRow) {
+      const countRows = await db
+        .select({ total: count() })
+        .from(traces)
+        .where(eq(traces.deployment_id, depRow.id))
+        .limit(1);
+      traceCount = Number(countRows[0]?.total ?? 0);
+    }
+
     // Build response — all sections nullable
     const body: ActivationResponse = {
       inference: inference
@@ -175,6 +186,7 @@ export async function GET(
               "variant" in (depRow.traffic_split as Record<string, unknown>)
                 ? Number((depRow.traffic_split as Record<string, unknown>).variant)
                 : 0,
+            trace_count: traceCount,
           }
         : null,
     };
