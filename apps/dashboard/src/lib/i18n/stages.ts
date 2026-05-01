@@ -1,0 +1,27 @@
+import type { StringGroup } from "./types";
+
+export const stages = {
+  stageAnalyze:        { en: "Analyze",             ko: "분석",           ja: "分析" },
+  stageInfer:          { en: "Infer",               ko: "추론",           ja: "推論" },
+  stageHarvest:        { en: "Harvest",             ko: "수집",           ja: "収集" },
+  stageGenerate:       { en: "Generate",            ko: "생성",           ja: "生成" },
+  stageDeploy:         { en: "Deploy",              ko: "배포",           ja: "デプロイ" },
+  stageObserve:        { en: "Observe",             ko: "관측",           ja: "観測" },
+  stageExperiment:     { en: "Experiment",          ko: "실험",           ja: "実験" },
+  stageEvolve:         { en: "Evolve",              ko: "진화",           ja: "進化" },
+  analyzing:           { en: "Analyzing…",          ko: "분석 중…",       ja: "分析中…" },
+  inferring:           { en: "Inferring…",          ko: "추론 중…",       ja: "推論中…" },
+  harvesting:          { en: "Harvesting…",         ko: "수집 중…",       ja: "収集中…" },
+  generating:          { en: "Generating…",         ko: "생성 중…",       ja: "生成中…" },
+  deploying:           { en: "Deploying…",          ko: "배포 중…",       ja: "デプロイ中…" },
+  loopProgress:        { en: "Loop Progress",       ko: "루프 진행",      ja: "ループの進捗" },
+  quickStats:          { en: "Quick Stats",         ko: "빠른 통계",      ja: "クイック統計" },
+  startAnalysis:       { en: "Start Analysis",      ko: "분석 시작",      ja: "分析を開始" },
+  rerunAnalysis:       { en: "Re-run Analysis",     ko: "분석 재실행",    ja: "分析を再実行" },
+  analysisInProgress:  { en: "Analysis in progress…", ko: "분석 중…",    ja: "分析中…" },
+  callSitesFound:      { en: "call sites found",    ko: "호출 지점 발견", ja: "呼び出し箇所を検出" },
+  chunksHarvested:     { en: "chunks harvested",    ko: "청크 수집",      ja: "チャンク収集" },
+  variantsGenerated:   { en: "variants",            ko: "변형",           ja: "バリアント" },
+  evalPairs:           { en: "eval pairs",          ko: "평가 쌍",        ja: "評価ペア" },
+  stageComplete:       { en: "Stage complete",      ko: "단계 완료",      ja: "ステージ完了" },
+} as const satisfies StringGroup;
