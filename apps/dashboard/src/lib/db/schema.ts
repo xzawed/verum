@@ -268,6 +268,7 @@ export const sdk_pr_requests = pgTable("sdk_pr_requests", {
   analysis_id: uuid("analysis_id")
     .notNull()
     .references(() => analyses.id, { onDelete: "cascade" }),
+  mode: varchar("mode", { length: 32 }).notNull().default("observe"),
   status: varchar("status", { length: 32 }).notNull().default("pending"),
   pr_url: text("pr_url"),
   pr_number: integer("pr_number"),

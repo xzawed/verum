@@ -397,6 +397,7 @@ export async function createSdkPrRequest(opts: {
   userId: string;
   repoId: string;
   analysisId: string;
+  mode: "observe" | "bidirectional";
 }): Promise<string> {
   const rows = await db
     .insert(sdk_pr_requests)
@@ -404,6 +405,7 @@ export async function createSdkPrRequest(opts: {
       repo_id: opts.repoId,
       owner_user_id: opts.userId,
       analysis_id: opts.analysisId,
+      mode: opts.mode,
       status: "pending",
     })
     .returning({ id: sdk_pr_requests.id });
