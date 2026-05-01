@@ -33,3 +33,18 @@ body {
 .animate-breathe {
   animation: breathe 2s ease-in-out infinite;
 }
+
+/* Entry animation: fade up from 10px below */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dash-offset march for empty state dashed border */
+@keyframes dashMarch {
+  to { stroke-dashoffset: -20; }
+}
+.animate-dash-march {
+  stroke-dasharray: 6 4;
+  animation: dashMarch 1s linear infinite;
+}
