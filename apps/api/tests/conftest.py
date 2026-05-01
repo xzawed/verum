@@ -121,3 +121,18 @@ async def async_db_session() -> AsyncGenerator[Any, None]:
             await session.rollback()
 
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def reset_llm_client_singleton() -> None:
+    """Reset the LLM client module-level singleton before and after each test.
+
+    Prevents _client cached from a previous test from leaking into the next
+    test, which would cause patch("anthropic.AsyncAnthropic") to be ignored
+    and monkeypatch.delenv("ANTHROPIC_API_KEY") to have no effect on _get_client.
+    """
+    import src.loop.llm_client as _llm
+
+    _llm._client = None
+    yield
+    _llm._client = None
