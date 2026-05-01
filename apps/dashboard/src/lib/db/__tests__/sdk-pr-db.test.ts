@@ -41,10 +41,10 @@ describe("sdk_pr_requests DB helpers", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("createSdkPrRequest inserts and returns the new row id", async () => {
-    const id = await createSdkPrRequest({ userId: "user-1", repoId: "repo-1", analysisId: "analysis-1" });
+    const id = await createSdkPrRequest({ userId: "user-1", repoId: "repo-1", analysisId: "analysis-1", mode: "observe" });
     expect(id).toBe("req-uuid-1");
     expect(mockInsertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ repo_id: "repo-1", owner_user_id: "user-1", status: "pending" }),
+      expect.objectContaining({ repo_id: "repo-1", owner_user_id: "user-1", mode: "observe", status: "pending" }),
     );
   });
 

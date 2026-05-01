@@ -44,6 +44,7 @@ import {
   getDailyMetrics,
   getSdkPrRequest,
   getLatestSdkPrRequest,
+  getLatestSdkPrRequestByMode,
 } from "../queries";
 import { db } from "@/lib/db/client";
 
@@ -727,6 +728,55 @@ describe("getLatestSdkPrRequest(userId, repoId)", () => {
   it("returns null when no PR request exists", async () => {
     mockSelect.mockReturnValue(makeSelectChain([]));
     const result = await getLatestSdkPrRequest(USER_A, "repo-a");
+    expect(result).toBeNull();
+  });
+});
+
+// ── getLatestSdkPrRequestByMode ───────────────────────────────────────────────
+
+describe("getLatestSdkPrRequestByMode(userId, repoId, mode)", () => {
+  const observeRow = {
+    id: "req-observe-1",
+    owner_user_id: USER_A,
+    repo_id: "repo-a",
+    mode: "observe",
+    status: "pr_created",
+    pr_url: "https://github.com/owner/repo/pull/1",
+    pr_number: 1,
+    created_at: new Date(),
+  };
+  const bidirectionalRow = {
+    id: "req-bidi-1",
+    owner_user_id: USER_A,
+    repo_id: "repo-a",
+    mode: "bidirectional",
+    status: "pr_created",
+    pr_url: "https://github.com/owner/repo/pull/2",
+    pr_number: 2,
+    created_at: new Date(),
+  };
+
+  it("returns the most recent observe-mode PR request", async () => {
+    mockSelect.mockReturnValue(makeSelectChain([observeRow]));
+    const result = await getLatestSdkPrRequestByMode(USER_A, "repo-a", "observe");
+    expect(result).toEqual(observeRow);
+  });
+
+  it("returns the most recent bidirectional-mode PR request", async () => {
+    mockSelect.mockReturnValue(makeSelectChain([bidirectionalRow]));
+    const result = await getLatestSdkPrRequestByMode(USER_A, "repo-a", "bidirectional");
+    expect(result).toEqual(bidirectionalRow);
+  });
+
+  it("returns null when no PR request exists for that mode", async () => {
+    mockSelect.mockReturnValue(makeSelectChain([]));
+    const result = await getLatestSdkPrRequestByMode(USER_A, "repo-a", "bidirectional");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for cross-tenant access (owner mismatch)", async () => {
+    mockSelect.mockReturnValue(makeSelectChain([]));
+    const result = await getLatestSdkPrRequestByMode(USER_B, "repo-a", "observe");
     expect(result).toBeNull();
   });
 });
