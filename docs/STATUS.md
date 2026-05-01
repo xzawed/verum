@@ -2,7 +2,7 @@
 type: status
 authority: tier-1
 canonical-for: [current-implementation-state, file-map, api-index, db-schema]
-last-updated: 2026-04-26
+last-updated: 2026-05-01
 ---
 
 # Verum — Current Implementation Status
@@ -28,6 +28,10 @@ last-updated: 2026-04-26
 | [8] EVOLVE | 승자 승격 자동화 | ✅ Done | Phase 4-B |
 
 **Next:** F-4.11 — ArcanaInsight 자동 진화 1회 달성 (프로덕션 데이터 누적 필요, xzawed 담당)
+
+**ArcanaInsight 통합 현황 (2026-05-01):**
+- Phase 0 (OTLP env-only): ✅ 적용 완료 (기존)
+- Phase 1 (Auto-instrument `import verum.openai`): ✅ PR #186 → ArcanaInsight main 머지 완료
 
 **Integration test pipeline:** `make integration-up && make integration-test` — ANALYZE→EVOLVE full-loop via Docker Compose (prod image + mock-providers + fake-arcana). Nightly CI at 08:00 UTC. See [docs/integration-tests.md](integration-tests.md).
 
@@ -282,8 +286,9 @@ trace_id = await client.record(
 | `apps/dashboard/src/app/api/v1/otlp/v1/traces/route.ts` | Phase 0 OTLP HTTP receiver — openinference span 수신, 인증 불필요 |
 | `apps/dashboard/src/app/api/v1/activation/[repoId]/route.ts` | ActivationCard 데이터 엔드포인트 — INFER/GENERATE/HARVEST 요약 반환 |
 | `apps/dashboard/src/components/repo/ActivationCard.tsx` | SDK 설치 전 통합 선택 UI (Phase 0 OTLP / Phase 1 bidirectional 두 모드 버튼) |
-| `apps/dashboard/src/lib/sdk-pr/transformer.ts` | PR 파일 변경 생성기 — callSites 기반으로 `.env.example`, `package.json`, `requirements.txt`, import 라인 변경 빌드 (`observe` / `bidirectional` 두 모드). `buildPrFileChanges()` 메인 export |
-| `apps/dashboard/src/app/api/repos/[id]/sdk-pr/route.ts` | POST: GitHub PR 자동 생성 (Phase 0 env-only / Phase 1 bidirectional). GET: 최근 sdk-pr 요청 상태 조회 |
+| `apps/dashboard/src/lib/sdk-pr/transformer.ts` | PR 파일 변경 생성기 — callSites 기반으로 `.env.example`, `package.json`, `requirements.txt`, import 라인 변경 빌드 (`observe` / `bidirectional` 두 모드). Windows `\` 경로 자동 정규화 + `..`·절대경로 거부 포함. `buildPrFileChanges()` 메인 export |
+| `apps/dashboard/src/lib/github/pr-creator.ts` | GitHub Git Data API 클라이언트 (blob→tree→commit→ref→PR 7단계). `res.text()` 먼저 읽어 에러 body 항상 포함; 비-JSON 응답은 `GitHubApiError(parse error)`로 래핑 |
+| `apps/dashboard/src/app/api/repos/[id]/sdk-pr/route.ts` | POST: GitHub PR 자동 생성 (Phase 0 env-only / Phase 1 bidirectional). `call_sites` Zod 검증, `readFile` try/catch 격리, `github_url` `.git`·SSH URL 정규화, `fileChanges=[]` 시 200 조기 반환. GET: 최근 sdk-pr 요청 상태 조회 |
 | `apps/dashboard/src/app/api/repos/[id]/sdk-pr/[requestId]/route.ts` | GET: 개별 sdk-pr 요청 상세 (requestId + owner 검증) |
 
 ### SDK Packages
