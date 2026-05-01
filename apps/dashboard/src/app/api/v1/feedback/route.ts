@@ -1,6 +1,12 @@
+import { z } from "zod";
 import { updateFeedback } from "@/lib/db/jobs";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
+
+const FeedbackBodySchema = z.object({
+  trace_id: z.string().uuid(),
+  score: z.union([z.literal(-1), z.literal(1)]),
+});
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
@@ -11,11 +17,11 @@ export async function POST(req: Request) {
   const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), 30, ip, 60);
   if (ipGate) return ipGate;
 
-  const body = await req.json() as { trace_id: string; score: number };
-
-  if (!body.trace_id || (body.score !== 1 && body.score !== -1)) {
-    return new Response("score must be 1 or -1", { status: 400 });
+  const parsed = FeedbackBodySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json({ error: "invalid body" }, { status: 400 });
   }
+  const body = parsed.data;
 
   const auth_result = await validateApiKey(apiKey);
   if (!auth_result) {

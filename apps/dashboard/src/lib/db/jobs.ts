@@ -58,7 +58,7 @@ export async function enqueueAnalyze(opts: {
     .values({ repo_id: opts.repoId, status: "pending", started_at: new Date() })
     .returning();
   const analysis = analysisRows[0];
-  if (!analysis) throw new Error("enqueueAnalyze: analysis INSERT returned no row");;
+  if (!analysis) throw new Error("enqueueAnalyze: analysis INSERT returned no row");
 
   await db.insert(verum_jobs).values({
     kind: "analyze",
@@ -90,7 +90,7 @@ export async function enqueueInfer(opts: {
     })
     .returning();
   const inference = inferenceRows[0];
-  if (!inference) throw new Error("enqueueInfer: inference INSERT returned no row");;
+  if (!inference) throw new Error("enqueueInfer: inference INSERT returned no row");
 
   await db.insert(verum_jobs).values({
     kind: "infer",

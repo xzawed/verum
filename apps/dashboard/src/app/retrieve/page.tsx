@@ -57,8 +57,11 @@ export default async function RetrievePage({
           const s = await auth();
           if (!s?.user) redirect("/login");
           const uid = String((s.user as Record<string, unknown>).id ?? "");
-          const infId = formData.get("inference_id") as string;
-          const q = formData.get("query") as string;
+          const infId = formData.get("inference_id");
+          const q = formData.get("query");
+          if (typeof infId !== "string" || typeof q !== "string" || !infId || !q) {
+            return { error: "Missing required fields" };
+          }
           const hyb = formData.get("hybrid") === "true";
           const k = Number(formData.get("top_k") ?? "5") || 5;
           const newJobId = await enqueueRetrieve({ userId: uid, inferenceId: infId, query: q, hybrid: hyb, topK: k });

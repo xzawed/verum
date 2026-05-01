@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-
-const FREE_LIMITS = {
-  traces: 1_000,
-  chunks: 10_000,
-  repos: 3,
-} as const;
+import { FREE_LIMITS } from "@/lib/db/quota";
 
 export async function GET() {
   const session = await auth();
