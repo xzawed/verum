@@ -2,8 +2,13 @@
 """GENERATE engine — 3 Claude Sonnet calls: variants → RAG config → eval pairs."""
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
+
+_log = logging.getLogger(__name__)
+
+_EVAL_PAIRS_MIN = 10
 
 import src.config as cfg
 from src.loop.llm_client import call_claude
@@ -127,13 +132,21 @@ Respond as JSON:
   ]
 }}"""
     data = await _call_generate(eval_prompt)
+    pairs = data.get("pairs", [])
+    if len(pairs) < _EVAL_PAIRS_MIN:
+        _log.warning(
+            "generate/eval_pairs: Claude returned %d pairs (expected ≥%d); "
+            "proceeding with what was returned",
+            len(pairs),
+            _EVAL_PAIRS_MIN,
+        )
     return [
         EvalPair(
             query=p["query"],
             expected_answer=p["expected_answer"],
             context_needed=bool(p.get("context_needed", True)),
         )
-        for p in data.get("pairs", [])
+        for p in pairs
     ]
 
 

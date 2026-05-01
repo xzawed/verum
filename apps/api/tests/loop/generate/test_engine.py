@@ -191,3 +191,116 @@ async def test_run_generate_empty_sample_chunks(monkeypatch):
     assert call_count == 3
     assert len(result.prompt_variants) == 5
     assert result.eval_pairs == []
+
+
+@pytest.mark.asyncio
+async def test_run_generate_warns_when_eval_pairs_below_minimum(monkeypatch, caplog):
+    """run_generate emits WARNING when Claude returns fewer than 10 eval pairs."""
+    import logging
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    call_count = 0
+
+    async def fake_create(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            payload = {"variants": [
+                {"variant_type": "original", "content": "v1", "variables": []},
+                {"variant_type": "cot", "content": "v2", "variables": []},
+                {"variant_type": "few_shot", "content": "v3", "variables": []},
+                {"variant_type": "role_play", "content": "v4", "variables": []},
+                {"variant_type": "concise", "content": "v5", "variables": []},
+            ]}
+        elif call_count == 2:
+            payload = {"chunking_strategy": "recursive", "chunk_size": 512,
+                       "chunk_overlap": 50, "top_k": 5, "hybrid_alpha": 0.7}
+        else:
+            # Only 3 pairs — below minimum of 10
+            payload = {"pairs": [
+                {"query": "q1", "expected_answer": "a1", "context_needed": True},
+                {"query": "q2", "expected_answer": "a2", "context_needed": True},
+                {"query": "q3", "expected_answer": "a3", "context_needed": False},
+            ]}
+        mock = MagicMock()
+        mock.content = [MagicMock(text=json.dumps(payload))]
+        return mock
+
+    with patch("anthropic.AsyncAnthropic") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(side_effect=fake_create)
+        mock_client_cls.return_value = mock_client
+
+        with caplog.at_level(logging.WARNING, logger="src.loop.generate.engine"):
+            result = await run_generate(
+                inference_id=str(uuid.uuid4()),
+                domain="divination/tarot",
+                tone="mystical",
+                language="ko",
+                user_type="consumer",
+                summary="A tarot service.",
+                prompt_templates=[{"content": "You are a tarot reader.", "variables": []}],
+                sample_chunks=["The Tower card."],
+            )
+
+    # Must still return all 3 pairs — no data is dropped
+    assert len(result.eval_pairs) == 3
+    # Must emit a warning mentioning the actual count
+    warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("3" in msg for msg in warning_messages), (
+        f"Expected warning containing '3', got: {warning_messages}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_generate_no_warning_when_eval_pairs_at_minimum(monkeypatch, caplog):
+    """run_generate does NOT warn when Claude returns exactly 10 eval pairs."""
+    import logging
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    call_count = 0
+
+    async def fake_create(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            payload = {"variants": [
+                {"variant_type": "original", "content": "v1", "variables": []},
+                {"variant_type": "cot", "content": "v2", "variables": []},
+                {"variant_type": "few_shot", "content": "v3", "variables": []},
+                {"variant_type": "role_play", "content": "v4", "variables": []},
+                {"variant_type": "concise", "content": "v5", "variables": []},
+            ]}
+        elif call_count == 2:
+            payload = {"chunking_strategy": "recursive", "chunk_size": 512,
+                       "chunk_overlap": 50, "top_k": 5, "hybrid_alpha": 0.7}
+        else:
+            # Exactly 10 pairs — at boundary, no warning expected
+            payload = {"pairs": [
+                {"query": f"q{i}", "expected_answer": f"a{i}", "context_needed": True}
+                for i in range(10)
+            ]}
+        mock = MagicMock()
+        mock.content = [MagicMock(text=json.dumps(payload))]
+        return mock
+
+    with patch("anthropic.AsyncAnthropic") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(side_effect=fake_create)
+        mock_client_cls.return_value = mock_client
+
+        with caplog.at_level(logging.WARNING, logger="src.loop.generate.engine"):
+            result = await run_generate(
+                inference_id=str(uuid.uuid4()),
+                domain="divination/tarot",
+                tone="mystical",
+                language="ko",
+                user_type="consumer",
+                summary="A tarot service.",
+                prompt_templates=[{"content": "You are a tarot reader.", "variables": []}],
+                sample_chunks=["The Tower card."],
+            )
+
+    assert len(result.eval_pairs) == 10
+    warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert not warning_messages, f"Unexpected warnings: {warning_messages}"
