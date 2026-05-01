@@ -8,10 +8,10 @@ import uuid
 from typing import Any
 
 import src.config as cfg
-from src.loop.llm_client import call_claude
-from src.loop.utils import parse_json_response
 from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
+from src.loop.llm_client import call_claude
+from src.loop.utils import parse_json_response
 
 _log = logging.getLogger(__name__)
 _EVAL_PAIRS_MIN = 10

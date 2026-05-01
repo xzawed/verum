@@ -21,6 +21,7 @@ from src.db.enums import AnalysisStatus
 from src.db.models.analyses import Analysis
 from src.db.session import AsyncSessionLocal
 from src.loop.analyze.models import AnalysisResult
+
 from .engine import run_infer
 from .models import ServiceInference
 

@@ -45,6 +45,11 @@ status: active
 | What are the hard constraints? | [CLAUDE.md §⚠️ 하지 말아야 할 것](../CLAUDE.md) |
 | What is this week's status? | [WEEKLY.md](WEEKLY.md) (Phase 1+, maintained by xzawed) |
 | What does this term mean? | [GLOSSARY.md](GLOSSARY.md) |
+| How do I deploy / self-host? | [DEPLOY.md](DEPLOY.md) |
+| What is the evaluation / scoring methodology? | [METHODOLOGY.md](METHODOLOGY.md) |
+| How do integration tests work? | [integration-tests.md](integration-tests.md) |
+| What remains before the Phase 5 launch? | [launch-remaining.md](launch-remaining.md) |
+| How do I migrate from v0 to v1? | [migration-notes.md](migration-notes.md) |
 
 ---
 

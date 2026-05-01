@@ -77,6 +77,10 @@ export class VerumClient {
   }
 
   async chat(params: ChatParams): Promise<ChatResult> {
+    console.warn(
+      "[verum] VerumClient.chat() is deprecated (v1.x). " +
+      "Use `import \"@verum/sdk/openai\"` for zero-invasive auto-instrumentation instead."
+    );
     const { messages, deploymentId } = params;
 
     if (!deploymentId) {

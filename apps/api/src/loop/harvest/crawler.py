@@ -10,7 +10,7 @@ import socket
 import ssl
 import time
 import zlib
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 import trafilatura

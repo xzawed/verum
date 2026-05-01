@@ -62,7 +62,6 @@ last-updated: 2026-05-01
 | `0018_chunks_inference_fk` | `chunks.inference_id → inferences.id CASCADE` FK |
 | `0019_lookup_indexes` | `ix_traces_deployment_variant_created`, `ix_verum_jobs_status_kind_created` |
 | `0019_sdk_pr_requests` | `sdk_pr_requests` — SDK PR 자동 생성 요청 추적 테이블 |
-| `0019_lookup_indexes` | `ix_traces_deployment_variant_created`, `ix_verum_jobs_status_kind_created` |
 | `0020_row_level_security` | RLS ENABLE + 정책 (repos: 4개, usage_quotas: 3개) — SSRF GUC 기반. NOT FORCED (owner 우회). |
 | `0021_rls_roles` | `verum_app` 로그인 역할 생성 + DML GRANT + default privileges |
 | `0022_force_row_level_security` | `FORCE ROW LEVEL SECURITY` on repos + usage_quotas. **⚠️ DATABASE_URL을 verum_app으로 변경한 후에만 실행할 것.** |
