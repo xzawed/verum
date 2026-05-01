@@ -99,7 +99,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   it("returns 200 with fully populated ActivationResponse (full DAG)", async () => {
     mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
 
-    // db.select is called 3 times: owner check → rag_configs → deployments
+    // db.select is called 4 times: owner check → rag_configs → deployments → trace count
     mockDb.select
       .mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any)
       .mockReturnValueOnce(
@@ -120,7 +120,8 @@ describe("GET /api/v1/activation/[repoId]", () => {
             traffic_split: { baseline: 0.9, variant: 0.1 },
           },
         ]) as any,
-      );
+      )
+      .mockReturnValueOnce(makeSelectChain([{ total: 5 }]) as any);
 
     mockGetLatestAnalysis.mockResolvedValue({
       id: "analysis-1",
@@ -161,7 +162,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
       chunking_strategy: "recursive",
       chunk_size: 512,
     });
-    expect(body.deployment).toEqual({ id: "dep-1", traffic_split: 0.1 });
+    expect(body.deployment).toEqual({ id: "dep-1", traffic_split: 0.1, trace_count: 5 });
   });
 
   it("returns 500 when an unexpected error is thrown inside try block", async () => {
