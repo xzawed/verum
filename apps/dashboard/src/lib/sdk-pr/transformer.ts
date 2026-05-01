@@ -116,6 +116,21 @@ function buildImportChange(filePath: string, original: string): FileChange | nul
   return { path: filePath, content: lines.join("\n") };
 }
 
+// ── Path normalization ────────────────────────────────────────────────────────
+
+function normalizePath(p: string): string {
+  // GitHub Git Trees API requires forward slashes and rejects absolute paths or traversals.
+  return p.replace(/\\/g, "/");
+}
+
+function isSafePath(p: string): boolean {
+  const normalized = normalizePath(p);
+  return (
+    !normalized.startsWith("/") &&
+    !normalized.split("/").some((seg) => seg === "..")
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function buildPrFileChanges(opts: {
@@ -137,16 +152,18 @@ export function buildPrFileChanges(opts: {
   let hasPyCallSites = false;
   let hasTsCallSites = false;
   for (const site of callSites) {
-    if (isPyFile(site.file_path)) {
+    const filePath = normalizePath(site.file_path);
+    if (!isSafePath(filePath)) continue;
+    if (isPyFile(filePath)) {
       hasPyCallSites = true;
-    } else if (isTsFile(site.file_path)) {
+    } else if (isTsFile(filePath)) {
       hasTsCallSites = true;
     } else {
       continue;
     }
-    const group = fileCallSites.get(site.file_path) ?? [];
-    group.push(site);
-    fileCallSites.set(site.file_path, group);
+    const group = fileCallSites.get(filePath) ?? [];
+    group.push({ ...site, file_path: filePath });
+    fileCallSites.set(filePath, group);
   }
 
   if (hasTsCallSites) {
@@ -159,7 +176,7 @@ export function buildPrFileChanges(opts: {
   }
 
   for (const [filePath] of fileCallSites) {
-    const original = existingFiles[filePath];
+    const original = existingFiles[filePath] ?? existingFiles[filePath.replaceAll("/", "\\")];
     if (!original) continue;
     const importChange = buildImportChange(filePath, original);
     if (importChange) changes.push(importChange);

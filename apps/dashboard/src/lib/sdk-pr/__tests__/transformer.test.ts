@@ -248,4 +248,38 @@ describe("buildPrFileChanges", () => {
     const lines = tsFile!.content.split("\n");
     expect(lines[0]).toBe('import "@verum/sdk/openai";');
   });
+
+  // ── Path normalization (Fix-D) ──────────────────────────────────────────────
+
+  it("normalizes Windows backslash paths to forward slashes", () => {
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: String.raw`src\services\ai.ts`, line: 5, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "src/services/ai.ts": sampleTsContent },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    const tsFile = changes.find((c) => c.path === "src/services/ai.ts");
+    expect(tsFile).toBeDefined();
+    expect(tsFile?.content).toContain('@verum/sdk/openai');
+  });
+
+  it("skips call sites with path traversal (..) in bidirectional mode", () => {
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "../../etc/passwd", line: 1, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "../../etc/passwd": "root:x:0:0" },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path.includes(".."))).toBeUndefined();
+  });
+
+  it("skips call sites with absolute paths in bidirectional mode", () => {
+    const changes = buildPrFileChanges({
+      callSites: [{ file_path: "/etc/passwd", line: 1, sdk: "openai", function: "create", prompt_ref: null }],
+      existingFiles: { "/etc/passwd": "root:x:0:0" },
+      repoFullName: "owner/repo",
+      mode: "bidirectional",
+    });
+    expect(changes.find((c) => c.path.startsWith("/"))).toBeUndefined();
+  });
 });
