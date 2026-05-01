@@ -2,6 +2,7 @@
 """GENERATE engine — 3 Claude Sonnet calls: variants → RAG config → eval pairs."""
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -10,6 +11,9 @@ from src.loop.llm_client import call_claude
 from src.loop.utils import parse_json_response
 from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
+
+_log = logging.getLogger(__name__)
+_EVAL_PAIRS_MIN = 10
 
 _SYSTEM = "You are an expert prompt engineer and AI quality specialist. Respond ONLY with valid JSON. No markdown, no explanation."
 
@@ -127,13 +131,21 @@ Respond as JSON:
   ]
 }}"""
     data = await _call_generate(eval_prompt)
+    pairs = data.get("pairs", [])
+    if len(pairs) < _EVAL_PAIRS_MIN:
+        _log.warning(
+            "generate/eval_pairs: Claude returned %d pairs (expected ≥%d); "
+            "proceeding with what was returned",
+            len(pairs),
+            _EVAL_PAIRS_MIN,
+        )
     return [
         EvalPair(
             query=p["query"],
             expected_answer=p["expected_answer"],
             context_needed=bool(p.get("context_needed", True)),
         )
-        for p in data.get("pairs", [])
+        for p in pairs
     ]
 
 

@@ -1,6 +1,9 @@
 jest.mock("@/lib/api/validateApiKey", () => ({
   validateApiKey: jest.fn(),
 }));
+jest.mock("@/lib/test/configFault", () => ({
+  consumeConfigFault: jest.fn().mockReturnValue(false),
+}));
 jest.mock("@/lib/db/client", () => ({
   db: {
     select: jest.fn().mockReturnThis(),
@@ -26,10 +29,12 @@ import { GET } from "../route";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { getVariantPrompt } from "@/lib/db/queries";
 import { db } from "@/lib/db/client";
+import { consumeConfigFault } from "@/lib/test/configFault";
 
 const mockValidateApiKey = validateApiKey as jest.MockedFunction<typeof validateApiKey>;
 const mockGetVariantPrompt = getVariantPrompt as jest.MockedFunction<typeof getVariantPrompt>;
 const mockDb = db as jest.Mocked<typeof db>;
+const mockConsumeConfigFault = consumeConfigFault as jest.MockedFunction<typeof consumeConfigFault>;
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/api/v1/deploy/dep-1/config", {
@@ -45,6 +50,7 @@ beforeEach(() => {
   (mockDb.where as jest.Mock).mockReturnValue(mockDb);
   (mockDb.limit as jest.Mock).mockResolvedValue([]);
   (mockDb.orderBy as jest.Mock).mockResolvedValue([]);
+  mockConsumeConfigFault.mockReturnValue(false);
 });
 
 describe("GET /api/v1/deploy/[id]/config", () => {
@@ -63,6 +69,18 @@ describe("GET /api/v1/deploy/[id]/config", () => {
     const req = makeRequest({ "x-verum-api-key": "a".repeat(41) });
     const res = await GET(req, { params: Promise.resolve({ id: "dep-1" }) });
     expect(res.status).toBe(403);
+  });
+
+  it("returns 503 when config fault is active", async () => {
+    mockValidateApiKey.mockResolvedValueOnce({
+      deploymentId: "dep-1",
+      userId: "user-1",
+    });
+    mockConsumeConfigFault.mockReturnValueOnce(true);
+
+    const req = makeRequest({ "x-verum-api-key": "a".repeat(41) });
+    const res = await GET(req, { params: Promise.resolve({ id: "dep-1" }) });
+    expect(res.status).toBe(503);
   });
 
   it("returns 200 with config when deployment is found", async () => {
