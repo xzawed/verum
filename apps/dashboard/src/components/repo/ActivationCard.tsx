@@ -1,7 +1,10 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
+import { useLocale } from "@/context/LocaleContext";
+import { t } from "@/lib/i18n";
 
 export interface ActivationData {
   inference: {
@@ -73,6 +76,8 @@ export function ActivationCard({ repoId, activation }: ActivationCardProps) {
   const [activating, setActivating] = useState(false);
   const [activateError, setActivateError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const { locale } = useLocale();
 
   // Poll for first trace when waiting
   useEffect(() => {
@@ -163,124 +168,183 @@ export function ActivationCard({ repoId, activation }: ActivationCardProps) {
 
   return (
     <section className="mt-8 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-      <h2 className="mb-1 text-lg font-semibold">Activate Verum</h2>
+      <h2 className="mb-1 text-lg font-semibold">{t("activation", "title", locale)}</h2>
       <p className="mb-5 text-sm text-neutral-500 dark:text-neutral-400">
-        {summaryParts.length > 0 ? summaryParts.join(" · ") : "Analysis in progress…"}
+        {summaryParts.length > 0 ? summaryParts.join(" · ") : t("activation", "analysisInProgress", locale)}
       </p>
 
-      {cardState === "no-generation" && (
-        <p className="text-sm text-neutral-400">
-          Waiting for GENERATE to complete before activation is available.
-        </p>
-      )}
-
-      {cardState === "ready" && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-neutral-600 dark:text-neutral-300">
-            Your prompts and RAG index are ready. Click <strong>Activate</strong> to get
-            your deployment credentials — then set 3 env vars and you&apos;re live.
-          </p>
-          {activateError && (
-            <p className="text-xs text-red-600 dark:text-red-400">Error: {activateError}</p>
-          )}
-          <button
-            onClick={() => void handleActivate()}
-            disabled={activating}
-            className="w-fit rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+      <AnimatePresence mode="wait">
+        {cardState === "no-generation" && (
+          <motion.p
+            key="no-generation"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-sm text-neutral-400"
           >
-            {activating ? "Activating…" : "Activate"}
-          </button>
-        </div>
-      )}
+            {t("activation", "noGeneration", locale)}
+          </motion.p>
+        )}
 
-      {cardState === "activated" && apiKey && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-md bg-amber-50 px-4 py-3 border border-amber-200 dark:bg-amber-950 dark:border-amber-800">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              Copy your API key now — it won&apos;t be shown again.
-            </p>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 rounded-md bg-neutral-100 p-1 w-fit dark:bg-neutral-800">
-            {(["python", "nodejs"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                  tab === t
-                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
-                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"
-                }`}
-              >
-                {t === "python" ? "Python" : "Node.js"}
-              </button>
-            ))}
-          </div>
-
-          {tab === "python" && (
-            <EnvBlock
-              install="pip install verum"
-              envVars={pythonEnvBlock}
-              note="verum-auto.pth instruments your OpenAI/Anthropic clients automatically at startup."
-              onCopyEnv={() => copy(pythonEnvBlock, "python-env")}
-              copied={copied === "python-env"}
-            />
-          )}
-
-          {tab === "nodejs" && (
-            <EnvBlock
-              install="npm install @verum/sdk"
-              envVars={nodejsEnvBlock}
-              note="NODE_OPTIONS loads the SDK before your app code runs — no import needed."
-              onCopyEnv={() => copy(nodejsEnvBlock, "nodejs-env")}
-              copied={copied === "nodejs-env"}
-            />
-          )}
-
-          <button
-            onClick={() => setCardState("waiting")}
-            className="w-fit rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        {cardState === "ready" && (
+          <motion.div
+            key="ready"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-col gap-3"
           >
-            Done — I&apos;ve saved these
-          </button>
-        </div>
-      )}
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+              {t("activation", "readyDesc", locale)}
+            </p>
+            {activateError && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {t("activation", "errorPrefix", locale)}{activateError}
+              </p>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => void handleActivate()}
+              disabled={activating}
+              className="w-fit rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              {activating ? t("common", "activating", locale) : t("common", "activate", locale)}
+            </motion.button>
+          </motion.div>
+        )}
 
-      {cardState === "waiting" && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-sm text-neutral-500">
-            <span
-              aria-label="waiting"
-              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"
-            />
-            Waiting for first trace…
-          </div>
-          {effectiveDeploymentId && (
-            <p className="font-mono text-xs text-neutral-400">
-              deployment: {effectiveDeploymentId}
-            </p>
-          )}
-          <p className="text-xs text-neutral-400">
-            Make an LLM call with your env vars set to see activity appear here.
-          </p>
-        </div>
-      )}
+        {cardState === "activated" && apiKey && (
+          <motion.div
+            key="activated"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col gap-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.1, duration: 0.25 }}
+              className="rounded-md bg-amber-50 px-4 py-3 border border-amber-200 dark:bg-amber-950 dark:border-amber-800"
+            >
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                {t("activation", "apiKeyCopyNow", locale)}
+              </p>
+            </motion.div>
 
-      {cardState === "connected" && (
-        <div className="flex items-start gap-3 rounded-md bg-emerald-50 px-4 py-3 border border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800">
-          <span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span>
-          <div>
-            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-              Connected
+            {/* Tabs */}
+            <div className="flex gap-1 rounded-md bg-neutral-100 p-1 w-fit dark:bg-neutral-800">
+              {(["python", "nodejs"] as Tab[]).map((tabKey) => (
+                <button
+                  key={tabKey}
+                  onClick={() => setTab(tabKey)}
+                  className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                    tab === tabKey
+                      ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
+                      : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"
+                  }`}
+                >
+                  {tabKey === "python" ? "Python" : "Node.js"}
+                </button>
+              ))}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.25 }}
+            >
+              {tab === "python" && (
+                <EnvBlock
+                  install="pip install verum"
+                  envVars={pythonEnvBlock}
+                  installLabel={t("activation", "install", locale)}
+                  envLabel={t("activation", "setEnvVars", locale)}
+                  note={t("activation", "sdkNoteAutoInst", locale)}
+                  copyLabel={t("common", "copyAll", locale)}
+                  copiedLabel={t("common", "copied", locale)}
+                  onCopyEnv={() => copy(pythonEnvBlock, "python-env")}
+                  copied={copied === "python-env"}
+                />
+              )}
+              {tab === "nodejs" && (
+                <EnvBlock
+                  install="npm install @verum/sdk"
+                  envVars={nodejsEnvBlock}
+                  installLabel={t("activation", "install", locale)}
+                  envLabel={t("activation", "setEnvVars", locale)}
+                  note={t("activation", "sdkNoteNodeOpts", locale)}
+                  copyLabel={t("common", "copyAll", locale)}
+                  copiedLabel={t("common", "copied", locale)}
+                  onCopyEnv={() => copy(nodejsEnvBlock, "nodejs-env")}
+                  copied={copied === "nodejs-env"}
+                />
+              )}
+            </motion.div>
+
+            <button
+              onClick={() => setCardState("waiting")}
+              className="w-fit rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {t("activation", "doneSaved", locale)}
+            </button>
+          </motion.div>
+        )}
+
+        {cardState === "waiting" && (
+          <motion.div
+            key="waiting"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex items-center gap-3 text-sm text-neutral-500">
+              {/* Multi-ring spinner */}
+              <div className="relative flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                <span className="absolute inset-0 rounded-full border-2 border-indigo-300 animate-breathe opacity-50" />
+                <span className="absolute inset-1 rounded-full border-2 border-indigo-400 animate-breathe opacity-75" style={{ animationDelay: "0.3s" }} />
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              </div>
+              {t("activation", "waitingForTrace", locale)}
+            </div>
+            {effectiveDeploymentId && (
+              <p className="font-mono text-xs text-neutral-400">
+                {t("activation", "deployment", locale)}: {effectiveDeploymentId}
+              </p>
+            )}
+            <p className="text-xs text-neutral-400">
+              {t("activation", "makeAnLlmCall", locale)}
             </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
-              Verum is receiving traces.{" "}
-              {traceCount > 0 ? `${fmt(traceCount)} trace${traceCount !== 1 ? "s" : ""} received.` : ""}
-            </p>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+
+        {cardState === "connected" && (
+          <motion.div
+            key="connected"
+            initial={{ opacity: 0, scale: 0.95, y: 4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="flex items-start gap-3 rounded-md bg-emerald-50 px-4 py-3 border border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800"
+          >
+            <span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span>
+            <div>
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                {t("common", "connected", locale)}
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                {t("activation", "tracesReceived", locale)}{" "}
+                {traceCount > 0 ? `${fmt(traceCount)} trace${traceCount !== 1 ? "s" : ""} received.` : ""}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -288,17 +352,21 @@ export function ActivationCard({ repoId, activation }: ActivationCardProps) {
 interface EnvBlockProps {
   readonly install: string;
   readonly envVars: string;
+  readonly installLabel: string;
+  readonly envLabel: string;
   readonly note: string;
+  readonly copyLabel: string;
+  readonly copiedLabel: string;
   readonly onCopyEnv: () => void;
   readonly copied: boolean;
 }
 
-function EnvBlock({ install, envVars, note, onCopyEnv, copied }: EnvBlockProps) {
+function EnvBlock({ install, envVars, installLabel, envLabel, note, copyLabel, copiedLabel, onCopyEnv, copied }: EnvBlockProps) {
   return (
     <div className="flex flex-col gap-3">
       <div>
         <p className="mb-1 text-xs font-medium text-neutral-500 uppercase tracking-wide">
-          1. Install
+          {installLabel}
         </p>
         <code className="block rounded-md bg-neutral-100 px-3 py-2 font-mono text-xs text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
           {install}
@@ -308,13 +376,13 @@ function EnvBlock({ install, envVars, note, onCopyEnv, copied }: EnvBlockProps) 
       <div>
         <div className="mb-1 flex items-center justify-between">
           <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-            2. Set env vars
+            {envLabel}
           </p>
           <button
             onClick={onCopyEnv}
             className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
           >
-            {copied ? "Copied!" : "Copy all"}
+            {copied ? copiedLabel : copyLabel}
           </button>
         </div>
         <pre className="rounded-md bg-neutral-100 px-3 py-2 font-mono text-xs text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 whitespace-pre-wrap break-all">
