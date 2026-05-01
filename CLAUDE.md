@@ -425,6 +425,7 @@ verum/
 - **Google 스타일 docstring**. 공개 API
 - **파일 최대 500줄**. 초과 시 분리
 - **한 함수 최대 50줄**. 초과 시 리팩터링
+- **ruff E402 필수**: 모듈 레벨 상수(`_log`, `_CONSTANT` 등)는 반드시 모든 `import` / `from ... import` 블록이 끝난 뒤에 선언. import 사이에 끼워 넣으면 ruff E402로 CI 실패. 표준 lib → 서드파티 → 로컬 순서도 ruff isort가 강제함
 
 ```python
 # ✅ 좋은 예
@@ -495,6 +496,7 @@ test(generate): add prompt variant generation test cases
 - **Unit + Integration + E2E (Playwright)** 3단 구조
 - **CI 실패 시 머지 차단**
 - **Sonar exclusions ↔ Jest `collectCoverageFrom` 동기화 필수**: 한 쪽만 수정하면 LCOV 분모가 달라져 Jest가 Sonar 없이 실패함. 둘을 항상 쌍으로 관리할 것
+- **신규 `src/**/*.ts` 파일 생성 시 커버리지 포함 여부 즉시 결정**: 파일 생성과 동시에 (a) `sonar.coverage.exclusions` + `collectCoverageFrom` 에 제외 패턴 추가, 또는 (b) 직접 단위 테스트 파일 생성 중 하나를 선택. CI 실패 후 반응적으로 처리하지 말 것
 
 ---
 
@@ -631,6 +633,14 @@ Claude Code가 판단이 애매할 때 참고:
 
 ### "A와 B 중 무엇을 먼저?"
 → **The Verum Loop에서 더 앞 단계인 쪽 우선**. 뒷 단계는 앞 단계 없이 작동 안 함
+
+### "서브에이전트에게 작업을 위임할 때?"
+→ 서브에이전트는 CLAUDE.md를 읽지 않는다. 프롬프트에 반드시 포함해야 할 체크리스트:
+1. **ruff E402**: 모듈 레벨 상수는 모든 import 이후
+2. **신규 TS 파일**: 커버리지 포함 여부 결정 (exclusion 추가 또는 테스트 작성)
+3. **Sonar exclusions ↔ collectCoverageFrom** 쌍 관리
+4. **Conventional Commits** 스코프 (루프 단계 명시)
+→ 계획서에 이 체크리스트를 "Implementation notes" 섹션으로 포함시킬 것
 
 ### "간단한 구현 vs 확장성 있는 구현?"
 → **Phase 0-1은 간단하게. Phase 2부터 확장성**
