@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { approveSource, rejectSource } from "@/lib/db/jobs";
 import { getInference, getHarvestSources, type HarvestSource } from "@/lib/db/queries";
 
 export default async function InferPage({
@@ -58,9 +57,9 @@ export default async function InferPage({
             <p style={{ marginBottom: 24, color: "#444", lineHeight: 1.5 }}>{data.summary}</p>
           )}
 
-          <h2 style={{ fontSize: 16, marginBottom: 12 }}>Suggested Sources ({sources.length})</h2>
+          <h2 style={{ fontSize: 16, marginBottom: 8 }}>Knowledge Sources ({sources.length})</h2>
           <p style={{ fontSize: 12, color: "#888", marginBottom: 16 }}>
-            Approve sources you want Verum to crawl for knowledge.
+            These sources were identified and are being crawled automatically.
           </p>
 
           {sources.map((src) => (
@@ -70,9 +69,9 @@ export default async function InferPage({
           <div style={{ marginTop: 24 }}>
             <a
               href={`/harvest/${inference_id}`}
-              style={{ display: "inline-block", padding: "10px 20px", background: "#0066cc", color: "white", textDecoration: "none", fontWeight: "bold", fontSize: 14 }}
+              style={{ display: "inline-block", padding: "10px 20px", background: "#d97706", color: "white", textDecoration: "none", fontWeight: "bold", fontSize: 14 }}
             >
-              Start HARVEST →
+              View HARVEST progress →
             </a>
           </div>
         </div>
@@ -95,6 +94,10 @@ function SourceCard({ source }: { source: HarvestSource }) {
     source.status === "approved" ? "#22c55e" :
     source.status === "rejected" ? "#ef4444" : "#888";
 
+  const statusLabel =
+    source.status === "approved" ? "crawling" :
+    source.status === "rejected" ? "skipped" : "pending";
+
   return (
     <div style={{ border: "1px solid #ddd", padding: "12px 16px", marginBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -103,22 +106,8 @@ function SourceCard({ source }: { source: HarvestSource }) {
           <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>{source.url}</div>
           {source.description && <div style={{ fontSize: 12, color: "#888" }}>{source.description}</div>}
         </div>
-        <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold", marginLeft: 16 }}>{source.status}</span>
+        <span style={{ fontSize: 12, color: statusColor, fontWeight: "bold", marginLeft: 16 }}>{statusLabel}</span>
       </div>
-      {source.status === "proposed" && (
-        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-          <form action={async () => { "use server"; await approveSource(source.id); }}>
-            <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #22c55e", color: "#22c55e", background: "white", cursor: "pointer" }}>
-              Approve
-            </button>
-          </form>
-          <form action={async () => { "use server"; await rejectSource(source.id); }}>
-            <button type="submit" style={{ padding: "4px 12px", fontSize: 12, fontWeight: "bold", border: "1px solid #ef4444", color: "#ef4444", background: "white", cursor: "pointer" }}>
-              Reject
-            </button>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

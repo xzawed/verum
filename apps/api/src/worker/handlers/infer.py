@@ -18,6 +18,7 @@ from src.db.models.analyses import Analysis
 from src.loop.analyze.models import AnalysisResult
 from src.loop.infer.engine import run_infer
 from src.loop.infer.repository import mark_inference_error, save_inference_result
+from src.loop.quota import check_quota
 from src.worker.chain import enqueue_next
 from src.worker.utils import safe_rollback
 
@@ -49,6 +50,7 @@ async def handle_infer(
     )
 
     try:
+        await check_quota(db, owner_user_id, chunks=1)
         result = await run_infer(ar, analysis_id=analysis_id)
         raw: dict[str, Any] = {
             "domain": result.domain,

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.loop.quota import QuotaExceededError
 from src.worker.handlers.infer import handle_infer
 
 
@@ -52,7 +53,8 @@ async def test_handle_infer_enqueues_harvest_when_sources_exist() -> None:
 
     db.execute = AsyncMock(side_effect=[analysis_result_mock, update_result, rows_result])
 
-    with patch("src.worker.handlers.infer.run_infer", new=AsyncMock(return_value=infer_result)), \
+    with patch("src.worker.handlers.infer.check_quota", new=AsyncMock()), \
+         patch("src.worker.handlers.infer.run_infer", new=AsyncMock(return_value=infer_result)), \
          patch("src.worker.handlers.infer.save_inference_result", new=AsyncMock()), \
          patch("src.worker.handlers.infer.enqueue_next", new=AsyncMock()) as mock_enq:
 
@@ -87,7 +89,8 @@ async def test_handle_infer_skips_harvest_when_no_sources() -> None:
 
     db.execute = AsyncMock(side_effect=[analysis_result_mock, update_result, rows_result])
 
-    with patch("src.worker.handlers.infer.run_infer", new=AsyncMock(return_value=infer_result)), \
+    with patch("src.worker.handlers.infer.check_quota", new=AsyncMock()), \
+         patch("src.worker.handlers.infer.run_infer", new=AsyncMock(return_value=infer_result)), \
          patch("src.worker.handlers.infer.save_inference_result", new=AsyncMock()), \
          patch("src.worker.handlers.infer.enqueue_next", new=AsyncMock()) as mock_enq:
 
@@ -141,7 +144,8 @@ async def test_handle_infer_calls_mark_error_on_failure() -> None:
     analysis_result_mock.scalar_one_or_none.return_value = analysis
     db.execute = AsyncMock(return_value=analysis_result_mock)
 
-    with patch("src.worker.handlers.infer.run_infer", side_effect=RuntimeError("LLM error")), \
+    with patch("src.worker.handlers.infer.check_quota", new=AsyncMock()), \
+         patch("src.worker.handlers.infer.run_infer", side_effect=RuntimeError("LLM error")), \
          patch("src.worker.handlers.infer.mark_inference_error", new=AsyncMock()) as mock_mie:
 
         with pytest.raises(RuntimeError, match="LLM error"):
@@ -154,5 +158,37 @@ async def test_handle_infer_calls_mark_error_on_failure() -> None:
                 },
             )
 
+    mock_mie.assert_awaited_once()
+    assert mock_mie.await_args.args[1] == inference_id
+
+
+@pytest.mark.asyncio
+async def test_handle_infer_raises_when_quota_exceeded() -> None:
+    """QuotaExceededError from check_quota causes mark_inference_error + re-raise."""
+    db = AsyncMock()
+    analysis = _make_analysis()
+    inference_id = uuid.uuid4()
+
+    analysis_result_mock = MagicMock()
+    analysis_result_mock.scalar_one_or_none.return_value = analysis
+    db.execute = AsyncMock(return_value=analysis_result_mock)
+
+    quota_error = QuotaExceededError("chunks", 500, 500)
+
+    with patch("src.worker.handlers.infer.check_quota", side_effect=quota_error), \
+         patch("src.worker.handlers.infer.run_infer", new=AsyncMock()) as mock_ri, \
+         patch("src.worker.handlers.infer.mark_inference_error", new=AsyncMock()) as mock_mie:
+
+        with pytest.raises(QuotaExceededError):
+            await handle_infer(
+                db=db,
+                owner_user_id=uuid.uuid4(),
+                payload={
+                    "analysis_id": str(uuid.uuid4()),
+                    "inference_id": str(inference_id),
+                },
+            )
+
+    mock_ri.assert_not_awaited()
     mock_mie.assert_awaited_once()
     assert mock_mie.await_args.args[1] == inference_id

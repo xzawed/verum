@@ -74,6 +74,24 @@ async def send_quota_warning_email(
     await _send(subject, body, user_email)
 
 
+async def send_generate_complete_email(
+    user_email: str, domain: str, repo_url: str
+) -> None:
+    """Send completion email when the GENERATE stage finishes."""
+    subject = "Verum: your AI assets are ready"
+    body = (
+        "Hi,\n\n"
+        f"Verum has finished building prompts, a RAG index, and evaluation pairs for your "
+        f"{domain} service:\n"
+        f"  {repo_url}\n\n"
+        "Head to your dashboard to review the generated assets and configure deployment:\n"
+        "  https://verum.dev/repos\n\n"
+        "— The Verum Loop\n"
+        "https://verum.dev\n"
+    )
+    await _send(subject, body, user_email)
+
+
 async def send_quota_exceeded_email(user_email: str, resource: str) -> None:
     """Send quota exceeded notice."""
     subject = f"Verum: {resource} limit reached on your free account"

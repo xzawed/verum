@@ -8,6 +8,7 @@ import pytest
 
 import src.config as cfg
 from src.loop.email import (
+    send_generate_complete_email,
     send_quota_exceeded_email,
     send_quota_warning_email,
     send_welcome_email,
@@ -100,6 +101,26 @@ async def test_quota_exceeded_email_content():
     assert "repos" in msg["Subject"]
     body = msg.get_body().get_content()
     assert "repos" in body
+
+
+@pytest.mark.asyncio
+async def test_generate_complete_email_content():
+    mock_send = AsyncMock()
+    with (
+        patch.object(cfg, "SMTP_HOST", "smtp.example.com"),
+        patch("aiosmtplib.send", mock_send),
+    ):
+        await send_generate_complete_email(
+            "eve@example.com", "tarot_divination", "https://github.com/owner/repo"
+        )
+
+    mock_send.assert_awaited_once()
+    msg = mock_send.call_args[0][0]
+    assert msg["To"] == "eve@example.com"
+    assert "ready" in msg["Subject"]
+    body = msg.get_body().get_content()
+    assert "tarot_divination" in body
+    assert "https://github.com/owner/repo" in body
 
 
 # ── SMTP failure is logged, not raised ───────────────────────────────────────
