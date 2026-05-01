@@ -2,6 +2,7 @@ import { db } from "@/lib/db/client";
 import { deployments, prompt_variants, rag_configs } from "@/lib/db/schema";
 import { getVariantPrompt } from "@/lib/db/queries";
 import { validateApiKey } from "@/lib/api/validateApiKey";
+import { consumeConfigFault } from "@/lib/test/configFault";
 import { eq } from "drizzle-orm";
 
 interface PromptVariantResponse {
@@ -29,6 +30,10 @@ export async function GET(
   const keyResult = await validateApiKey(rawKey);
   if (!keyResult) {
     return new Response("unauthorized", { status: 401 });
+  }
+
+  if (consumeConfigFault()) {
+    return new Response("simulated Verum config fault", { status: 503 });
   }
 
   const { id } = await params;
