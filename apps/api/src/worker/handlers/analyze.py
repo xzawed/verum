@@ -8,13 +8,12 @@ Payload schema:
 """
 from __future__ import annotations
 
+import os as _os
 import uuid
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
-import os as _os
 
 from src.loop.analyze.cloner import _BRANCH_RE, _GITHUB_URL_RE
 from src.loop.analyze.pipeline import run_analysis

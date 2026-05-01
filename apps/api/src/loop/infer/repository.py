@@ -8,8 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.enums import AnalysisStatus, HarvestSourceStatus
-from src.db.models.inferences import Inference
 from src.db.models.harvest_sources import HarvestSource
+from src.db.models.inferences import Inference
+
 from .models import ServiceInference
 
 

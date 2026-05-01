@@ -7,6 +7,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config as cfg
+
 from .chunker import recursive_split, semantic_split
 from .crawler import CrawlError, fetch_and_extract
 from .embedder import embed_texts

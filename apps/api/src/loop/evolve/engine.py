@@ -6,13 +6,13 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.loop.experiment.engine import CHALLENGER_ORDER
-from src.loop.experiment.repository import insert_experiment, mark_experiment_converged
 from src.loop.evolve.repository import (
     set_experiment_status,
     update_deployment_baseline,
     update_traffic_split,
 )
+from src.loop.experiment.engine import CHALLENGER_ORDER
+from src.loop.experiment.repository import insert_experiment, mark_experiment_converged
 
 logger = logging.getLogger(__name__)
 
