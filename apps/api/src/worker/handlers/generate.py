@@ -14,6 +14,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.inferences import Inference
+from src.loop.email import send_generate_complete_email
 from src.loop.generate.engine import run_generate
 from src.loop.generate.repository import mark_generate_error, save_generate_result
 from src.worker.utils import safe_rollback
@@ -73,6 +74,30 @@ async def handle_generate(
             len(result.eval_pairs),
             inference_id,
         )
+
+        try:
+            user_row = (
+                await db.execute(
+                    text(
+                        "SELECT u.email, r.github_url"
+                        " FROM users u"
+                        " JOIN repos r ON r.user_id = u.id"
+                        " JOIN analyses a ON a.repo_id = r.id"
+                        " WHERE a.id = CAST(:aid AS UUID)"
+                        " AND u.id = CAST(:uid AS UUID)"
+                    ),
+                    {"aid": str(inference.analysis_id), "uid": str(owner_user_id)},
+                )
+            ).fetchone()
+            if user_row and user_row[0]:
+                await send_generate_complete_email(
+                    user_email=user_row[0],
+                    domain=inference.domain or "unknown",
+                    repo_url=user_row[1] or "",
+                )
+        except Exception as exc:
+            logger.debug("Failed to send generate-complete email: %s", exc)
+
         return {
             "generation_id": str(generation_id),
             "variant_count": len(result.prompt_variants),

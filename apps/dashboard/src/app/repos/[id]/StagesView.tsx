@@ -262,9 +262,25 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
               {latestInference.confidence != null && (
                 <StageRow label="Confidence" value={`${(latestInference.confidence * 100).toFixed(0)}%`} />
               )}
+              {latestInference.status === "done" && latestInference.domain && (
+                <div className="mt-3 rounded-lg bg-violet-50 border border-violet-200 p-3">
+                  <p className="text-xs font-semibold text-violet-700 mb-1">
+                    Verum understood your service as:
+                  </p>
+                  <p className="text-sm font-bold text-violet-900">{latestInference.domain}</p>
+                  {latestInference.confidence != null && (
+                    <p className="text-xs text-violet-500 mt-0.5">
+                      {(latestInference.confidence * 100).toFixed(0)}% confidence
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-violet-600">
+                    Knowledge harvesting started automatically. If this is wrong, re-run INFER.
+                  </p>
+                </div>
+              )}
               {latestInference.status === "done" && (
                 <a href={`/infer/${latestAnalysis?.id}?inference_id=${latestInference.id}`} className="mt-2 inline-block text-xs text-violet-600 hover:underline">
-                  View inference + approve sources →
+                  View full INFER details →
                 </a>
               )}
             </div>
@@ -296,7 +312,9 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
             </div>
           ) : (
             <p className="text-xs text-slate-400">
-              {latestInference?.status === "done" ? "Harvest in progress or no sources." : "Run INFER first."}
+              {latestInference?.status === "done"
+                ? "Knowledge sources identified — crawling in progress."
+                : "Run INFER first."}
             </p>
           )}
           {latestInference?.status === "done" && latestAnalysis && (

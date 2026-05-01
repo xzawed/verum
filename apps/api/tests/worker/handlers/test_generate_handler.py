@@ -107,6 +107,79 @@ async def test_handle_generate_raises_when_inference_missing() -> None:
 
 
 @pytest.mark.asyncio
+async def test_handle_generate_sends_complete_email_on_success() -> None:
+    """send_generate_complete_email is called when GENERATE succeeds and user has email."""
+    db = AsyncMock()
+    inference_id = uuid.uuid4()
+    generation_id = uuid.uuid4()
+    inference = _make_inference(inference_id)
+
+    email_row = MagicMock()
+    email_row.__getitem__ = lambda self, i: ["user@example.com", "https://github.com/owner/repo"][i]
+    email_row.__bool__ = lambda self: True
+
+    email_result = MagicMock()
+    email_result.fetchone.return_value = email_row
+
+    side_effects = _make_execute_side_effects(inference) + [email_result]
+    db.execute = AsyncMock(side_effect=side_effects)
+    generate_result = _make_generate_result()
+
+    with patch("src.worker.handlers.generate.run_generate", new=AsyncMock(return_value=generate_result)), \
+         patch("src.worker.handlers.generate.save_generate_result", new=AsyncMock()), \
+         patch("src.worker.handlers.generate.send_generate_complete_email", new=AsyncMock()) as mock_email:
+
+        await handle_generate(
+            db=db,
+            owner_user_id=uuid.uuid4(),
+            payload={
+                "inference_id": str(inference_id),
+                "generation_id": str(generation_id),
+            },
+        )
+
+    mock_email.assert_awaited_once()
+    call_kwargs = mock_email.await_args.kwargs
+    assert call_kwargs["user_email"] == "user@example.com"
+    assert call_kwargs["domain"] == "tarot_divination"
+
+
+@pytest.mark.asyncio
+async def test_handle_generate_skips_email_when_no_user_email() -> None:
+    """No email is sent when the user has no email address on file."""
+    db = AsyncMock()
+    inference_id = uuid.uuid4()
+    generation_id = uuid.uuid4()
+    inference = _make_inference(inference_id)
+
+    no_email_row = MagicMock()
+    no_email_row.__getitem__ = lambda self, i: [None, "https://github.com/owner/repo"][i]
+    no_email_row.__bool__ = lambda self: True
+
+    email_result = MagicMock()
+    email_result.fetchone.return_value = no_email_row
+
+    side_effects = _make_execute_side_effects(inference) + [email_result]
+    db.execute = AsyncMock(side_effect=side_effects)
+    generate_result = _make_generate_result()
+
+    with patch("src.worker.handlers.generate.run_generate", new=AsyncMock(return_value=generate_result)), \
+         patch("src.worker.handlers.generate.save_generate_result", new=AsyncMock()), \
+         patch("src.worker.handlers.generate.send_generate_complete_email", new=AsyncMock()) as mock_email:
+
+        await handle_generate(
+            db=db,
+            owner_user_id=uuid.uuid4(),
+            payload={
+                "inference_id": str(inference_id),
+                "generation_id": str(generation_id),
+            },
+        )
+
+    mock_email.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_handle_generate_calls_mark_error_when_run_generate_fails() -> None:
     """mark_generate_error is called and exception re-raises when run_generate fails."""
     db = AsyncMock()
