@@ -40,5 +40,11 @@ addopts = "--cov-fail-under=95"
 source = ["src"]
 relative_files = true
 
+[tool.hatch.build.targets.wheel.force-include]
+"verum-auto.pth" = "verum-auto.pth"
+
 [tool.coverage.report]
-exclude_lines = ["if __name__ == .__main__.:"]
+exclude_lines = [
+    "if __name__ == .__main__.:",
+    "_patch_if_configured\\(\\)",  # top-level call executes at import time, not testable
+]
