@@ -60,7 +60,7 @@ export default async function RetrievePage({
           const infId = formData.get("inference_id");
           const q = formData.get("query");
           if (typeof infId !== "string" || typeof q !== "string" || !infId || !q) {
-            return { error: "Missing required fields" };
+            return;
           }
           const hyb = formData.get("hybrid") === "true";
           const k = Number(formData.get("top_k") ?? "5") || 5;

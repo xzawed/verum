@@ -17,30 +17,17 @@ jest.mock("@/lib/db/jobs", () => ({
   enqueueAnalyze: jest.fn(),
   enqueueInfer: jest.fn(),
   enqueueHarvest: jest.fn(),
+  enqueueGenerate: jest.fn(),
 }));
 jest.mock("@/lib/db/queries", () => ({
   getHarvestSources: jest.fn(),
-}));
-// Static mock for dynamic import("@/lib/db/client") inside rerunGenerate
-jest.mock("@/lib/db/client", () => ({
-  db: { execute: jest.fn() },
-}));
-// Static mock for dynamic import("drizzle-orm") inside rerunGenerate
-jest.mock("drizzle-orm", () => ({
-  sql: jest.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
-    strings,
-    values,
-  })),
-  and: jest.fn(),
-  eq: jest.fn(),
-  desc: jest.fn(),
+  getInference: jest.fn(),
 }));
 
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { enqueueAnalyze, enqueueInfer, enqueueHarvest } from "@/lib/db/jobs";
-import { getHarvestSources } from "@/lib/db/queries";
-import { db } from "@/lib/db/client";
+import { enqueueAnalyze, enqueueInfer, enqueueHarvest, enqueueGenerate } from "@/lib/db/jobs";
+import { getHarvestSources, getInference } from "@/lib/db/queries";
 
 import {
   rerunAnalyze,
@@ -54,8 +41,9 @@ const mockAuth = auth as jest.Mock;
 const mockEnqueueAnalyze = enqueueAnalyze as jest.Mock;
 const mockEnqueueInfer = enqueueInfer as jest.Mock;
 const mockEnqueueHarvest = enqueueHarvest as jest.Mock;
+const mockEnqueueGenerate = enqueueGenerate as jest.Mock;
 const mockGetHarvestSources = getHarvestSources as jest.Mock;
-const mockDbExecute = db.execute as jest.Mock;
+const mockGetInference = getInference as jest.Mock;
 
 const SESSION = { user: { id: "user-abc", name: "Test" } };
 
@@ -227,28 +215,27 @@ describe("rerunGenerate", () => {
     mockAuth.mockResolvedValue(null);
     await runAction(() => rerunGenerate("inference-1"));
     expect(mockRedirect).toHaveBeenCalledWith("/login");
-    expect(mockDbExecute).not.toHaveBeenCalled();
+    expect(mockEnqueueGenerate).not.toHaveBeenCalled();
   });
 
-  it("inserts generation row and job row, then redirects to repo page", async () => {
+  it("enqueues generate job and redirects to repo page", async () => {
     mockAuth.mockResolvedValue(SESSION);
-    mockDbExecute
-      .mockResolvedValueOnce({ rows: [] }) // INSERT INTO generations
-      .mockResolvedValueOnce({ rows: [] }) // INSERT INTO verum_jobs
-      .mockResolvedValueOnce({ rows: [{ repo_id: "repo-1" }] }); // SELECT repo_id
+    mockEnqueueGenerate.mockResolvedValue(undefined);
+    mockGetInference.mockResolvedValue({ id: "inference-1", repo_id: "repo-1" });
     await runAction(() => rerunGenerate("inference-1"));
-    expect(mockDbExecute).toHaveBeenCalledTimes(3);
+    expect(mockEnqueueGenerate).toHaveBeenCalledWith({
+      userId: "user-abc",
+      inferenceId: "inference-1",
+    });
     expect(mockRedirect).toHaveBeenCalledWith("/repos/repo-1");
   });
 
-  it("redirects to /repos when SELECT returns no rows", async () => {
+  it("redirects to /repos when inference has no repo_id", async () => {
     mockAuth.mockResolvedValue(SESSION);
-    mockDbExecute
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] }); // no matching inference row
+    mockEnqueueGenerate.mockResolvedValue(undefined);
+    mockGetInference.mockResolvedValue(null);
     await runAction(() => rerunGenerate("inference-missing"));
-    expect(mockDbExecute).toHaveBeenCalledTimes(3);
+    expect(mockEnqueueGenerate).toHaveBeenCalledTimes(1);
     expect(mockRedirect).toHaveBeenCalledWith("/repos");
   });
 });
