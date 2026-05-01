@@ -32,6 +32,7 @@ const SdkPrResponse = z.object({
   pr_url: z.string().optional(),
   pr_number: z.number().optional(),
   files_changed: z.number().optional(),
+  message: z.string().optional(),
   error: z.string().optional(),
 });
 
@@ -39,6 +40,7 @@ type ButtonState =
   | "idle"
   | "loading"
   | { prUrl: string; prNumber: number }
+  | { alreadyDone: true }
   | { error: string };
 
 function fmt(n: number): string {
@@ -68,8 +70,12 @@ export function ActivationCard({
       });
       const raw: unknown = await res.json();
       const data = SdkPrResponse.parse(raw);
-      if (!res.ok || !data.pr_url || !data.pr_number) {
+      if (!res.ok) {
         setState({ error: data.error ?? `HTTP ${res.status}` });
+        return;
+      }
+      if (!data.pr_url || !data.pr_number) {
+        setState({ alreadyDone: true });
         return;
       }
       setState({ prUrl: data.pr_url, prNumber: data.pr_number });
@@ -163,6 +169,12 @@ function PrButton({ label, description, buttonLabel, state, onReset, onClick }: 
             className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"
           />
           Creating PR on GitHub…
+        </div>
+      )}
+
+      {typeof state === "object" && "alreadyDone" in state && (
+        <div className="mt-1 rounded-md bg-slate-50 px-3 py-2 border border-slate-200">
+          <p className="text-xs text-slate-600">Already up to date — Verum config already present in repo.</p>
         </div>
       )}
 

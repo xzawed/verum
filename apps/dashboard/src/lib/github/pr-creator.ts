@@ -132,7 +132,8 @@ export class GitHubPrCreator {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (!res.ok) {
-      throw new GitHubApiError(res.status, `GitHub API ${res.status}: ${method} ${path} — ${res.statusText}`);
+      const errorBody = await res.text().catch(() => res.statusText);
+      throw new GitHubApiError(res.status, `GitHub API ${res.status}: ${method} ${path} — ${errorBody}`);
     }
     return res.json() as Promise<T>;
   }

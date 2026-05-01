@@ -44,6 +44,7 @@ describe("GitHubPrCreator", () => {
       ok: false,
       status: 404,
       statusText: "Not Found",
+      text: async () => '{"message":"Not Found"}',
       json: async () => ({}),
     });
     const creator = new GitHubPrCreator({ accessToken: "ghp_bad", repoFullName: "owner/repo" });
@@ -53,7 +54,7 @@ describe("GitHubPrCreator", () => {
   });
 
   it("readFile returns null when file does not exist (404)", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 404, statusText: "Not Found", json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 404, statusText: "Not Found", text: async () => '{"message":"Not Found"}', json: async () => ({}) });
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     const content = await creator.readFile(".env.example");
     expect(content).toBeNull();
@@ -77,9 +78,21 @@ describe("GitHubPrCreator", () => {
   });
 
   it("readFile re-throws non-404 GitHub errors", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden", json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden", text: async () => '{"message":"Forbidden"}', json: async () => ({}) });
     const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
     await expect(creator.readFile("secrets.txt")).rejects.toThrow("GitHub API 403");
+  });
+
+  it("falls back to statusText when text() rejects on error response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => { throw new Error("body consumed"); },
+      json: async () => ({}),
+    });
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    await expect(creator.readFile("file.txt")).rejects.toThrow("Service Unavailable");
   });
 
   it("readFile returns raw content when not base64-encoded", async () => {
