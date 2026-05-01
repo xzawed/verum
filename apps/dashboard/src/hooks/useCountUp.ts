@@ -30,6 +30,7 @@ export function useCountUp(target: number, duration = 1200): number {
       // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       const value = Math.round(from + (target - from) * eased);
+      // eslint-disable-next-line react-compiler/react-compiler -- setState inside rAF callback is intentionally async; not a synchronous render cascade
       setDisplay(value);
       if (progress < 1) {
         frameRef.current = requestAnimationFrame(step);
