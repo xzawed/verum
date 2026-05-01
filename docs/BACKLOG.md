@@ -15,6 +15,14 @@ generated-by: 6-agent codebase audit
 
 ## 📋 백로그 현황 (2026-05-01)
 
+**2026-05-01 추가 작업 (PR #102 + #103):**
+- ✅ PR #102: INFER 핸들러에 `check_quota()` 추가 — 무료 쿼터 초과 시 LLM 호출 차단
+- ✅ PR #102: GENERATE 완료 후 이메일 알림 (`send_generate_complete_email`) 추가
+- ✅ PR #102: 대시보드 INFER 도메인 확인 카드 UI 추가 (violet card, domain + confidence %)
+- ✅ PR #102: HARVEST 소스 Approve/Reject 버튼 제거 — 소스는 이미 자동 승인됨, 버튼이 실제 효과 없었음
+- ✅ PR #103: Python SDK zero-code-change auto-patch — `verum._auto` + `verum-auto.pth` (site-packages hook)
+- ✅ PR #103: TypeScript SDK zero-code-change auto-patch — `@verum/sdk/auto` + `NODE_OPTIONS` 방식
+
 **2026-04-24 감사** 38개 항목 전원 완료.
 
 **2026-05-01 추가 감사** (6-agent: 전문 4 + 교차검증 2):
@@ -439,4 +447,4 @@ HARVEST_TIMEOUT = int(os.getenv("VERUM_TEST_HARVEST_TIMEOUT", "180"))
 
 ---
 
-_Last updated: 2026-04-27 | Generated from 6-agent codebase audit | Maintained by: Claude at end of audit sessions_
+_Last updated: 2026-05-01 | Generated from 6-agent codebase audit | Maintained by: Claude at end of audit sessions_

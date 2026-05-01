@@ -2,7 +2,7 @@
 type: decisions
 authority: tier-2
 canonical-for: [adr-index, product-scope-decisions, superseded-decisions]
-last-updated: 2026-04-24
+last-updated: 2026-05-01
 status: active
 ---
 
@@ -37,6 +37,7 @@ status: active
 | ADR-015 | 공통 mock 대상 모듈 직접 테스트 필수 | `jest.mock()` / `patch()`로 통째로 교체되는 유틸리티 모듈은 반드시 전용 직접 단위 테스트를 가져야 함. 미준수 시 SonarCloud New Code Coverage 80% 게이트 실패. | [ARCHITECTURE.md §ADR-015](ARCHITECTURE.md#adr-015-공통-mock-대상-모듈은-직접-단위-테스트-필수) |
 | ADR-016 | No LLM Proxy | Verum SDK never proxies user LLM calls — gateway pattern inherently violates zero-invasiveness (SPOF). | [ARCHITECTURE.md §ADR-016](ARCHITECTURE.md#adr-016-no-llm-proxy--direct-call-only) |
 | ADR-017 | Fail-Open SDK | Every Verum SDK interaction MUST fail open via 5-layer safety net (200ms timeout → circuit breaker → fresh/stale cache → passthrough). | [ARCHITECTURE.md §ADR-017](ARCHITECTURE.md#adr-017-fail-open-sdk--5-layer-safety-net) |
+| ADR-018 | Zero-code-change SDK auto-patch | Python: `.pth` file in site-packages triggers `verum._auto` at interpreter startup. TypeScript: `NODE_OPTIONS="--require @verum/sdk/auto"`. Both check `VERUM_API_URL`/`VERUM_API_KEY` env vars; respect `VERUM_DISABLED`. | [ARCHITECTURE.md §ADR-018](#adr-018-zero-code-change-sdk-auto-patch-via-pth--node_options) |
 
 ---
 
@@ -86,4 +87,4 @@ The old spec's metadata convention (`kind`, `version`, `service`, `active`, `tag
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25 (ADR-016/017 추가 — Non-invasive SDK, fail-open 5-layer safety net)_
+_Maintainer: xzawed | Last updated: 2026-05-01 (ADR-018 추가 — Zero-code-change SDK auto-patch via .pth + NODE_OPTIONS)_

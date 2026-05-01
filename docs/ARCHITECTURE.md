@@ -2,7 +2,7 @@
 type: architecture
 authority: tier-2
 canonical-for: [file-tree, schemas, api-contracts, sdk-surface, adrs, infra]
-last-updated: 2026-04-26
+last-updated: 2026-05-01
 status: active
 ---
 
@@ -831,4 +831,36 @@ import { getAuthUserId, createGetByIdHandler } from "../handlers";
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25 (ADR-016/017 추가 — Non-invasive SDK, fail-open 5-layer safety net)_
+### ADR-018: Zero-Code-Change SDK Auto-Patch via `.pth` + `NODE_OPTIONS`
+
+**Status:** Accepted — 2026-05-01
+
+**Context:**
+
+Phase 1 SDK integration (`import verum.openai`) requires a one-line code change to user services. For environments where code changes are not possible (no source access, legacy deployments, zero-touch policy), an even lighter integration path is needed.
+
+**Decision:**
+
+- **Python**: Ship `verum-auto.pth` inside the `verum` wheel (via hatchling `force-include`). Python's `site.py` processes `.pth` files at interpreter startup; lines starting with `import` are executed as Python code. The file contains `import verum._auto`. `verum/_auto.py` reads `VERUM_API_URL` and `VERUM_API_KEY` env vars; if configured and not disabled, it imports `verum.openai` and `verum.anthropic` to monkey-patch the clients. No code change needed in the user's service.
+- **TypeScript / Node.js**: Ship `@verum/sdk/auto` (exported from `packages/sdk-typescript/src/auto.ts`). Users set `NODE_OPTIONS="--require @verum/sdk/auto"`. Node.js pre-requires the module before user code, triggering the same env-var check and conditional patching.
+
+Both implementations:
+- Check `VERUM_DISABLED` (values `1`, `true`, `yes`) and skip patching if set
+- Silently swallow `ImportError` / `require()` failure (openai/anthropic not installed → no-op)
+- Apply ADR-016 and ADR-017 safety guarantees (no proxy, fail-open)
+
+**Alternatives Rejected:**
+
+- `sitecustomize.py` — executed before site-packages, but only in system Python installations. Breaks in virtualenvs. Not reliable for user deployments.
+- Gateway/proxy approach — rejected in ADR-016. Still SPOF.
+- Automatic patching on `pip install` via post-install hooks — pip intentionally disables arbitrary post-install scripts for security.
+
+**Consequences:**
+
+- `pip install verum` now silently auto-patches Python interpreters that have `VERUM_API_URL` set. Users who want to opt out must set `VERUM_DISABLED=1`.
+- The `.pth` file (`verum-auto.pth`) must be kept in sync with `_auto.py` imports if new providers are added.
+- Tested: 7 Python unit tests (`test_auto.py`) + 8 TypeScript unit tests (`auto.test.ts`), both 100% coverage on new files.
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-05-01 (ADR-018 추가 — Zero-code-change SDK auto-patch via .pth + NODE_OPTIONS)_

@@ -14,9 +14,42 @@ Python 3.13+ required.
 
 The recommended integration uses a single `import` that monkey-patches the OpenAI SDK in-place. Your existing code requires **no other changes**.
 
-### Phase 0 — Observe Only (Zero code changes)
+### Tier 0 — Zero Code Changes (`.pth` auto-patch)
 
-Set environment variables only. No code modification required:
+`pip install verum` places a `verum-auto.pth` file into your site-packages directory. Python's `site.py` processes `.pth` files at interpreter startup, so Verum auto-patches OpenAI and Anthropic clients **before your application code runs** — with no import statement required.
+
+**Setup:**
+
+```bash
+pip install verum
+```
+
+```env
+VERUM_API_URL=https://your-verum-instance
+VERUM_API_KEY=your-key
+```
+
+That's it. Start your application normally — OpenAI and Anthropic clients are patched automatically.
+
+**To disable auto-patching:**
+
+```bash
+export VERUM_DISABLED=1
+```
+
+`VERUM_DISABLED=true` and `VERUM_DISABLED=yes` also work.
+
+**Notes:**
+
+- Works with virtualenvs — the `.pth` file is installed wherever pip installs packages, so the scope is limited to the current environment
+- If `openai` or `anthropic` packages are not installed, no error is raised — the patch is silently skipped for missing providers
+- `VERUM_API_URL` and `VERUM_API_KEY` must both be set; if either is absent, auto-patching is skipped
+
+---
+
+### Tier 1 — Observe Only (one-line import)
+
+Set environment variables and add a single import at application startup. No other code modification required:
 
 ```bash
 pip install 'verum[instrument]'
@@ -34,7 +67,7 @@ At application startup (e.g. in `main.py` before any other imports):
 import verum.openai  # enables OTLP auto-instrumentation
 ```
 
-### Phase 1 — Bidirectional (A/B routing + traces)
+### Tier 2 — Bidirectional (A/B routing + traces)
 
 ```python
 import verum.openai  # ← only change

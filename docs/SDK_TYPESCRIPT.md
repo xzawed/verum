@@ -16,9 +16,54 @@ Node.js 18+ required.
 
 The recommended integration uses a single `import` that monkey-patches the OpenAI SDK in-place. Your existing code requires **no other changes**.
 
-### Phase 0 — Observe Only (Zero code changes)
+### Tier 0 — Zero Code Changes
 
-Set environment variables only. No code modification required:
+`@verum/sdk` exports an `auto` entry point (`@verum/sdk/auto`) that checks environment variables and conditionally patches OpenAI and Anthropic clients. Load it via `NODE_OPTIONS` — no code changes to your application.
+
+**Setup:**
+
+```bash
+npm install @verum/sdk
+```
+
+Set environment variables:
+
+```env
+VERUM_API_URL=https://your-verum-instance
+VERUM_API_KEY=your-key
+NODE_OPTIONS=--require @verum/sdk/auto
+```
+
+Or inline when starting your service:
+
+```bash
+NODE_OPTIONS="--require @verum/sdk/auto" \
+VERUM_API_URL="https://your-verum-instance" \
+VERUM_API_KEY="your-key" \
+node your-service.js
+```
+
+All OpenAI and Anthropic clients are patched at Node.js startup — before any application module runs.
+
+**To disable auto-patching:**
+
+```bash
+export VERUM_DISABLED=1
+```
+
+`VERUM_DISABLED=true` and `VERUM_DISABLED=yes` also work.
+
+**Notes:**
+
+- If `openai` or `anthropic` packages are not installed, the patch for that provider is silently skipped — no error is raised
+- `VERUM_API_URL` and `VERUM_API_KEY` must both be set; if either is absent, auto-patching is skipped
+- For Docker-based deployments, add `NODE_OPTIONS` to the container's environment alongside the other `VERUM_*` variables
+
+---
+
+### Tier 1 — Observe Only (one-line import)
+
+Set environment variables and add a single import at application startup. No other code modification required:
 
 ```env
 OTEL_EXPORTER_OTLP_ENDPOINT=https://your-verum-instance/api/v1/otlp
@@ -32,7 +77,7 @@ At application startup (e.g. in your entry file before any other imports):
 import "@verum/sdk/openai"; // enables auto-instrumentation
 ```
 
-### Phase 1 — Bidirectional (A/B routing + traces)
+### Tier 2 — Bidirectional (A/B routing + traces)
 
 ```typescript
 import "@verum/sdk/openai"; // ← only change

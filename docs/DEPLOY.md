@@ -25,6 +25,33 @@ VOYAGE_API_KEY = ...
 
 ---
 
+## SDK Integration Tiers
+
+서비스에 Verum을 통합할 때 세 가지 방식 중 하나를 선택한다. 코드 변경 없는 Tier 0부터 시작하는 것을 권장한다.
+
+| Tier | 코드 변경 | Python | Node.js/TypeScript |
+|------|-----------|--------|-------------------|
+| **Tier 0** — Zero code changes | 없음 | `pip install verum` + `VERUM_API_URL` + `VERUM_API_KEY` env vars. `.pth` auto-patch가 인터프리터 시작 시 자동 적용 | `npm install @verum/sdk` + 위 두 env var + `NODE_OPTIONS="--require @verum/sdk/auto"` |
+| **Tier 1** — One-line import | 1줄 | `import verum.openai` (또는 `verum.anthropic`) at startup | `import "@verum/sdk/openai"` at startup |
+| **Tier 2** — Bidirectional | 1줄 + 1 헤더 | Tier 1 + `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` | Tier 1 + `extra_headers: { "x-verum-deployment": DEPLOYMENT_ID }` |
+
+**Tier 0 최소 환경변수:**
+
+```bash
+# Python (Tier 0)
+VERUM_API_URL=https://your-verum-instance
+VERUM_API_KEY=your-key
+
+# Node.js (Tier 0) — 위 두 변수에 추가
+NODE_OPTIONS=--require @verum/sdk/auto
+```
+
+**비활성화:** `VERUM_DISABLED=1` (또는 `true`, `yes`) 설정 시 자동 패치가 완전히 비활성화됨.
+
+자세한 내용: [SDK_PYTHON.md](SDK_PYTHON.md) · [SDK_TYPESCRIPT.md](SDK_TYPESCRIPT.md)
+
+---
+
 ## 배포 아키텍처
 
 ```

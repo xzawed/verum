@@ -366,6 +366,12 @@ Before deploying, the dashboard shows an **ActivationCard** (`GET /api/v1/activa
 **Phase 0 — OTLP env-only (zero code changes):**
 Set `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `VERUM_DEPLOYMENT_ID`, then add `import verum.openai` at startup. Verum receives traces via `POST /api/v1/otlp/v1/traces` (openinference span format). No call routing yet — observe-only.
 
+**Phase 1.5 — Zero-code-change auto-patch (env vars only, PR #103):**
+- Python: `pip install verum` places `verum-auto.pth` in site-packages. Set `VERUM_API_URL` + `VERUM_API_KEY` env vars. Python patches OpenAI/Anthropic clients automatically at interpreter startup via site.py `.pth` hook. No import statement needed in user code.
+- Node.js: Set `NODE_OPTIONS="--require @verum/sdk/auto"` + `VERUM_API_URL` + `VERUM_API_KEY`. Module is pre-required before user code runs.
+- Both: `VERUM_DISABLED=1/true/yes` to opt out. Silently skips if openai/anthropic not installed.
+- ADR-018: `.pth` chosen over `sitecustomize.py` (virtualenv-incompatible) and gateway (ADR-016 SPOF).
+
 **Phase 1 — Bidirectional auto-instrument (1 line + 1 header):**
 `import verum.openai` monkey-patches the OpenAI SDK in-process. Adding `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` to an existing `client.chat.completions.create()` call activates full A/B routing. The response is a standard `ChatCompletion` — unchanged.
 
@@ -682,4 +688,4 @@ Full Pydantic models for DEPLOY, OBSERVE, EXPERIMENT, EVOLVE follow the same pat
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-25 (DEPLOY stage: non-invasive integration modes, ActivationCard, ADR-016/017 references)_
+_Maintainer: xzawed | Last updated: 2026-05-01 (DEPLOY stage: Phase 1.5 zero-code-change auto-patch via .pth + NODE_OPTIONS, ADR-018 reference)_

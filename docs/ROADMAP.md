@@ -139,6 +139,11 @@ ArcanaInsight uses `xai_grok` SDK in Python. All Grok `chat.completions.create()
 | F-3.9 | TypeScript SDK `@verum/sdk` — full parity with Python SDK | ✅ |
 | F-3.10 | **ArcanaInsight SDK integration** — tarot endpoint using `import verum.openai` + `extra_headers={"x-verum-deployment": DEPLOYMENT_ID}` via `ActivationCard` activation flow | ✅ Verum delivers: `examples/arcana-integration/`. xzawed applies to ArcanaInsight manually. |
 | F-3.11 | OTLP HTTP receiver at `POST /api/v1/otlp/v1/traces` for Phase 0 observability-only integration | ✅ |
+| F-3.12 | INFER quota enforcement: `check_quota()` called before LLM call (PR #102) | ✅ |
+| F-3.13 | GENERATE completion email notification: `send_generate_complete_email()` called after generation (PR #102) | ✅ |
+| F-3.14 | Dashboard: INFER domain confirmation card (violet UI, domain + confidence, PR #102) | ✅ |
+| F-3.15 | Python SDK zero-code-change auto-patch: `verum-auto.pth` + `verum._auto` (PR #103) | ✅ |
+| F-3.16 | TypeScript SDK zero-code-change auto-patch: `@verum/sdk/auto` + `NODE_OPTIONS="--require @verum/sdk/auto"` (PR #103) | ✅ |
 
 ### ArcanaInsight Validation
 
@@ -234,4 +239,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-24_
+_Maintainer: xzawed | Last updated: 2026-05-01_

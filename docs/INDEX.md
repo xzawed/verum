@@ -2,7 +2,7 @@
 type: index
 authority: tier-3
 canonical-for: [navigation]
-last-updated: 2026-04-19
+last-updated: 2026-05-01
 status: active
 ---
 
@@ -103,6 +103,7 @@ Each topic has exactly one canonical owner. All other files must link, never res
 | Database schemas | ARCHITECTURE.md §4 |
 | API contracts | ARCHITECTURE.md §5 |
 | SDK surface | ARCHITECTURE.md §6 |
+| SDK auto-patch / zero-code-change integration (Phase 1.5) | packages/sdk-python/ + packages/sdk-typescript/ (implementation); ARCHITECTURE.md §7 ADR-018 (decision rationale) |
 | Full ADR text | ARCHITECTURE.md §7 |
 | ADR index + product-scope decisions | DECISIONS.md |
 | Phase timing + completion gates + F-IDs | ROADMAP.md |
@@ -123,4 +124,4 @@ Each topic has exactly one canonical owner. All other files must link, never res
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-04-26_
+_Maintainer: xzawed | Last updated: 2026-05-01_
