@@ -74,7 +74,9 @@ export async function POST(
     status: "running",
   });
 
-  const verumApiUrl = new URL(req.url).origin;
+  const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(/:$/, "");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host;
+  const verumApiUrl = `${proto}://${host}`;
 
   return Response.json(
     { deployment_id: String(dep.id), api_key: apiKey, verum_api_url: verumApiUrl },
