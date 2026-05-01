@@ -1,8 +1,15 @@
+import { z } from "zod";
 import { NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
 import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
+
+const RetrieveBodySchema = z.object({
+  query: z.string().min(1).max(2000),
+  collection_name: z.string().optional(),
+  top_k: z.number().int().min(1).max(20).optional().default(5),
+});
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
@@ -15,20 +22,13 @@ export async function POST(req: Request) {
   const keyResult = await validateApiKey(apiKey);
   if (!keyResult) return new Response("unauthorized", { status: 401 });
 
-  const body = await req.json() as {
-    query?: unknown;
-    collection_name?: unknown;
-    top_k?: unknown;
-  };
-
-  if (typeof body.query !== "string" || !body.query) {
-    return new Response("query required", { status: 400 });
+  const parsed = RetrieveBodySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json({ error: "invalid body" }, { status: 400 });
   }
-  if (body.query.length > 2000) {
-    return new Response("query too long (max 2000 chars)", { status: 400 });
-  }
+  const body = parsed.data;
 
-  const topK = typeof body.top_k === "number" ? Math.min(body.top_k, 20) : 5;
+  const topK = body.top_k;
 
   const embResp = await fetch("https://api.voyageai.com/v1/embeddings", {
     method: "POST",

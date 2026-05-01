@@ -76,6 +76,9 @@ exclude_lines = [
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
 [tool.mypy]
 python_version = "3.13"
 strict = true
