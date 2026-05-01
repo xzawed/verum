@@ -83,6 +83,18 @@ describe("GitHubPrCreator", () => {
     await expect(creator.readFile("secrets.txt")).rejects.toThrow("GitHub API 403");
   });
 
+  it("falls back to statusText when text() rejects on error response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => { throw new Error("body consumed"); },
+      json: async () => ({}),
+    });
+    const creator = new GitHubPrCreator({ accessToken: "ghp_test", repoFullName: "owner/repo" });
+    await expect(creator.readFile("file.txt")).rejects.toThrow("Service Unavailable");
+  });
+
   it("readFile returns raw content when not base64-encoded", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,

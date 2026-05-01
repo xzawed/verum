@@ -99,6 +99,16 @@ describe("POST /api/repos/[id]/sdk-pr", () => {
     const res = await POST(makeRequest(), { params: makeParams() });
     expect(res.status).toBe(409);
   });
+
+  it("returns 200 with message when fileChanges is empty (repo already has Verum config)", async () => {
+    const { buildPrFileChanges } = await import("@/lib/sdk-pr/transformer");
+    (buildPrFileChanges as jest.Mock).mockReturnValueOnce([]);
+    const res = await POST(makeRequest(), { params: makeParams() });
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(typeof body.message).toBe("string");
+    expect((body.message as string).toLowerCase()).toContain("nothing to change");
+  });
 });
 
 describe("GET /api/repos/[id]/sdk-pr", () => {
