@@ -165,6 +165,39 @@ describe("GET /api/v1/activation/[repoId]", () => {
     expect(body.deployment).toEqual({ id: "dep-1", traffic_split: 0.1, trace_count: 5 });
   });
 
+  it("deployment.trace_count is 0 when count query returns empty array", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+
+    mockDb.select
+      .mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any)
+      .mockReturnValueOnce(makeSelectChain([]) as any) // no rag config
+      .mockReturnValueOnce(
+        makeSelectChain([{ id: "dep-2", traffic_split: { baseline: 0.9, variant: 0.1 } }]) as any,
+      )
+      .mockReturnValueOnce(makeSelectChain([]) as any); // count returns empty
+
+    mockGetLatestAnalysis.mockResolvedValue({
+      id: "a-1",
+      call_sites: [],
+    } as any);
+    mockGetLatestInference.mockResolvedValue({
+      id: "i-1",
+      domain: "test",
+      tone: null,
+      summary: null,
+      confidence: null,
+    } as any);
+    mockCountChunks.mockResolvedValue(0);
+    mockDb.execute.mockResolvedValue({
+      rows: [{ id: "g-1", variant_count: 0, eval_count: 0 }],
+    } as any);
+
+    const res = await GET(new Request("http://localhost/api/v1/activation/repo-1"), makeParams("repo-1"));
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect((body.deployment as Record<string, unknown>).trace_count).toBe(0);
+  });
+
   it("returns 500 when an unexpected error is thrown inside try block", async () => {
     mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
 
