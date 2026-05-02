@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { createMcpServer } from "@/lib/mcp/server";
-import { getExperiments } from "@/lib/db/queries";
+import { getExperiments, getDeployment } from "@/lib/db/queries";
 import { db } from "@/lib/db/client";
 import { spans, traces, deployments, experiments } from "@/lib/db/schema";
 import { and, avg, count, eq, desc } from "drizzle-orm";
@@ -17,7 +17,7 @@ async function getTracesForDeployment(deploymentId: string, limit = 20) {
     .from(traces)
     .where(eq(traces.deployment_id, deploymentId))
     .orderBy(desc(traces.created_at))
-    .limit(limit);
+    .limit(Math.min(limit, 100)); // guard even if caller skips server.ts clamp
 }
 
 async function getMetricsForDeployment(deploymentId: string) {
@@ -37,7 +37,10 @@ async function getMetricsForDeployment(deploymentId: string) {
   };
 }
 
-async function approveVariantForDeployment(deploymentId: string, variant: string) {
+async function approveVariantForDeployment(deploymentId: string, variant: string, userId: string): Promise<Record<string, unknown>> {
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return { error: "Deployment not found or access denied" };
+
   await db
     .update(experiments)
     .set({
@@ -77,12 +80,13 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const server = createMcpServer({
     deploymentId: keyResult.deploymentId,
-    getExperiments: (depId) => getExperiments(keyResult.userId, depId),
-    getTraces: (depId, limit) => getTracesForDeployment(depId, limit),
-    getMetrics: (depId) => getMetricsForDeployment(depId),
-    approveVariant: (depId, variant) => approveVariantForDeployment(depId, variant),
+    getExperiments: (deploymentId) => getExperiments(keyResult.userId, deploymentId),
+    getTraces: (deploymentId, limit) => getTracesForDeployment(deploymentId, limit),
+    getMetrics: (deploymentId) => getMetricsForDeployment(deploymentId),
+    approveVariant: (deploymentId, variant) => approveVariantForDeployment(deploymentId, variant, keyResult.userId),
   });
 
+  // stateless mode: no SSE session persistence
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
   return transport.handleRequest(req);
