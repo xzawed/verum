@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column("url", sa.Text(), nullable=False),
         sa.Column(
             "events",
-            sa.JSON(),
+            sa.JSONB(),
             nullable=False,
             server_default='["experiment.winner_promoted"]',
         ),
