@@ -44,8 +44,8 @@ async def _listen_loop(dsn: str) -> None:  # pragma: no cover
                 await asyncio.sleep(5)
 
             await conn.close()
-        except Exception as exc:
-            logger.warning("LISTEN/NOTIFY: connection error (%s) — retrying in 5s", exc)
+        except Exception:
+            logger.exception("LISTEN/NOTIFY: connection error — retrying in 5s")
             await asyncio.sleep(5)
 
 
