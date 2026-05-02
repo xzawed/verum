@@ -1,4 +1,4 @@
-import { POST } from "../[...path]/route";
+import { POST, GET } from "../[...path]/route";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as typeof fetch;
@@ -109,5 +109,36 @@ describe("POST /api/proxy/[...path]", () => {
       }),
     });
     expect(res.status).toBe(502);
+  });
+});
+
+describe("GET /api/proxy/[...path]", () => {
+  beforeEach(() => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ object: "list", data: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  });
+
+  afterEach(() => mockFetch.mockReset());
+
+  it("forwards GET request to provider", async () => {
+    const req = new Request("http://localhost/api/proxy/openai/v1/models", {
+      method: "GET",
+      headers: {
+        "x-verum-api-key": "vk_test_key_that_is_long_enough_for_validation",
+        Authorization: "Bearer sk-real-api-key",
+      },
+    });
+    const res = await GET(req, {
+      params: Promise.resolve({ path: ["openai", "v1", "models"] }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/models",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 });

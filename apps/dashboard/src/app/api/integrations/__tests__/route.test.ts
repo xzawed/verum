@@ -33,7 +33,7 @@ jest.mock("@/lib/railway", () => ({
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
-import { upsertRailwayVariables } from "@/lib/railway";
+import { upsertRailwayVariables, deleteRailwayVariables } from "@/lib/railway";
 import { GET, POST } from "../route";
 import { GET as GET_SERVICES } from "../railway/services/route";
 import { POST as POST_DISCONNECT } from "../[id]/disconnect/route";
@@ -41,6 +41,7 @@ import { POST as POST_DISCONNECT } from "../[id]/disconnect/route";
 const mockAuth = auth as jest.MockedFunction<typeof auth>;
 const mockDb = db as jest.Mocked<typeof db>;
 const mockUpsertRailwayVariables = upsertRailwayVariables as jest.MockedFunction<typeof upsertRailwayVariables>;
+const mockDeleteRailwayVariables = deleteRailwayVariables as jest.MockedFunction<typeof deleteRailwayVariables>;
 
 function makeSession(userId = "user-1") {
   return { user: { id: userId } } as never;
@@ -256,7 +257,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 200 and success: true on disconnect", async () => {
+  it("returns 200 and success: true on disconnect (no credentials)", async () => {
     mockAuth.mockResolvedValueOnce(makeSession());
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
@@ -269,6 +270,77 @@ describe("POST /api/integrations/[id]/disconnect", () => {
               platform_service_id: null,
               platform_environment_id: null,
               injected_vars: {},
+            },
+          ]),
+        }),
+      }),
+    });
+    (mockDb.update as jest.Mock).mockReturnValueOnce({
+      set: jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue([]),
+      }),
+    });
+    const res = await POST_DISCONNECT(
+      new Request("http://localhost/api/integrations/int-1/disconnect", { method: "POST" }),
+      makeCtx("int-1"),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { success: boolean };
+    expect(body.success).toBe(true);
+  });
+
+  it("calls deleteRailwayVariables when credentials are present", async () => {
+    mockAuth.mockResolvedValueOnce(makeSession());
+    mockDeleteRailwayVariables.mockResolvedValueOnce(undefined);
+    (mockDb.select as jest.Mock).mockReturnValueOnce({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          limit: jest.fn().mockResolvedValue([
+            {
+              id: "int-1",
+              platform_token_encrypted: "enc:tok_123",
+              platform_project_id: "proj-1",
+              platform_service_id: "svc-1",
+              platform_environment_id: "env-1",
+              injected_vars: { OTEL_EXPORTER_OTLP_ENDPOINT: "https://example.com/otlp" },
+            },
+          ]),
+        }),
+      }),
+    });
+    (mockDb.update as jest.Mock).mockReturnValueOnce({
+      set: jest.fn().mockReturnValue({
+        where: jest.fn().mockResolvedValue([]),
+      }),
+    });
+    const res = await POST_DISCONNECT(
+      new Request("http://localhost/api/integrations/int-1/disconnect", { method: "POST" }),
+      makeCtx("int-1"),
+    );
+    expect(res.status).toBe(200);
+    expect(mockDeleteRailwayVariables).toHaveBeenCalledWith(
+      "tok_123",
+      "proj-1",
+      "svc-1",
+      "env-1",
+      ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+    );
+  });
+
+  it("still returns 200 when deleteRailwayVariables throws (best-effort)", async () => {
+    mockAuth.mockResolvedValueOnce(makeSession());
+    mockDeleteRailwayVariables.mockRejectedValueOnce(new Error("Railway down"));
+    (mockDb.select as jest.Mock).mockReturnValueOnce({
+      from: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnValue({
+          limit: jest.fn().mockResolvedValue([
+            {
+              id: "int-1",
+              platform_token_encrypted: "enc:tok_123",
+              platform_project_id: "proj-1",
+              platform_service_id: "svc-1",
+              platform_environment_id: "env-1",
+              injected_vars: { OTEL_EXPORTER_OTLP_ENDPOINT: "https://example.com/otlp" },
             },
           ]),
         }),
