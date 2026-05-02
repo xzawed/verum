@@ -1,17 +1,15 @@
 import { and, eq } from "drizzle-orm";
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { decrypt } from "@/lib/encrypt";
 import { deleteRailwayVariables } from "@/lib/railway";
 import { integrations } from "@/lib/db/schema";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-  const user = session?.user as Record<string, unknown> | undefined;
-  const userId = user?.id as string | undefined;
+  const userId = await getAuthUserId();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
   const { id } = await params;

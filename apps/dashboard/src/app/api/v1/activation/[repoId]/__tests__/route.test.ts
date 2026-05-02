@@ -1,6 +1,4 @@
-jest.mock("@/auth", () => ({
-  auth: jest.fn(),
-}));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 
 jest.mock("@/lib/db/client", () => ({
   db: {
@@ -16,11 +14,11 @@ jest.mock("@/lib/db/queries", () => ({
 }));
 
 import { GET } from "../route";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { db } from "@/lib/db/client";
 import { getLatestAnalysis, getLatestInference, countChunks } from "@/lib/db/queries";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockDb = db as jest.Mocked<typeof db>;
 const mockGetLatestAnalysis = getLatestAnalysis as jest.MockedFunction<typeof getLatestAnalysis>;
 const mockGetLatestInference = getLatestInference as jest.MockedFunction<typeof getLatestInference>;
@@ -45,7 +43,7 @@ beforeEach(() => {
 
 describe("GET /api/v1/activation/[repoId]", () => {
   it("returns 401 when auth() returns null", async () => {
-    mockAuth.mockResolvedValue(null as any);
+    mockGetAuthUserId.mockResolvedValue(null);
 
     const res = await GET(new Request("http://localhost/api/v1/activation/repo-1"), makeParams("repo-1"));
 
@@ -53,7 +51,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   });
 
   it("returns 404 when repo is not found for the user", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     // db.select().from().where().limit() chain returns []
     const limitMock = jest.fn().mockResolvedValue([]);
@@ -67,7 +65,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   });
 
   it("returns 200 with ActivationResponse when all DB calls succeed (all-null sections)", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     // Owner check returns a repo row
     const limitMock = jest.fn().mockResolvedValue([{ id: "repo-1" }]);
@@ -97,7 +95,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   });
 
   it("returns 200 with fully populated ActivationResponse (full DAG)", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     // db.select is called 4 times: owner check → rag_configs → deployments → trace count
     mockDb.select
@@ -166,7 +164,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   });
 
   it("deployment.trace_count is 0 when count query returns empty array", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     mockDb.select
       .mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any)
@@ -199,7 +197,7 @@ describe("GET /api/v1/activation/[repoId]", () => {
   });
 
   it("returns 500 when an unexpected error is thrown inside try block", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     // Owner check succeeds
     mockDb.select.mockReturnValueOnce(makeSelectChain([{ id: "repo-1" }]) as any);

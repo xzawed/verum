@@ -281,23 +281,27 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `generation_id` | `UUID` FK → generations | |
-| `status` | `TEXT` | `"shadow"` / `"canary"` / `"full"` / `"rolled_back"` / `"archived"` |
+| `generation_id` | `UUID` FK → generations (CASCADE) | |
+| `status` | `VARCHAR(32)` | `"canary"` / `"full"` / `"rolled_back"` / `"archived"` |
 | `traffic_split` | `JSONB` | `{"baseline": 0.9, "variant": 0.1}` |
-| `deployed_at` | `TIMESTAMPTZ` | |
-| `archived_at` | `TIMESTAMPTZ` | nullable |
+| `error_count` | `INT` | default 0 |
+| `total_calls` | `INT` | default 0 |
+| `experiment_status` | `TEXT` | `"idle"` / `"running"` / `"completed"` |
+| `current_baseline_variant` | `TEXT` | active variant name; default `"original"` |
+| `api_key_hash` | `TEXT` | SHA-256 hash of the plaintext `vk_` key (migration 0014) |
+| `created_at` | `TIMESTAMPTZ` | |
+| `updated_at` | `TIMESTAMPTZ` | |
 
 ### `traces`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `deployment_id` | `UUID` FK → deployments | nullable |
-| `name` | `TEXT` | |
-| `start_time` | `TIMESTAMPTZ` | |
-| `end_time` | `TIMESTAMPTZ` | |
-| `status` | `TEXT` | `"ok"` / `"error"` |
-| `metadata` | `JSONB` | |
+| `deployment_id` | `UUID` FK → deployments | not nullable |
+| `variant` | `TEXT` | `"baseline"` or variant name; default `"baseline"` |
+| `user_feedback` | `SMALLINT` | nullable — `1` (positive) / `-1` (negative) |
+| `judge_score` | `DOUBLE PRECISION` | nullable — LLM-as-Judge score |
+| `created_at` | `TIMESTAMPTZ` | |
 
 ### `spans`
 
@@ -305,30 +309,34 @@ All schemas are managed via Alembic migrations. No raw SQL. All datetime fields 
 |---|---|---|
 | `id` | `UUID` PK | |
 | `trace_id` | `UUID` FK → traces | |
-| `parent_span_id` | `UUID` | nullable for root span |
-| `name` | `TEXT` | |
 | `model` | `TEXT` | |
-| `input_tokens` | `INT` | |
-| `output_tokens` | `INT` | |
-| `cost_usd` | `NUMERIC(10,6)` | |
-| `latency_ms` | `INT` | |
-| `start_time` | `TIMESTAMPTZ` | |
-| `end_time` | `TIMESTAMPTZ` | |
-| `attributes` | `JSONB` | |
+| `input_tokens` | `INT` | default 0 |
+| `output_tokens` | `INT` | default 0 |
+| `latency_ms` | `INT` | default 0 |
+| `cost_usd` | `NUMERIC(10,6)` | default 0 |
+| `error` | `TEXT` | nullable |
+| `started_at` | `TIMESTAMPTZ` | |
+| `span_attributes` | `JSONB` | nullable — raw OTLP span attributes (migration 0023) |
 
 ### `experiments`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` PK | |
-| `deployment_ids` | `UUID[]` | variants under test |
-| `evaluation_metric` | `TEXT` | |
-| `stopping_rule` | `TEXT` | `"bayesian"` / `"fixed_horizon"` |
-| `winner_deployment_id` | `UUID` | nullable until decided |
-| `confidence` | `FLOAT` | |
-| `status` | `TEXT` | `"running"` / `"concluded"` / `"inconclusive"` |
+| `deployment_id` | `UUID` FK → deployments (CASCADE) | |
+| `baseline_variant` | `TEXT` | variant name being used as baseline |
+| `challenger_variant` | `TEXT` | variant name being tested |
+| `status` | `TEXT` | `"running"` / `"converged"` |
+| `winner_variant` | `TEXT` | nullable until decided |
+| `confidence` | `DOUBLE PRECISION` | nullable |
+| `baseline_wins` | `INT` | Bayesian win count for baseline; default 0 |
+| `baseline_n` | `INT` | total baseline observations; default 0 |
+| `challenger_wins` | `INT` | Bayesian win count for challenger; default 0 |
+| `challenger_n` | `INT` | total challenger observations; default 0 |
+| `win_threshold` | `DOUBLE PRECISION` | Bayesian stopping threshold; default 0.6 |
+| `cost_weight` | `DOUBLE PRECISION` | cost penalty weight in winner score; default 0.1 |
 | `started_at` | `TIMESTAMPTZ` | |
-| `concluded_at` | `TIMESTAMPTZ` | nullable |
+| `converged_at` | `TIMESTAMPTZ` | nullable |
 
 ### EVOLVE — deployment updates (no separate table)
 
@@ -422,6 +430,19 @@ EVOLVE is triggered automatically as a `verum_jobs` worker job when an experimen
 | Method | Path | Description | Status |
 |---|---|---|---|
 | GET | `/api/v1/experiments/{experiment_id}` | Check experiment status + winner (shared with [7]) | ✅ |
+
+### MCP (Model Context Protocol)
+
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/api/mcp` | MCP Streamable HTTP endpoint — API key auth (`Authorization: Bearer` or `X-Verum-API-Key`). Tools: `get_experiments`, `get_traces`, `get_metrics`, `approve_variant` | ✅ |
+
+### Misc / Infrastructure
+
+| Method | Path | Description | Status |
+|---|---|---|---|
+| POST | `/api/repos/{repo_id}/analyze` | Enqueue analyze job for a specific repo (rate-limited, JWT session, returns 202) | ✅ |
+| POST | `/api/v1/csp-report` | CSP violation report ingestion — logs to console, returns 204, no auth required | ✅ |
 
 ---
 
@@ -911,4 +932,4 @@ Remove GitHub PR creation from the activation flow entirely. Replace with a sync
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-01 (ADR-018 추가 — Zero-code-change SDK auto-patch via .pth + NODE_OPTIONS; ADR-019 추가 — ActivationCard v2 no-PR one-click activation)_
+_Maintainer: xzawed | Last updated: 2026-05-02 (docs audit: deployments/traces/spans/experiments 테이블 스키마를 실제 Alembic 마이그레이션·Drizzle schema.ts 기준으로 정정; MCP·csp-report·repos/analyze 엔드포인트 추가)_

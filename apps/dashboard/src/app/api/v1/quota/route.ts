@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
 import { FREE_LIMITS } from "@/lib/db/quota";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET() {
   const rows = await db.execute(
     sql`SELECT traces_used, chunks_stored, repos_connected, plan
         FROM usage_quotas
-        WHERE user_id = ${session.user.id}
+        WHERE user_id = ${userId}
           AND period_start = ${periodStart}::date
         LIMIT 1`
   );

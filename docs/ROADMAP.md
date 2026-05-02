@@ -181,6 +181,9 @@ ArcanaInsight's tarot reading endpoint must:
 | F-4.8 | Auto-winner selection: judge_score − 0.1×cost_normalized at confidence ≥ 0.95 | ✅ |
 | F-4.9 | EVOLVE: promote winner to 100% traffic, archive losers | ✅ |
 | F-4.10 | Dashboard: ExperimentSection with Bayesian confidence bar + history table | ✅ |
+| F-4.12 | Railway platform integration: connect/disconnect UI + AES-256-GCM token encryption + OTLP/NODE_OPTIONS env var auto-injection (`integrations` table, migration 0025) (PR #112) | ✅ |
+| F-4.13 | Opt-in LLM proxy (`/api/proxy/[...path]`): validateApiKey + per-key/per-IP rate limit + async trace recording (PR #112) | ✅ |
+| F-4.14 | MCP (Model Context Protocol) endpoint (`POST /api/mcp`): Streamable HTTP transport, API key auth, 4 tools: `get_experiments`, `get_traces`, `get_metrics`, `approve_variant` | ✅ |
 | F-4.11 | **ArcanaInsight auto-evolution** — at least 1 prompt improvement cycle completed | 🔲 |
 
 ### ArcanaInsight Validation
@@ -239,4 +242,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-01_
+_Maintainer: xzawed | Last updated: 2026-05-02 (F-4.12/4.13/4.14 추가 — Railway 통합·LLM 프록시·MCP 엔드포인트 PR #112 완료 반영)_

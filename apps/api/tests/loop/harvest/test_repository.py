@@ -223,3 +223,28 @@ async def test_vector_search_respects_top_k_parameter() -> None:
     params = call_args[0][1]
 
     assert params["k"] == top_k
+
+
+@pytest.mark.asyncio
+async def test_save_chunks_embedding_update_uses_no_string_interpolation() -> None:
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock()
+    db.add = MagicMock()
+
+    cid = uuid.uuid4()
+    emb = [0.1] * 1024
+    await save_chunks(db, uuid.uuid4(), uuid.uuid4(), ["text"], [emb])
+
+    call_args = db.execute.call_args
+    sql_obj = call_args[0][0]
+    param_list = call_args[0][1]
+
+    sql_str = str(sql_obj)
+    vec_str = "[" + ",".join(str(v) for v in emb) + "]"
+
+    assert vec_str not in sql_str, "Vector must be a bound parameter, not interpolated SQL"
+    assert isinstance(param_list, list) and len(param_list) == 1
+    row = param_list[0]
+    assert "id" in row and "vec" in row
+    assert row["vec"] == vec_str

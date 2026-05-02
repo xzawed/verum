@@ -1,15 +1,13 @@
-jest.mock("@/auth", () => ({
-  auth: jest.fn(),
-}));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/jobs", () => ({
   confirmInference: jest.fn(),
 }));
 
 import { PATCH } from "../route";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { confirmInference } from "@/lib/db/jobs";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockConfirmInference = confirmInference as jest.MockedFunction<typeof confirmInference>;
 
 function makeRequest(body: unknown): Request {
@@ -30,7 +28,7 @@ beforeEach(() => {
 
 describe("PATCH /api/v1/infer/[id]/confirm", () => {
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockGetAuthUserId.mockResolvedValue(null);
 
     const res = await PATCH(makeRequest({}), makeParams("inf-1"));
 
@@ -38,7 +36,7 @@ describe("PATCH /api/v1/infer/[id]/confirm", () => {
   });
 
   it("returns 401 when session has no user id", async () => {
-    mockAuth.mockResolvedValue({ user: { name: "Test" } } as any);
+    mockGetAuthUserId.mockResolvedValue(null);
 
     const res = await PATCH(makeRequest({}), makeParams("inf-1"));
 
@@ -46,7 +44,7 @@ describe("PATCH /api/v1/infer/[id]/confirm", () => {
   });
 
   it("returns 404 when inference is not found", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1", name: "Test" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
     mockConfirmInference.mockResolvedValue(null);
 
     const res = await PATCH(makeRequest({}), makeParams("inf-missing"));
@@ -55,7 +53,7 @@ describe("PATCH /api/v1/infer/[id]/confirm", () => {
   });
 
   it("returns 200 with updated inference on success", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1", name: "Test" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
     const updatedInference = {
       id: "inf-1",
       domain: "tarot_divination",
@@ -77,7 +75,7 @@ describe("PATCH /api/v1/infer/[id]/confirm", () => {
   });
 
   it("passes overrides correctly to confirmInference", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as any);
+    mockGetAuthUserId.mockResolvedValue("user-1");
     mockConfirmInference.mockResolvedValue({ id: "inf-1" } as any);
 
     await PATCH(

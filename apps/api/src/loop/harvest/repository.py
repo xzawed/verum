@@ -14,6 +14,11 @@ from src.db.models.harvest_sources import HarvestSource
 # This constant is part of the data model contract and is safe to embed in SQL templates.
 EMBEDDING_DIM = 1024
 
+_UPDATE_EMBEDDING_SQL = text(
+    "UPDATE chunks SET embedding_vec = CAST(:vec AS vector(1024))"
+    " WHERE id = CAST(:id AS UUID)"
+)
+
 
 async def get_approved_sources(
     db: AsyncSession,
@@ -55,7 +60,7 @@ async def save_chunks(
     embeddings: list[list[float]],
 ) -> int:
     chunk_ids: list[uuid.UUID] = []
-    for idx, (text_content, embedding) in enumerate(zip(texts, embeddings)):
+    for idx, (text_content, embedding) in enumerate(zip(texts, embeddings, strict=True)):
         cid = uuid.uuid4()
         chunk_ids.append(cid)
         db.add(Chunk(
@@ -69,22 +74,12 @@ async def save_chunks(
 
     await db.flush()
     if chunk_ids:
-        row_params: dict[str, str] = {}
-        value_placeholders: list[str] = []
-        for i, (cid, emb) in enumerate(zip(chunk_ids, embeddings)):
-            id_key = f"id{i}"
-            vec_key = f"vec{i}"
-            row_params[id_key] = str(cid)
-            row_params[vec_key] = "[" + ",".join(str(v) for v in emb) + "]"
-            value_placeholders.append(f"(cast(:{id_key} as uuid), cast(:{vec_key} as vector({EMBEDDING_DIM})))")
-
         await db.execute(
-            text(
-                "UPDATE chunks SET embedding_vec = v.vec"
-                " FROM (VALUES " + ", ".join(value_placeholders) + ") AS v(id, vec)"  # nosec B608
-                " WHERE chunks.id = v.id"
-            ),
-            row_params,
+            _UPDATE_EMBEDDING_SQL,
+            [
+                {"id": str(cid), "vec": "[" + ",".join(str(v) for v in emb) + "]"}
+                for cid, emb in zip(chunk_ids, embeddings, strict=True)
+            ],
         )
 
     # Do not commit here — the caller (harvest handler) owns the transaction

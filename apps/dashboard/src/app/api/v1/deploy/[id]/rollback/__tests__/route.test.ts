@@ -1,7 +1,7 @@
 jest.mock("@/lib/rateLimit", () => ({
   checkRateLimit: jest.fn().mockResolvedValue(null),
 }));
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/jobs", () => ({
   rollbackDeployment: jest.fn(),
 }));
@@ -10,11 +10,11 @@ jest.mock("@/lib/db/queries", () => ({
 }));
 
 import { POST } from "../route";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { rollbackDeployment } from "@/lib/db/jobs";
 import { getDeployment } from "@/lib/db/queries";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockRollbackDeployment = rollbackDeployment as jest.MockedFunction<
   typeof rollbackDeployment
 >;
@@ -32,14 +32,14 @@ beforeEach(() => {
 
 describe("POST /api/v1/deploy/[id]/rollback", () => {
   it("returns 401 when there is no session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const req = makeRequest();
     const res = await POST(req, { params: Promise.resolve({ id: "dep-1" }) });
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when deployment is not found", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce(null);
     const req = makeRequest();
     const res = await POST(req, { params: Promise.resolve({ id: "dep-missing" }) });
@@ -47,7 +47,7 @@ describe("POST /api/v1/deploy/[id]/rollback", () => {
   });
 
   it("returns 200 with status:rolled_back on success", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
     mockRollbackDeployment.mockResolvedValueOnce(undefined as never);
 

@@ -1,4 +1,3 @@
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { deployments, rag_configs, repos, traces } from "@/lib/db/schema";
 import {
@@ -7,6 +6,7 @@ import {
   getLatestInference,
 } from "@/lib/db/queries";
 import { and, count, desc, eq, sql } from "drizzle-orm";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 interface RagConfig {
   chunking_strategy: string;
@@ -46,11 +46,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ repoId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return new Response("unauthorized", { status: 401 });
-  }
-  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  const userId = await getAuthUserId();
   if (!userId) {
     return new Response("unauthorized", { status: 401 });
   }

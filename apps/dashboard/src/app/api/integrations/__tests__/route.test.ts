@@ -1,4 +1,4 @@
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/client", () => ({
   db: {
     select: jest.fn().mockReturnValue({
@@ -31,20 +31,20 @@ jest.mock("@/lib/railway", () => ({
   deleteRailwayVariables: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { db } from "@/lib/db/client";
 import { upsertRailwayVariables, deleteRailwayVariables } from "@/lib/railway";
 import { GET, POST } from "../route";
 import { GET as GET_SERVICES } from "../railway/services/route";
 import { POST as POST_DISCONNECT } from "../[id]/disconnect/route";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockDb = db as jest.Mocked<typeof db>;
 const mockUpsertRailwayVariables = upsertRailwayVariables as jest.MockedFunction<typeof upsertRailwayVariables>;
 const mockDeleteRailwayVariables = deleteRailwayVariables as jest.MockedFunction<typeof deleteRailwayVariables>;
 
 function makeSession(userId = "user-1") {
-  return { user: { id: userId } } as never;
+  return userId;
 }
 
 function makePostRequest(body: unknown, url = "http://localhost/api/integrations"): Request {
@@ -71,13 +71,13 @@ beforeEach(() => {
 
 describe("GET /api/integrations", () => {
   it("returns 401 without session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const res = await GET(new Request("http://localhost/api/integrations"));
     expect(res.status).toBe(401);
   });
 
   it("returns 200 with empty integrations array", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const orderByMock = jest.fn().mockResolvedValue([]);
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
@@ -93,7 +93,7 @@ describe("GET /api/integrations", () => {
   });
 
   it("returns integrations without platform_token_encrypted", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     // Simulate what Drizzle returns when selecting only specific columns:
     // platform_token_encrypted is NOT selected, so it won't appear in the row.
     const row = {
@@ -122,25 +122,25 @@ describe("GET /api/integrations", () => {
 
 describe("POST /api/integrations", () => {
   it("returns 401 without session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const res = await POST(makePostRequest(VALID_BODY));
     expect(res.status).toBe(401);
   });
 
   it("returns 400 for missing required fields", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const res = await POST(makePostRequest({ railway_token: "tok" }));
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for empty railway_token", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const res = await POST(makePostRequest({ ...VALID_BODY, railway_token: "" }));
     expect(res.status).toBe(400);
   });
 
   it("returns 201 and integration_id on success", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.insert as jest.Mock).mockReturnValueOnce({
       values: jest.fn().mockReturnValue({
@@ -154,7 +154,7 @@ describe("POST /api/integrations", () => {
   });
 
   it("injects NODE_OPTIONS when inject_node_options is true", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.insert as jest.Mock).mockReturnValueOnce({
       values: jest.fn().mockReturnValue({
@@ -175,7 +175,7 @@ describe("POST /api/integrations", () => {
   });
 
   it("does not inject NODE_OPTIONS when inject_node_options is false", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.insert as jest.Mock).mockReturnValueOnce({
       values: jest.fn().mockReturnValue({
@@ -189,7 +189,7 @@ describe("POST /api/integrations", () => {
   });
 
   it("always injects OTEL_EXPORTER_OTLP_ENDPOINT", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.insert as jest.Mock).mockReturnValueOnce({
       values: jest.fn().mockReturnValue({
@@ -204,14 +204,14 @@ describe("POST /api/integrations", () => {
   });
 
   it("returns 502 when upsertRailwayVariables throws", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockRejectedValueOnce(new Error("Railway down"));
     const res = await POST(makePostRequest(VALID_BODY));
     expect(res.status).toBe(502);
   });
 
   it("returns 404 when repo_id provided but not owned by user", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     // repo ownership check returns empty
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
@@ -233,7 +233,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
   }
 
   it("returns 401 without session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const res = await POST_DISCONNECT(
       new Request("http://localhost/api/integrations/int-1/disconnect", { method: "POST" }),
       makeCtx("int-1"),
@@ -242,7 +242,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
   });
 
   it("returns 404 when integration not found", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
         where: jest.fn().mockReturnValue({
@@ -258,7 +258,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
   });
 
   it("returns 200 and success: true on disconnect (no credentials)", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
         where: jest.fn().mockReturnValue({
@@ -290,7 +290,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
   });
 
   it("calls deleteRailwayVariables when credentials are present", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockDeleteRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
@@ -328,7 +328,7 @@ describe("POST /api/integrations/[id]/disconnect", () => {
   });
 
   it("still returns 200 when deleteRailwayVariables throws (best-effort)", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockDeleteRailwayVariables.mockRejectedValueOnce(new Error("Railway down"));
     (mockDb.select as jest.Mock).mockReturnValueOnce({
       from: jest.fn().mockReturnValue({
@@ -365,19 +365,19 @@ describe("POST /api/integrations/[id]/disconnect", () => {
 
 describe("GET /api/integrations/railway/services", () => {
   it("returns 401 without session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const res = await GET_SERVICES(new Request("http://localhost/api/integrations/railway/services?token=tok"));
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when token param is missing", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const res = await GET_SERVICES(new Request("http://localhost/api/integrations/railway/services"));
     expect(res.status).toBe(400);
   });
 
   it("returns 200 with services list", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const { listRailwayServices } = jest.requireMock("@/lib/railway") as { listRailwayServices: jest.Mock };
     listRailwayServices.mockResolvedValueOnce([{ id: "svc-1", name: "my-service" }]);
     const res = await GET_SERVICES(new Request("http://localhost/api/integrations/railway/services?token=tok"));
@@ -387,7 +387,7 @@ describe("GET /api/integrations/railway/services", () => {
   });
 
   it("returns 502 when listRailwayServices throws", async () => {
-    mockAuth.mockResolvedValueOnce(makeSession());
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     const { listRailwayServices } = jest.requireMock("@/lib/railway") as { listRailwayServices: jest.Mock };
     listRailwayServices.mockRejectedValueOnce(new Error("Railway API error"));
     const res = await GET_SERVICES(new Request("http://localhost/api/integrations/railway/services?token=bad"));

@@ -684,15 +684,30 @@ Claude Code가 판단이 애매할 때 참고:
 
 ### "Railway 대시보드가 잘못된 Dockerfile / start command를 보여준다?"
 
-Railway는 서비스를 처음 연결할 때 설정을 캐시하며, `railway.toml` 변경이 대시보드에 자동 반영되지 않을 수 있다.
+Railway 대시보드 설정이 `railway.toml`을 무시하고 캐시된 값을 사용하는 현상. 첫 연결 시뿐 아니라 **PR 머지 후 재배포 시에도 반복 발생**한다 (2026-05-02 PR #114 머지 후 재현 확인).
 
-**증상**: Railway 대시보드 Configuration에 `apps/api/Dockerfile` 또는 `npm run start`가 표시됨  
-**원인**: 초기 커밋(`ab20748`) 시점의 설정이 캐시된 것. `railway.toml`이 배포 시 override하도록 설계되어 있으나 대시보드 표시는 stale할 수 있음  
-**해결**: Railway 대시보드에서 직접 수동으로 변경 필요:
-- Dockerfile path → `Dockerfile` (root)
-- Start command → `dumb-init node server.js`
+**진단**: Railway 배포 메타데이터의 `configFile` 필드로 판별.
+- `"configFile": "/railway.toml"` → `railway.toml`이 정상 적용됨 ✅
+- `configFile` 필드 **없음** → 대시보드 캐시 설정이 사용됨 ❌
 
-> **중요**: `apps/api/Dockerfile`은 삭제됨. 아키텍처 피벗(2026-04-20) 후 FastAPI + uvicorn이 제거되어 더 이상 유효하지 않은 파일이었음. 프로덕션 이미지는 루트 `Dockerfile`(3-stage: Next.js + Python + combined runtime)만 사용.
+**증상** (configFile 누락 시 세트로 나타남):
+- `serviceManifest.build.dockerfilePath` = `"/apps/api/Dockerfile"` (존재하지 않는 파일)
+- `serviceManifest.deploy.healthcheckPath` = `null`
+- `serviceManifest.deploy.healthcheckTimeout` = `null`
+
+**결과**: `apps/api/Dockerfile`은 삭제된 파일이므로 빌드 즉시 실패.
+
+**해결**: Railway 대시보드에서 직접 수동으로 변경 후 Redeploy:
+- Build → Dockerfile path: `Dockerfile` (root)
+- Deploy → Healthcheck path: `/health`, Timeout: `60`
+- Start command: `dumb-init node server.js`
+
+**예방 체크리스트** (매 PR 머지 전):
+1. Railway 대시보드 → Settings → Build → Dockerfile path가 `Dockerfile`인지 확인
+2. Settings → Deploy → Healthcheck path가 `/health`인지 확인
+3. 잘못되어 있으면 수정 후 머지
+
+> **참고**: `apps/api/Dockerfile`은 아키텍처 피벗(2026-04-20)에서 삭제됨. 프로덕션 이미지는 루트 `Dockerfile`(3-stage: Next.js + Python + combined runtime)만 사용.
 
 ---
 

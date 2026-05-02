@@ -5,7 +5,7 @@ jest.mock("@/lib/rateLimit", () => ({
 
 import { GET, POST } from "../route";
 
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/queries", () => ({
   getDeployment: jest.fn(),
   getTraceList: jest.fn(),
@@ -22,14 +22,14 @@ jest.mock("@/lib/db/quota", () => ({
   FREE_LIMITS: { traces: 1000 },
 }));
 
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkAndIncrementTraceQuota } from "@/lib/db/quota";
 import { checkRateLimitDual } from "@/lib/rateLimit";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockGetDeployment = getDeployment as jest.Mock;
 const mockGetTraceList = getTraceList as jest.Mock;
 const mockGetModelPricing = getModelPricing as jest.Mock;
@@ -44,21 +44,21 @@ describe("GET /api/v1/traces", () => {
   });
 
   it("returns 401 if no session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const req = new Request("http://localhost/api/v1/traces?deployment_id=abc");
     const res = await GET(req);
     expect(res.status).toBe(401);
   });
 
   it("returns 400 if deployment_id is missing", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     const req = new Request("http://localhost/api/v1/traces");
     const res = await GET(req);
     expect(res.status).toBe(400);
   });
 
   it("returns 404 if deployment not found", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce(null);
     const req = new Request("http://localhost/api/v1/traces?deployment_id=dep-999");
     const res = await GET(req);
@@ -66,7 +66,7 @@ describe("GET /api/v1/traces", () => {
   });
 
   it("returns 200 with traces, total, page on success", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
     mockGetTraceList.mockResolvedValueOnce({
       traces: [{ id: "trace-1", variant: "baseline" }],

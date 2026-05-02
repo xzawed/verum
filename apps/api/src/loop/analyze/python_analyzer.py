@@ -177,7 +177,7 @@ def _messages_prompts(messages_node: ast.expr) -> list[str]:
     for elt in messages_node.elts:
         if not isinstance(elt, ast.Dict):
             continue
-        for k, v in zip(elt.keys, elt.values):
+        for k, v in zip(elt.keys, elt.values, strict=True):
             if v is not None and isinstance(k, ast.Constant) and k.value == "content":
                 s = _str_value(v)
                 if s:

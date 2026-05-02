@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { auth } from "@/auth";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkAndIncrementTraceQuota, FREE_LIMITS } from "@/lib/db/quota";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 const TraceBodySchema = z.object({
   deployment_id: z.string().uuid(),
@@ -84,8 +84,8 @@ export async function POST(req: Request) {
 
 // GET — browser-facing: Auth.js session
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) return new Response("unauthorized", { status: 401 });
+  const userId = await getAuthUserId();
+  if (!userId) return new Response("unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const deploymentId = searchParams.get("deployment_id") ?? "";
@@ -93,8 +93,6 @@ export async function GET(req: Request) {
   const limit = Number(searchParams.get("limit") ?? "20");
 
   if (!deploymentId) return new Response("deployment_id required", { status: 400 });
-
-  const userId = session.user.id as string;
   const dep = await getDeployment(userId, deploymentId);
   if (!dep) return new Response("not found", { status: 404 });
 

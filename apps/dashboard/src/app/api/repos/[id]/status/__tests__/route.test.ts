@@ -2,17 +2,17 @@ jest.mock("@/lib/db/queries", () => ({
   getRepoStatus: jest.fn(),
   getWorkerAlive: jest.fn(),
 }));
-jest.mock("@/auth", () => ({
-  auth: jest.fn(),
+jest.mock("@/lib/api/handlers", () => ({
+  getAuthUserId: jest.fn(),
 }));
 
 import { GET } from "../route";
 import { getRepoStatus, getWorkerAlive } from "@/lib/db/queries";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 const mockGetRepoStatus = getRepoStatus as jest.Mock;
 const mockGetWorkerAlive = getWorkerAlive as jest.Mock;
-const mockAuth = auth as jest.Mock;
+const mockGetAuthUserId = getAuthUserId as jest.Mock;
 
 function makeRequest(repoId: string): [Request, { params: Promise<{ id: string }> }] {
   const req = new Request(`http://localhost/api/repos/${repoId}/status`);
@@ -22,13 +22,13 @@ function makeRequest(repoId: string): [Request, { params: Promise<{ id: string }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAuth.mockResolvedValue({ user: { id: "user-1" } });
+  mockGetAuthUserId.mockResolvedValue("user-1");
   mockGetWorkerAlive.mockResolvedValue(true);
 });
 
 describe("GET /api/repos/[id]/status", () => {
   it("returns 401 when session is missing", async () => {
-    mockAuth.mockResolvedValue(null);
+    mockGetAuthUserId.mockResolvedValue(null);
 
     const [req, ctx] = makeRequest("repo-123");
     const res = await GET(req, ctx);

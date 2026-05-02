@@ -1,13 +1,13 @@
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/jobs", () => ({
   approveGeneration: jest.fn(),
 }));
 
 import { PATCH } from "../route";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { approveGeneration } from "@/lib/db/jobs";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockApproveGeneration = approveGeneration as jest.MockedFunction<
   typeof approveGeneration
 >;
@@ -24,14 +24,14 @@ beforeEach(() => {
 
 describe("PATCH /api/v1/generate/[id]/approve", () => {
   it("returns 401 when there is no session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const req = makeRequest();
     const res = await PATCH(req, { params: Promise.resolve({ id: "gen-1" }) });
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when generation is not found", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockApproveGeneration.mockResolvedValueOnce(false as never);
 
     const req = makeRequest();
@@ -40,7 +40,7 @@ describe("PATCH /api/v1/generate/[id]/approve", () => {
   });
 
   it("returns 200 with status:approved on success", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockApproveGeneration.mockResolvedValueOnce(true as never);
 
     const req = makeRequest();
