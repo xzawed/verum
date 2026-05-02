@@ -68,6 +68,7 @@ last-updated: 2026-05-01
 | `0022_force_row_level_security` | `FORCE ROW LEVEL SECURITY` on repos + usage_quotas. **⚠️ DATABASE_URL을 verum_app으로 변경한 후에만 실행할 것.** |
 | `0023_otlp_trace_attrs` | `spans.span_attributes JSONB` — OTLP Phase 0 메타데이터 저장 |
 | `0024_sdk_pr_mode` | `sdk_pr_requests.mode VARCHAR(32) DEFAULT 'observe'` + 복합 인덱스. Phase 0/1 PR 상태 분리 추적 |
+| `0025_integrations` | `integrations` — Railway service 연결 추적. `platform_token_encrypted` AES-256-GCM 암호화. `injected_vars JSONB` |
 
 > **참고:** migration 0012는 존재하지 않음 (순서 정리 과정에서 스킵됨).
 
@@ -162,6 +163,16 @@ last-updated: 2026-05-01
 | POST | `/api/v1/otlp/v1/traces` | OTLP receiver — Phase 0 auto-instrument (openinference spans, no auth required for ingest) |
 | GET | `/api/v1/activation/[repoId]` | ActivationCard data — INFER/GENERATE/HARVEST summary + `deployment.trace_count` for polling (JWT session auth) |
 | POST | `/api/repos/[id]/activate` | One-click deployment creation — creates `deployments` + `experiments` rows, returns one-time `api_key` (`vk_<64-hex>`), `deployment_id`, `verum_api_url` (JWT session auth) |
+| GET | `/api/integrations` | 사용자 Railway integration 목록 (token 필드 제외) |
+| POST | `/api/integrations` | Railway service 연결 — OTLP env vars 주입 후 `integrations` 행 생성. `railway_token` AES-256-GCM 암호화 저장 |
+| POST | `/api/integrations/[id]/disconnect` | Railway service 연결 해제 — env vars 삭제 (best-effort) + `status = "disconnected"` |
+| GET | `/api/integrations/railway/services` | Railway API token으로 사용 가능한 서비스 목록 조회 (`?token=`) |
+
+### SDK-facing / Opt-in Proxy (X-Verum-API-Key 헤더)
+
+| Method | Path | 설명 |
+|--------|------|------|
+| ANY | `/api/proxy/[...path]` | opt-in LLM 프록시 — 요청을 대상 URL로 전달. `x-verum-target-url` 헤더 필수. rate limit (per-key 120 req/min, per-IP 200 req/min). 트레이스 비동기 기록 |
 
 ### Test-only (VERUM_TEST_MODE=1 환경만 활성화)
 
