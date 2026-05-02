@@ -2,7 +2,7 @@ const mockSelect = jest.fn();
 const mockInsert = jest.fn();
 const mockDelete = jest.fn();
 
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/client", () => ({
   db: {
     select: () => ({ from: () => ({ where: mockSelect }) }),
@@ -30,19 +30,19 @@ jest.mock("@/lib/db/schema", () => ({
 import { GET, POST } from "../route";
 import { DELETE } from "../[id]/route";
 
-const { auth } = require("@/auth") as { auth: jest.Mock };
+const { getAuthUserId } = require("@/lib/api/handlers") as { getAuthUserId: jest.Mock };
 
 afterEach(() => jest.clearAllMocks());
 
 describe("GET /api/v1/webhooks", () => {
   it("returns 401 when not authenticated", async () => {
-    auth.mockResolvedValueOnce(null);
+    getAuthUserId.mockResolvedValueOnce(null);
     const resp = await GET(new Request("http://test/api/v1/webhooks"));
     expect(resp.status).toBe(401);
   });
 
   it("returns webhook list", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     mockSelect.mockResolvedValueOnce([
       { id: "sub-1", url: "https://example.com", events: ["experiment.winner_promoted"], is_active: true, created_at: new Date() },
     ]);
@@ -53,7 +53,7 @@ describe("GET /api/v1/webhooks", () => {
   });
 
   it("filters by deployment_id when provided", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     mockSelect.mockResolvedValueOnce([]);
     const resp = await GET(new Request("http://test/api/v1/webhooks?deployment_id=dep-1"));
     expect(resp.status).toBe(200);
@@ -64,7 +64,7 @@ describe("GET /api/v1/webhooks", () => {
 
 describe("POST /api/v1/webhooks", () => {
   it("returns 401 when not authenticated", async () => {
-    auth.mockResolvedValueOnce(null);
+    getAuthUserId.mockResolvedValueOnce(null);
     const resp = await POST(
       new Request("http://test", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }),
     );
@@ -72,7 +72,7 @@ describe("POST /api/v1/webhooks", () => {
   });
 
   it("returns 400 for non-https URL", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     const resp = await POST(
       new Request("http://test", {
         method: "POST",
@@ -84,7 +84,7 @@ describe("POST /api/v1/webhooks", () => {
   });
 
   it("returns 400 for unknown event", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     const resp = await POST(
       new Request("http://test", {
         method: "POST",
@@ -96,7 +96,7 @@ describe("POST /api/v1/webhooks", () => {
   });
 
   it("creates subscription and returns 201 with signing_secret", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     const created = {
       id: "sub-new",
       url: "https://example.com/hook",
@@ -118,7 +118,7 @@ describe("POST /api/v1/webhooks", () => {
   });
 
   it("returns 400 for invalid JSON body", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     const resp = await POST(
       new Request("http://test", {
         method: "POST",
@@ -130,7 +130,7 @@ describe("POST /api/v1/webhooks", () => {
   });
 
   it("returns 500 when insert returns no rows", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     mockInsert.mockResolvedValueOnce([]);
     const resp = await POST(
       new Request("http://test", {
@@ -145,7 +145,7 @@ describe("POST /api/v1/webhooks", () => {
 
 describe("DELETE /api/v1/webhooks/[id]", () => {
   it("returns 401 when not authenticated", async () => {
-    auth.mockResolvedValueOnce(null);
+    getAuthUserId.mockResolvedValueOnce(null);
     const resp = await DELETE(new Request("http://test"), {
       params: Promise.resolve({ id: "sub-1" }),
     });
@@ -153,7 +153,7 @@ describe("DELETE /api/v1/webhooks/[id]", () => {
   });
 
   it("returns 404 when not found for user", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     mockDelete.mockResolvedValueOnce([]);
     const resp = await DELETE(new Request("http://test"), {
       params: Promise.resolve({ id: "sub-1" }),
@@ -162,7 +162,7 @@ describe("DELETE /api/v1/webhooks/[id]", () => {
   });
 
   it("returns 204 on successful delete", async () => {
-    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    getAuthUserId.mockResolvedValueOnce("user-1");
     mockDelete.mockResolvedValueOnce([{ id: "sub-1" }]);
     const resp = await DELETE(new Request("http://test"), {
       params: Promise.resolve({ id: "sub-1" }),

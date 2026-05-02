@@ -1,17 +1,15 @@
 import { createHash, randomBytes } from "crypto";
 import { NextRequest } from "next/server";
 import { and, desc, eq, or } from "drizzle-orm";
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { deployments, experiments, generations, inferences, repos } from "@/lib/db/schema";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  const user = session?.user as Record<string, unknown> | undefined;
-  const userId = user?.id as string | undefined;
+  const userId = await getAuthUserId();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
   const { id: repoId } = await params;

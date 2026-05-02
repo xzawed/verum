@@ -1,13 +1,11 @@
-import { auth } from "@/auth";
 import { confirmInference } from "@/lib/db/jobs";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const uid = String((session.user as Record<string, unknown>).id ?? "");
+  const uid = await getAuthUserId();
   if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;

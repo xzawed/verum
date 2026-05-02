@@ -1,4 +1,4 @@
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/jobs", () => ({
   updateDeploymentTraffic: jest.fn(),
 }));
@@ -7,11 +7,11 @@ jest.mock("@/lib/db/queries", () => ({
 }));
 
 import { PATCH } from "../route";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { updateDeploymentTraffic } from "@/lib/db/jobs";
 import { getDeployment } from "@/lib/db/queries";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockUpdateDeploymentTraffic = updateDeploymentTraffic as jest.MockedFunction<
   typeof updateDeploymentTraffic
 >;
@@ -31,14 +31,14 @@ beforeEach(() => {
 
 describe("PATCH /api/v1/deploy/[id]/traffic", () => {
   it("returns 401 when there is no session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const req = makeRequest({ split: 0.3 });
     const res = await PATCH(req, { params: Promise.resolve({ id: "dep-1" }) });
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when split value is out of range", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
     const req = makeRequest({ split: 1.5 });
     const res = await PATCH(req, { params: Promise.resolve({ id: "dep-1" }) });
@@ -46,7 +46,7 @@ describe("PATCH /api/v1/deploy/[id]/traffic", () => {
   });
 
   it("returns 200 with ok:true on success", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockGetDeployment.mockResolvedValueOnce({ id: "dep-1" } as never);
     mockUpdateDeploymentTraffic.mockResolvedValueOnce(undefined as never);
 

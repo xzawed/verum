@@ -1,10 +1,8 @@
-import { auth } from "@/auth";
 import { listRailwayServices } from "@/lib/railway";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function GET(req: Request): Promise<Response> {
-  const session = await auth();
-  const user = session?.user as Record<string, unknown> | undefined;
-  const userId = user?.id as string | undefined;
+  const userId = await getAuthUserId();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);

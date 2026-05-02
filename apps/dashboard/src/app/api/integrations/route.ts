@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { encrypt } from "@/lib/encrypt";
 import { upsertRailwayVariables } from "@/lib/railway";
 import { integrations, repos } from "@/lib/db/schema";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 const CreateSchema = z.object({
   railway_token: z.string().min(1),
@@ -18,9 +18,7 @@ const CreateSchema = z.object({
 });
 
 export async function GET(req: Request): Promise<Response> {
-  const session = await auth();
-  const user = session?.user as Record<string, unknown> | undefined;
-  const userId = user?.id as string | undefined;
+  const userId = await getAuthUserId();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
   const rows = await db
@@ -49,9 +47,7 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const session = await auth();
-  const user = session?.user as Record<string, unknown> | undefined;
-  const userId = user?.id as string | undefined;
+  const userId = await getAuthUserId();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
   let body: unknown;

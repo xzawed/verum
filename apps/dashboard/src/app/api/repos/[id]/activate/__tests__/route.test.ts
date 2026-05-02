@@ -1,6 +1,4 @@
-jest.mock("@/auth", () => ({
-  auth: jest.fn(),
-}));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 
 jest.mock("@/lib/db/client", () => ({
   db: {
@@ -11,10 +9,10 @@ jest.mock("@/lib/db/client", () => ({
 
 import { POST } from "../route";
 import { NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { db } from "@/lib/db/client";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockDb = db as jest.Mocked<typeof db>;
 
 function makeRequest(url = "http://localhost/api/repos/repo-1/activate") {
@@ -57,13 +55,13 @@ beforeEach(() => {
 
 describe("POST /api/repos/[id]/activate", () => {
   it("returns 401 when unauthenticated", async () => {
-    mockAuth.mockResolvedValue(null as never);
+    mockGetAuthUserId.mockResolvedValue(null);
     const res = await POST(makeRequest(), makeParams());
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when repo not owned by user", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValue("user-1");
     // owner check returns []
     mockDb.select.mockReturnValue(makeSelectChain([]) as never);
     const res = await POST(makeRequest(), makeParams());
@@ -71,7 +69,7 @@ describe("POST /api/repos/[id]/activate", () => {
   });
 
   it("returns 422 when no ready generation exists", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     let callCount = 0;
     mockDb.select.mockImplementation(() => {
@@ -89,7 +87,7 @@ describe("POST /api/repos/[id]/activate", () => {
   });
 
   it("returns 409 when deployment already exists for this generation", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     let callCount = 0;
     mockDb.select.mockImplementation(() => {
@@ -107,7 +105,7 @@ describe("POST /api/repos/[id]/activate", () => {
   });
 
   it("returns 201 with deployment_id and api_key on success", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     let callCount = 0;
     mockDb.select.mockImplementation(() => {
@@ -145,7 +143,7 @@ describe("POST /api/repos/[id]/activate", () => {
   });
 
   it("api_key differs between invocations (randomness)", async () => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValue("user-1");
 
     const makeSelects = () => {
       let c = 0;

@@ -1,6 +1,6 @@
 import { GET } from "../route";
 
-jest.mock("@/auth", () => ({ auth: jest.fn() }));
+jest.mock("@/lib/api/handlers", () => ({ getAuthUserId: jest.fn() }));
 jest.mock("@/lib/db/client", () => ({
   db: {
     execute: jest.fn(),
@@ -11,10 +11,10 @@ jest.mock("drizzle-orm", () => ({
   sql: jest.fn((...args: unknown[]) => args),
 }));
 
-import { auth } from "@/auth";
+import { getAuthUserId } from "@/lib/api/handlers";
 import { db } from "@/lib/db/client";
 
-const mockAuth = auth as jest.MockedFunction<typeof auth>;
+const mockGetAuthUserId = getAuthUserId as jest.MockedFunction<typeof getAuthUserId>;
 const mockDbExecute = db.execute as jest.MockedFunction<typeof db.execute>;
 
 describe("GET /api/v1/quota", () => {
@@ -23,13 +23,13 @@ describe("GET /api/v1/quota", () => {
   });
 
   it("returns 401 if no session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    mockGetAuthUserId.mockResolvedValueOnce(null);
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns quota data for authenticated user with no existing row", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockDbExecute.mockResolvedValueOnce({ rows: [] } as never);
     const res = await GET();
     expect(res.status).toBe(200);
@@ -43,7 +43,7 @@ describe("GET /api/v1/quota", () => {
   });
 
   it("returns quota data with actual usage when row exists", async () => {
-    mockAuth.mockResolvedValueOnce({ user: { id: "user-1" } } as never);
+    mockGetAuthUserId.mockResolvedValueOnce("user-1");
     mockDbExecute.mockResolvedValueOnce({
       rows: [{ traces_used: 200, chunks_stored: 500, repos_connected: 1, plan: "free" }],
     } as never);

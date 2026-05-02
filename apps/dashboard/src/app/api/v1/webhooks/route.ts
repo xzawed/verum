@@ -1,13 +1,12 @@
-import { auth } from "@/auth";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db/client";
 import { webhook_subscriptions } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) return new Response("unauthorized", { status: 401 });
-  const userId = session.user.id as string;
+  const userId = await getAuthUserId();
+  if (!userId) return new Response("unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const deploymentId = searchParams.get("deployment_id");
@@ -33,9 +32,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return new Response("unauthorized", { status: 401 });
-  const userId = session.user.id as string;
+  const userId = await getAuthUserId();
+  if (!userId) return new Response("unauthorized", { status: 401 });
 
   let body: unknown;
   try {

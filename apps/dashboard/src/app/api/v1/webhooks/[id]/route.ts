@@ -1,15 +1,14 @@
-import { auth } from "@/auth";
 import { db } from "@/lib/db/client";
 import { webhook_subscriptions } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { getAuthUserId } from "@/lib/api/handlers";
 
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user) return new Response("unauthorized", { status: 401 });
-  const userId = session.user.id as string;
+  const userId = await getAuthUserId();
+  if (!userId) return new Response("unauthorized", { status: 401 });
   const { id } = await params;
 
   const deleted = await db
