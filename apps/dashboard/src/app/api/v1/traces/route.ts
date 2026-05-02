@@ -94,7 +94,8 @@ export async function GET(req: Request) {
 
   if (!deploymentId) return new Response("deployment_id required", { status: 400 });
 
-  const userId = session.user.id as string;
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  if (!userId) return new Response("unauthorized", { status: 401 });
   const dep = await getDeployment(userId, deploymentId);
   if (!dep) return new Response("not found", { status: 404 });
 

@@ -9,7 +9,8 @@ export async function GET(
   if (!session?.user) return new Response("unauthorized", { status: 401 });
 
   const { id } = await params;
-  const userId = session.user.id as string;
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  if (!userId) return new Response("unauthorized", { status: 401 });
   const experiment = await getExperiment(userId, id);
 
   if (!experiment) return new Response("not found", { status: 404 });

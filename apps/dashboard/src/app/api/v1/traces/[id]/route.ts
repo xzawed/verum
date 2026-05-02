@@ -9,7 +9,8 @@ export async function GET(
   if (!session?.user) return new Response("unauthorized", { status: 401 });
 
   const { id } = await params;
-  const userId = session.user.id as string;
+  const userId = String((session.user as Record<string, unknown>).id ?? "");
+  if (!userId) return new Response("unauthorized", { status: 401 });
   const trace = await getTraceDetail(userId, id);
   if (!trace) return new Response("not found", { status: 404 });
 
