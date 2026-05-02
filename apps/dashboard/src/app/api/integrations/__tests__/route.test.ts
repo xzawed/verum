@@ -188,7 +188,7 @@ describe("POST /api/integrations", () => {
     expect(calledVars).not.toHaveProperty("NODE_OPTIONS");
   });
 
-  it("always injects OTEL_EXPORTER_OTLP_ENDPOINT", async () => {
+  it("always injects OTEL_EXPORTER_OTLP_TRACES_ENDPOINT and protocol", async () => {
     mockGetAuthUserId.mockResolvedValueOnce(makeSession());
     mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
     (mockDb.insert as jest.Mock).mockReturnValueOnce({
@@ -199,8 +199,38 @@ describe("POST /api/integrations", () => {
     const res = await POST(makePostRequest(VALID_BODY));
     expect(res.status).toBe(201);
     const calledVars = mockUpsertRailwayVariables.mock.calls[0][4] as Record<string, string>;
-    expect(calledVars).toHaveProperty("OTEL_EXPORTER_OTLP_ENDPOINT");
-    expect(calledVars["OTEL_EXPORTER_OTLP_ENDPOINT"]).toMatch(/\/api\/v1\/otlp\/v1\/traces$/);
+    expect(calledVars).not.toHaveProperty("OTEL_EXPORTER_OTLP_ENDPOINT");
+    expect(calledVars["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]).toMatch(/\/api\/v1\/otlp\/v1\/traces$/);
+    expect(calledVars["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/json");
+  });
+
+  it("injects OTEL_EXPORTER_OTLP_HEADERS when verum_api_key is provided", async () => {
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
+    mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
+    (mockDb.insert as jest.Mock).mockReturnValueOnce({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockResolvedValue([{ id: "int-5" }]),
+      }),
+    });
+    const apiKey = "vk_" + "a".repeat(64);
+    const res = await POST(makePostRequest({ ...VALID_BODY, verum_api_key: apiKey }));
+    expect(res.status).toBe(201);
+    const calledVars = mockUpsertRailwayVariables.mock.calls[0][4] as Record<string, string>;
+    expect(calledVars["OTEL_EXPORTER_OTLP_HEADERS"]).toBe(`Authorization=Bearer ${apiKey}`);
+  });
+
+  it("does not inject OTEL_EXPORTER_OTLP_HEADERS when verum_api_key is absent", async () => {
+    mockGetAuthUserId.mockResolvedValueOnce(makeSession());
+    mockUpsertRailwayVariables.mockResolvedValueOnce(undefined);
+    (mockDb.insert as jest.Mock).mockReturnValueOnce({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockResolvedValue([{ id: "int-6" }]),
+      }),
+    });
+    const res = await POST(makePostRequest(VALID_BODY));
+    expect(res.status).toBe(201);
+    const calledVars = mockUpsertRailwayVariables.mock.calls[0][4] as Record<string, string>;
+    expect(calledVars).not.toHaveProperty("OTEL_EXPORTER_OTLP_HEADERS");
   });
 
   it("returns 502 when upsertRailwayVariables throws", async () => {
