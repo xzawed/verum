@@ -82,3 +82,9 @@ class RetrievePayload(BaseModel):
     query: str
     hybrid: bool = True
     top_k: int = 5
+
+
+class WebhookPayload(BaseModel):
+    subscription_id: UUID
+    event: str
+    data: dict

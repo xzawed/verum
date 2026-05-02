@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,7 +32,6 @@ from src.worker.runner import (
     _update_heartbeat,
     run_loop,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -420,10 +419,15 @@ async def test_dispatch_job_valid_payload_passes_schema_and_calls_handler() -> N
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=None)
 
+    mock_rls_ctx = AsyncMock()
+    mock_rls_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_rls_ctx.__aexit__ = AsyncMock(return_value=None)
+
     with (
         patch("src.worker.runner._HANDLERS", {"deploy": mock_handler}),
         patch("src.worker.runner._PAYLOAD_SCHEMAS", {"deploy": DeployPayload}),
         patch("src.worker.runner.AsyncSessionLocal", return_value=mock_session),
+        patch("src.worker.runner.get_db_for_user", return_value=mock_rls_ctx),
         patch("src.worker.runner._mark_done", new=AsyncMock()) as mock_done,
         patch("src.worker.runner._mark_failed", new=AsyncMock()) as mock_failed,
     ):

@@ -308,6 +308,21 @@ export const integrations = pgTable("integrations", {
     .defaultNow(),
 });
 
+export const webhook_subscriptions = pgTable("webhook_subscriptions", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  deployment_id: uuid("deployment_id").references(() => deployments.id, {
+    onDelete: "cascade",
+  }),
+  url: text("url").notNull(),
+  events: jsonb("events").notNull().default(["experiment.winner_promoted"]),
+  signing_secret: text("signing_secret").notNull(),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Experiment = typeof experiments.$inferSelect;
 
 export type User = typeof users.$inferSelect;
@@ -329,3 +344,4 @@ export type Chunk = typeof chunks.$inferSelect;
 export type UsageQuota = typeof usage_quotas.$inferSelect;
 export type SdkPrRequest = typeof sdk_pr_requests.$inferSelect;
 export type Integration = typeof integrations.$inferSelect;
+export type WebhookSubscription = typeof webhook_subscriptions.$inferSelect;
