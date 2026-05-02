@@ -10,7 +10,12 @@ const PROVIDER_BASES: Record<string, string> = {
   grok: "https://api.x.ai",
 };
 
-const VERUM_HEADERS = new Set(["x-verum-api-key"]);
+const STRIP_REQUEST_HEADERS = new Set([
+  "x-verum-api-key",
+  "host",
+  "content-encoding",
+  "transfer-encoding",
+]);
 
 async function logProxyCall(opts: {
   deploymentId: string;
@@ -71,11 +76,11 @@ async function handleProxy(
   const apiKey = req.headers.get("x-verum-api-key") ?? "";
   const ip = getClientIp(req);
 
-  const rateLimitResp = await checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
-  if (rateLimitResp) return rateLimitResp;
-
   const keyResult = await validateApiKey(apiKey);
   if (!keyResult) return new Response("unauthorized", { status: 401 });
+
+  const rateLimitResp = await checkRateLimitDual(apiKey.slice(0, 16), 120, ip, 200);
+  if (rateLimitResp) return rateLimitResp;
 
   const [provider, ...rest] = path;
   const targetBase = PROVIDER_BASES[provider ?? ""];
@@ -91,7 +96,7 @@ async function handleProxy(
 
   const forwardHeaders = new Headers();
   for (const [k, v] of req.headers.entries()) {
-    if (!VERUM_HEADERS.has(k.toLowerCase()) && k.toLowerCase() !== "host") {
+    if (!STRIP_REQUEST_HEADERS.has(k.toLowerCase())) {
       forwardHeaders.set(k, v);
     }
   }
