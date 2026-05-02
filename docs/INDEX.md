@@ -2,7 +2,7 @@
 type: index
 authority: tier-3
 canonical-for: [navigation]
-last-updated: 2026-05-01
+last-updated: 2026-05-02
 status: active
 ---
 
