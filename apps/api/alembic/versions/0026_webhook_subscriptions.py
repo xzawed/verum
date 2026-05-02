@@ -7,6 +7,8 @@ Create Date: 2026-05-02
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
+
 from alembic import op
 
 revision: str = "0026_webhook_subscriptions"
@@ -29,7 +31,7 @@ def upgrade() -> None:
         sa.Column("url", sa.Text(), nullable=False),
         sa.Column(
             "events",
-            sa.JSONB(),
+            JSONB,
             nullable=False,
             server_default='["experiment.winner_promoted"]',
         ),
