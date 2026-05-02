@@ -51,6 +51,15 @@ describe("GET /api/v1/webhooks", () => {
     const data = await resp.json() as { webhooks: unknown[] };
     expect(data.webhooks).toHaveLength(1);
   });
+
+  it("filters by deployment_id when provided", async () => {
+    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    mockSelect.mockResolvedValueOnce([]);
+    const resp = await GET(new Request("http://test/api/v1/webhooks?deployment_id=dep-1"));
+    expect(resp.status).toBe(200);
+    const data = await resp.json() as { webhooks: unknown[] };
+    expect(data.webhooks).toHaveLength(0);
+  });
 });
 
 describe("POST /api/v1/webhooks", () => {
@@ -106,6 +115,31 @@ describe("POST /api/v1/webhooks", () => {
     expect(resp.status).toBe(201);
     const data = await resp.json() as { webhook: { signing_secret: string } };
     expect(typeof data.webhook.signing_secret).toBe("string");
+  });
+
+  it("returns 400 for invalid JSON body", async () => {
+    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    const resp = await POST(
+      new Request("http://test", {
+        method: "POST",
+        body: "not-json",
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("returns 500 when insert returns no rows", async () => {
+    auth.mockResolvedValueOnce({ user: { id: "user-1" } });
+    mockInsert.mockResolvedValueOnce([]);
+    const resp = await POST(
+      new Request("http://test", {
+        method: "POST",
+        body: JSON.stringify({ url: "https://example.com/hook" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    expect(resp.status).toBe(500);
   });
 });
 
