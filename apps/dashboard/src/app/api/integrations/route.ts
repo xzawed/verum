@@ -48,7 +48,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json({ integrations: rows });
 }
 
-export async function POST(req: Request): Promise<Response> {
+export async function POST(req: NextRequest): Promise<Response> {
   const session = await auth();
   const user = session?.user as Record<string, unknown> | undefined;
   const userId = user?.id as string | undefined;
@@ -88,14 +88,13 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  // Derive verumBase from forwarded headers (NextRequest-compatible)
-  const nextReq = req as NextRequest;
+  // Derive verumBase from forwarded headers
   const proto =
-    nextReq.headers.get("x-forwarded-proto") ??
+    req.headers.get("x-forwarded-proto") ??
     new URL(req.url).protocol.replace(/:$/, "");
   const host =
-    nextReq.headers.get("x-forwarded-host") ??
-    nextReq.headers.get("host") ??
+    req.headers.get("x-forwarded-host") ??
+    req.headers.get("host") ??
     new URL(req.url).host;
   const verumBase = `${proto}://${host}`;
 
@@ -138,6 +137,8 @@ export async function POST(req: Request): Promise<Response> {
       injected_vars: injectedVars,
     })
     .returning({ id: integrations.id });
+
+  if (!row) return Response.json({ error: "insert failed" }, { status: 500 });
 
   return Response.json({ integration_id: String(row.id) }, { status: 201 });
 }
