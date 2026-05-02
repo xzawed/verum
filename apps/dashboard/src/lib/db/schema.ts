@@ -279,6 +279,35 @@ export const sdk_pr_requests = pgTable("sdk_pr_requests", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const integrations = pgTable("integrations", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  repo_id: uuid("repo_id").references(() => repos.id, { onDelete: "cascade" }),
+  deployment_id: uuid("deployment_id").references(() => deployments.id, {
+    onDelete: "set null",
+  }),
+  integration_type: varchar("integration_type", { length: 32 })
+    .notNull()
+    .default("railway"),
+  platform_project_id: varchar("platform_project_id", { length: 512 }),
+  platform_service_id: varchar("platform_service_id", { length: 512 }),
+  platform_environment_id: varchar("platform_environment_id", { length: 512 }),
+  platform_service_name: varchar("platform_service_name", { length: 512 }),
+  platform_token_encrypted: text("platform_token_encrypted"),
+  status: varchar("status", { length: 32 }).notNull().default("connecting"),
+  injected_vars: jsonb("injected_vars").notNull().default({}),
+  last_health_check: timestamp("last_health_check", { withTimezone: true }),
+  error: varchar("error", { length: 1024 }),
+  created_at: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type Experiment = typeof experiments.$inferSelect;
 
 export type User = typeof users.$inferSelect;
@@ -299,3 +328,4 @@ export type JudgePrompt = typeof judge_prompts.$inferSelect;
 export type Chunk = typeof chunks.$inferSelect;
 export type UsageQuota = typeof usage_quotas.$inferSelect;
 export type SdkPrRequest = typeof sdk_pr_requests.$inferSelect;
+export type Integration = typeof integrations.$inferSelect;
