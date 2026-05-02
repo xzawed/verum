@@ -1,4 +1,7 @@
 import { createMcpServer } from "../server";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const FAKE_DEPLOYMENT_ID = "dep-00000000-0000-0000-0000-000000000001";
 
@@ -27,9 +30,6 @@ describe("createMcpServer", () => {
 
 describe("list_tools", () => {
   it("exposes exactly 4 tools", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const server = createMcpServer(makeContext());
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -49,9 +49,6 @@ describe("list_tools", () => {
 
 describe("call_tool: get_experiments", () => {
   it("calls getExperiments with deploymentId and returns structured result", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -71,9 +68,6 @@ describe("call_tool: get_experiments", () => {
 
 describe("call_tool: get_traces", () => {
   it("calls getTraces with deploymentId and returns structured result", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -91,9 +85,6 @@ describe("call_tool: get_traces", () => {
   });
 
   it("respects limit argument and caps at 100", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -109,9 +100,6 @@ describe("call_tool: get_traces", () => {
 
 describe("call_tool: get_metrics", () => {
   it("calls getMetrics with deploymentId and returns structured result", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -130,9 +118,6 @@ describe("call_tool: get_metrics", () => {
 
 describe("call_tool: approve_variant", () => {
   it("calls approveVariant with deploymentId+variant and returns new_baseline", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -149,9 +134,6 @@ describe("call_tool: approve_variant", () => {
   });
 
   it("returns error when variant argument is missing", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -167,9 +149,6 @@ describe("call_tool: approve_variant", () => {
   });
 
   it("returns error for unknown tool", async () => {
-    const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
-    const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
-
     const ctx = makeContext();
     const server = createMcpServer(ctx);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

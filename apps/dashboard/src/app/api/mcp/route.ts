@@ -7,7 +7,9 @@ import { db } from "@/lib/db/client";
 import { spans, traces, deployments, experiments } from "@/lib/db/schema";
 import { and, avg, count, eq, desc } from "drizzle-orm";
 
-async function getTracesForDeployment(deploymentId: string, limit = 20) {
+async function getTracesForDeployment(deploymentId: string, limit = 20, userId: string) {
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return [];
   return db
     .select({
       id: traces.id,
@@ -20,7 +22,9 @@ async function getTracesForDeployment(deploymentId: string, limit = 20) {
     .limit(Math.min(limit, 100)); // guard even if caller skips server.ts clamp
 }
 
-async function getMetricsForDeployment(deploymentId: string) {
+async function getMetricsForDeployment(deploymentId: string, userId: string) {
+  const dep = await getDeployment(userId, deploymentId);
+  if (!dep) return { total_traces: 0, avg_latency_ms: null };
   const rows = await db
     .select({
       total: count(spans.id),
@@ -41,7 +45,7 @@ async function approveVariantForDeployment(deploymentId: string, variant: string
   const dep = await getDeployment(userId, deploymentId);
   if (!dep) return { error: "Deployment not found or access denied" };
 
-  await db
+  const updatedExperiments = await db
     .update(experiments)
     .set({
       status: "converged",
@@ -54,7 +58,12 @@ async function approveVariantForDeployment(deploymentId: string, variant: string
         eq(experiments.deployment_id, deploymentId),
         eq(experiments.status, "running"),
       ),
-    );
+    )
+    .returning({ id: experiments.id });
+
+  if (updatedExperiments.length === 0) {
+    return { error: "No running experiment found for this deployment" };
+  }
 
   await db
     .update(deployments)
@@ -81,8 +90,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   const server = createMcpServer({
     deploymentId: keyResult.deploymentId,
     getExperiments: (deploymentId) => getExperiments(keyResult.userId, deploymentId),
-    getTraces: (deploymentId, limit) => getTracesForDeployment(deploymentId, limit),
-    getMetrics: (deploymentId) => getMetricsForDeployment(deploymentId),
+    getTraces: (deploymentId, limit) => getTracesForDeployment(deploymentId, limit ?? 20, keyResult.userId),
+    getMetrics: (deploymentId) => getMetricsForDeployment(deploymentId, keyResult.userId),
     approveVariant: (deploymentId, variant) => approveVariantForDeployment(deploymentId, variant, keyResult.userId),
   });
 
