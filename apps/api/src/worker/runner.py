@@ -30,6 +30,7 @@ from src.worker.payloads import (
     InferPayload,
     JudgePayload,
     RetrievePayload,
+    WebhookPayload,
 )
 
 from .handlers.analyze import handle_analyze
@@ -40,6 +41,7 @@ from .handlers.harvest import handle_harvest
 from .handlers.infer import handle_infer
 from .handlers.judge import handle_judge
 from .handlers.retrieve import handle_retrieve
+from .handlers.webhook import handle_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,7 @@ _HANDLERS = {
     "deploy": handle_deploy,
     "judge": handle_judge,
     "evolve": handle_evolve,
+    "webhook": handle_webhook,
 }
 
 # Pydantic schema for each job kind — validated before dispatch.
@@ -74,6 +77,7 @@ _PAYLOAD_SCHEMAS = {
     "judge": JudgePayload,
     "evolve": EvolvePayload,
     "retrieve": RetrievePayload,
+    "webhook": WebhookPayload,
 }
 
 

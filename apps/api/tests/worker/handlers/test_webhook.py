@@ -118,3 +118,48 @@ async def test_propagates_http_error(
                     "data": {},
                 },
             )
+
+
+@pytest.mark.asyncio
+async def test_enqueue_webhooks_inserts_one_job_per_subscription() -> None:
+    from src.worker.handlers.evolve import _enqueue_webhooks
+
+    sub_rows = [
+        {"id": str(UUID("00000000-0000-0000-0000-000000000011"))},
+        {"id": str(UUID("00000000-0000-0000-0000-000000000012"))},
+    ]
+    mock_db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.mappings.return_value.all.return_value = sub_rows
+    mock_db.execute = AsyncMock(return_value=result_mock)
+
+    await _enqueue_webhooks(
+        mock_db,
+        UUID("00000000-0000-0000-0000-000000000020"),
+        UUID("00000000-0000-0000-0000-000000000099"),
+        "experiment.winner_promoted",
+        {"winner_variant": "v2"},
+    )
+
+    # 1 SELECT (subscriptions) + 2 INSERTs (one per subscription)
+    assert mock_db.execute.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_enqueue_webhooks_no_subscriptions_no_inserts() -> None:
+    from src.worker.handlers.evolve import _enqueue_webhooks
+
+    mock_db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.mappings.return_value.all.return_value = []
+    mock_db.execute = AsyncMock(return_value=result_mock)
+
+    await _enqueue_webhooks(
+        mock_db,
+        UUID("00000000-0000-0000-0000-000000000020"),
+        UUID("00000000-0000-0000-0000-000000000099"),
+        "experiment.winner_promoted",
+        {},
+    )
+
+    assert mock_db.execute.call_count == 1  # only SELECT, no INSERTs

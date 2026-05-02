@@ -50,6 +50,10 @@ async def test_handle_evolve_promotes_winner_and_starts_next_round() -> None:
             "src.worker.handlers.evolve.complete_deployment",
             new_callable=AsyncMock,
         ) as mock_complete,
+        patch(
+            "src.worker.handlers.evolve._enqueue_webhooks",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await handle_evolve(db, uuid.uuid4(), payload)
 
@@ -83,6 +87,10 @@ async def test_handle_evolve_completes_when_no_next_round() -> None:
             "src.worker.handlers.evolve.complete_deployment",
             new_callable=AsyncMock,
         ) as mock_complete,
+        patch(
+            "src.worker.handlers.evolve._enqueue_webhooks",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await handle_evolve(db, uuid.uuid4(), payload)
 
@@ -109,6 +117,10 @@ async def test_handle_evolve_return_dict_contains_required_keys() -> None:
             new_callable=AsyncMock,
         ),
         patch("src.worker.handlers.evolve.complete_deployment", new_callable=AsyncMock),
+        patch(
+            "src.worker.handlers.evolve._enqueue_webhooks",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await handle_evolve(db, uuid.uuid4(), payload)
 
