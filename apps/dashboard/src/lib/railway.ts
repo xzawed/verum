@@ -22,7 +22,14 @@ async function railwayQuery(
     body: JSON.stringify({ query, variables }),
   });
   if (!resp.ok) throw new Error(`Railway API error: ${resp.status}`);
-  return resp.json();
+  const result = (await resp.json()) as {
+    data?: unknown;
+    errors?: { message: string }[];
+  };
+  if (result.errors?.length) {
+    throw new Error(`Railway GraphQL error: ${result.errors[0].message}`);
+  }
+  return result;
 }
 
 export async function listRailwayServices(
@@ -43,27 +50,26 @@ export async function listRailwayServices(
     }
   `;
 
-  const data = (await railwayQuery(token, query)) as {
-    data: {
-      projects: {
-        edges: Array<{
+  const result = (await railwayQuery(token, query)) as {
+    data?: {
+      projects?: {
+        edges?: Array<{
           node: {
             id: string;
             name: string;
-            environments: {
-              edges: Array<{ node: { id: string; name: string } }>;
-            };
-            services: {
-              edges: Array<{ node: { id: string; name: string } }>;
-            };
+            environments: { edges: Array<{ node: { id: string; name: string } }> };
+            services: { edges: Array<{ node: { id: string; name: string } }> };
           };
         }>;
       };
     };
   };
 
+  const edges = result.data?.projects?.edges;
+  if (!edges) throw new Error("Unexpected Railway API response: missing projects.edges");
+
   const services: RailwayService[] = [];
-  for (const { node: project } of data.data.projects.edges) {
+  for (const { node: project } of edges) {
     const envId = project.environments.edges[0]?.node.id ?? null;
     for (const { node: service } of project.services.edges) {
       services.push({

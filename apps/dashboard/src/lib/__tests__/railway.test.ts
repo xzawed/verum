@@ -54,6 +54,18 @@ describe("listRailwayServices", () => {
       "Railway API error: 401",
     );
   });
+
+  it("throws on GraphQL-level error response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        errors: [{ message: "Unauthorized" }],
+      }),
+    });
+    await expect(listRailwayServices(TOKEN)).rejects.toThrow(
+      "Railway GraphQL error: Unauthorized",
+    );
+  });
 });
 
 describe("upsertRailwayVariables", () => {
