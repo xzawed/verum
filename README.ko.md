@@ -48,7 +48,7 @@ GitHub Repo를 한 번 등록하면 루프가 자동으로 시작됩니다.
 
 | 단계 | 상태 | 설명 |
 |---|---|---|
-| 🔬 ANALYZE | ✅ 완료 | JS/TS tree-sitter 기반 LLM 호출 자동 탐지 (Python AST는 Phase 1.5에서 구현 예정) |
+| 🔬 ANALYZE | ✅ 완료 | JS/TS + Python AST 기반 LLM 호출 자동 탐지 (openai, anthropic, xai_grok, google.generativeai, Azure 5개 패턴) |
 | 🧠 INFER | ✅ 완료 | Claude Sonnet 4.6으로 도메인·톤·사용자 유형 추론 |
 | 🌾 HARVEST | ✅ 완료 | 도메인 맞춤 크롤링 → 청킹 → pgvector 임베딩 저장 |
 | 🔍 RETRIEVE | ✅ 완료 | 벡터 + 전문 검색 하이브리드로 수집 지식 검색 |
@@ -196,17 +196,15 @@ Before와 After의 차이는 정확히 두 가지입니다: 상단에 `import ve
 
 ### Q1. Verum이 제 Repo 코드를 수정하거나 PR을 만드나요?
 
-**아니요.** Verum은 사용자 코드를 절대 변경하지 않습니다.
+**Verum은 사용자 애플리케이션 코드를 절대 수정하지 않습니다.** ANALYZE 단계는 `git clone --depth 1`로 임시 디렉토리에 받아 *읽기 전용* 정적 분석을 수행하고, 종료 시 즉시 삭제합니다 ([cloner.py](apps/api/src/loop/analyze/cloner.py)). `git push` 나 파일 변경은 절대 없습니다.
 
-- ANALYZE 단계는 `git clone --depth 1`로 임시 디렉토리에 받아 *읽기 전용* 정적 분석을 수행하고, 종료 시 즉시 삭제합니다 ([cloner.py](apps/api/src/loop/analyze/cloner.py)).
-- 코드베이스 어디에도 `git push`, PR 생성, write-scope GitHub 토큰 사용은 **없습니다**.
-- 사용자가 본인 서비스 코드에 SDK를 *직접 추가*해야 합니다 (한 줄 import + Client 인스턴스화).
+**선택적 예외:** 대시보드에는 "SDK 통합 PR" 기능(`/api/repos/[id]/sdk-pr`)이 있어, Verum SDK 의존성 추가(예: `requirements.txt`에 한 줄 + 엔트리포인트에 `import` 한 줄)를 담은 GitHub PR을 열 수 있습니다. 이 기능은 사용자가 직접 버튼을 누르고 쓰기 권한을 부여해야만 동작합니다. PR은 SDK 설정만 추가하며, 애플리케이션 로직과 프롬프트는 절대 변경되지 않습니다.
 
 ### Q2. "DEPLOY"가 제 서비스를 자동으로 프로덕션에 배포한다는 의미인가요?
 
 **아니요.** Verum의 "DEPLOY"는 다음을 의미합니다:
 1. `deployments` 테이블에 행을 INSERT
-2. API 키 발급 (`vrm_...`)
+2. API 키 발급 (`vk_...`)
 3. 트래픽 분할 설정 활성화
 
 이 deployment 행을 사용자 SDK가 런타임에 polling합니다. 사용자 서비스는 본인이 평소 배포하는 방식 그대로 (Vercel, AWS, 자체 서버 등) 운영하면 됩니다.
@@ -240,9 +238,9 @@ Verum 자체는 **MIT 오픈소스로 무료**입니다. 비용은 사용자가 
 **아니요.** ADR-002에 의거 두 라이브러리 의존 금지입니다.  
 Verum은 이들의 *대안*이자 *상위 레이어*이므로 의존하면 정체성이 소실됩니다. 저수준 라이브러리(`openai`, `anthropic`, `httpx`)만 직접 사용합니다.
 
-### Q7. Python AST 분석은 언제 지원되나요?
+### Q7. Verum이 Python 코드도 분석하나요?
 
-Phase 1.5에서 구현 예정입니다 (F-1.3). 현재는 JS/TS tree-sitter 기반만 동작합니다.
+네. Python AST 기반 LLM 호출 탐지는 PR #79(F-1.3)에서 구현 완료되었습니다. `openai`, `anthropic`, `xai_grok`, `google.generativeai`, Azure OpenAI — 5가지 패턴을 Python과 JS/TS 모두에서 탐지합니다.
 
 ### Q8. ArcanaInsight 외 다른 도메인에서도 작동하나요?
 

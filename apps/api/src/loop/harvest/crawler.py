@@ -10,7 +10,7 @@ import socket
 import ssl
 import time
 import zlib
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 import trafilatura
@@ -62,7 +62,7 @@ async def _check_ssrf(url: str) -> str:
     if not hostname:
         raise CrawlError("ssrf", f"Cannot resolve empty hostname in {url!r}")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
         results = await loop.run_in_executor(
             None,
@@ -382,7 +382,7 @@ async def _fetch_httpx(url: str) -> str:
         html = body.decode(charset, errors="replace")
         break
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     text = await loop.run_in_executor(None, lambda: _extract(html, current_url))
     return text or ""
 
@@ -418,7 +418,7 @@ async def _fetch_playwright(url: str) -> str:
     except PlaywrightError as exc:
         raise CrawlError("playwright", str(exc)) from exc
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     text = await loop.run_in_executor(None, lambda: _extract(html, url))
     return text or ""
 

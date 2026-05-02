@@ -2,15 +2,16 @@
 """GENERATE engine — 3 Claude Sonnet calls: variants → RAG config → eval pairs."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
 
 import src.config as cfg
-from src.loop.llm_client import call_claude
-from src.loop.utils import parse_json_response
 from src.loop.generate.metric_profile import select_metric_profile
 from src.loop.generate.models import EvalPair, GenerateResult, PromptVariant, RagConfig
+from src.loop.llm_client import call_claude
+from src.loop.utils import parse_json_response
 
 _log = logging.getLogger(__name__)
 _EVAL_PAIRS_MIN = 10
@@ -184,9 +185,11 @@ async def run_generate(
     base_prompt = _best_prompt(prompt_templates)
     chunks_preview = "\n---\n".join(sample_chunks[:5]) if sample_chunks else "(no chunks yet)"
 
-    prompt_variants = await _generate_variants(base_prompt, domain, tone, user_type, language, summary)
-    rag_config = await _generate_rag_config(domain, user_type, chunks_preview)
-    eval_pairs = await _generate_eval_pairs(domain, user_type, summary, chunks_preview)
+    prompt_variants, rag_config, eval_pairs = await asyncio.gather(
+        _generate_variants(base_prompt, domain, tone, user_type, language, summary),
+        _generate_rag_config(domain, user_type, chunks_preview),
+        _generate_eval_pairs(domain, user_type, summary, chunks_preview),
+    )
     metric_profile = select_metric_profile(user_type, domain)
 
     return GenerateResult(

@@ -42,6 +42,10 @@ const config: Config = {
     "!src/app/api/v1/infer/[id]/route.ts",
     "!src/app/api/v1/generate/[id]/route.ts",
     "!src/app/api/v1/deploy/[id]/route.ts",
+    // Repo connection routes — thin Next.js wrappers over DB helpers (mirrors sonar exclusion)
+    "!src/app/api/repos/**",
+    // TypeScript type definitions — no executable logic (mirrors sonar exclusion)
+    "!src/types/**",
     // Drizzle ORM schema — declarative, mirrors Alembic exclusion (mirrors sonar exclusion)
     "!src/lib/db/schema.ts",
     // Infrastructure / glue — worker spawn, DB init, Redis init (need real services)

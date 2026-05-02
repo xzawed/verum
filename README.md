@@ -48,7 +48,7 @@ Register a GitHub repo once. The loop runs automatically.
 
 | Stage | Status | Description |
 |---|---|---|
-| 🔬 ANALYZE | ✅ Done | AST-based LLM call detection (JS/TS); Python deferred to Phase 1.5 |
+| 🔬 ANALYZE | ✅ Done | AST-based LLM call detection (JS/TS + Python; all 5 patterns — openai, anthropic, xai_grok, google.generativeai, azure) |
 | 🧠 INFER | ✅ Done | Claude Sonnet 4.6 classifies domain, tone, user type |
 | 🌾 HARVEST | ✅ Done | Domain-aware web crawl → chunked embeddings in pgvector |
 | 🔍 RETRIEVE | ✅ Done | Vector similarity search (cosine) over harvested knowledge *(support stage — invoked by DEPLOY/SDK, not a loop step)* |
@@ -198,17 +198,15 @@ Full code: [examples/arcana-integration/after.py](examples/arcana-integration/af
 
 ### Q1. Does Verum modify my repo or create PRs?
 
-**No.** Verum never changes your code.
+**Verum never modifies your application code.** The ANALYZE stage does a `git clone --depth 1` into a temp directory, performs *read-only* static analysis, and deletes the clone on exit ([cloner.py](apps/api/src/loop/analyze/cloner.py)). No `git push`, no file changes to your repository.
 
-- The ANALYZE stage does a `git clone --depth 1` into a temp directory, performs *read-only* static analysis, and deletes the clone on exit ([cloner.py](apps/api/src/loop/analyze/cloner.py)).
-- Verum never performs any write operations — no `git push`, no PR creation, no file changes to your repository.
-- You add the SDK to your own service yourself (one-line import + Client instantiation).
+**Optional exception:** The dashboard offers an "SDK Integration PR" feature (`/api/repos/[id]/sdk-pr`) that can open a GitHub pull request adding the Verum SDK dependency (e.g. a line in `requirements.txt` and one `import` at your entrypoint). This is strictly opt-in — Verum only opens the PR if you click the button and grant write access. The PR adds *only* the SDK wiring; your application logic and prompts are never touched.
 
 ### Q2. Does "DEPLOY" automatically deploy my service to production?
 
 **No.** Verum's "DEPLOY" means:
 1. INSERT a row into the `deployments` table
-2. Issue an API key (`vrm_...`)
+2. Issue an API key (`vk_...`)
 3. Activate traffic-split configuration
 
 Your service's SDK polls this deployment row at runtime. You continue deploying your own service however you normally do (Vercel, AWS, your own server, etc.).
@@ -242,9 +240,9 @@ Reason: single-datastore principle and the `docker compose up` self-hosting cons
 **No.** Per ADR-002, neither library is allowed as a dependency.  
 Verum is an *alternative* to and *layer above* them — adding a dependency would undermine its identity. Only low-level libraries (`openai`, `anthropic`, `httpx`) are used directly.
 
-### Q7. When will Python AST analysis be available?
+### Q7. Does Verum analyze Python code as well as JavaScript/TypeScript?
 
-Planned for Phase 1.5 (F-1.3). Currently only JS/TS tree-sitter-based detection is live.
+Yes. Python AST-based LLM call detection shipped in PR #79 (F-1.3). Verum detects calls to `openai`, `anthropic`, `xai_grok`, `google.generativeai`, and Azure OpenAI in both Python and JS/TS codebases.
 
 ### Q8. Does Verum work for domains other than tarot?
 

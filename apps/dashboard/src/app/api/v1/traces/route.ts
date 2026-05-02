@@ -1,9 +1,20 @@
+import { z } from "zod";
 import { auth } from "@/auth";
 import { getModelPricing, insertTrace } from "@/lib/db/jobs";
 import { getDeployment, getTraceList } from "@/lib/db/queries";
 import { validateApiKey } from "@/lib/api/validateApiKey";
 import { checkAndIncrementTraceQuota, FREE_LIMITS } from "@/lib/db/quota";
 import { checkRateLimitDual, getClientIp } from "@/lib/rateLimit";
+
+const TraceBodySchema = z.object({
+  deployment_id: z.string().uuid(),
+  variant: z.string().min(1).max(64),
+  model: z.string().min(1).max(128),
+  input_tokens: z.number().int().nonnegative(),
+  output_tokens: z.number().int().nonnegative(),
+  latency_ms: z.number().nonnegative(),
+  error: z.string().nullable().optional(),
+});
 
 // POST — SDK-facing: API key auth via X-Verum-API-Key header
 export async function POST(req: Request) {
@@ -19,26 +30,11 @@ export async function POST(req: Request) {
   const ipGate = await checkRateLimitDual(apiKey.slice(0, 16), perKeyLimit, ip, perIpLimit);
   if (ipGate) return ipGate;
 
-  const body = await req.json() as {
-    deployment_id: string;
-    variant: string;
-    model: string;
-    input_tokens: number;
-    output_tokens: number;
-    latency_ms: number;
-    error?: string | null;
-  };
-
-  if (!body.model) {
-    return new Response("bad request", { status: 400 });
+  const parsed = TraceBodySchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return Response.json({ error: "invalid body" }, { status: 400 });
   }
-  if (
-    typeof body.model !== "string" || body.model.length > 200 ||
-    (typeof body.variant === "string" && body.variant.length > 200) ||
-    (typeof body.error === "string" && body.error.length > 4000)
-  ) {
-    return new Response("field too long", { status: 400 });
-  }
+  const body = parsed.data;
 
   const auth_result = await validateApiKey(apiKey);
   if (!auth_result) {

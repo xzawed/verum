@@ -4,11 +4,18 @@ from __future__ import annotations
 import uuid
 
 import src.config as cfg
+from src.loop.analyze.models import AnalysisResult
 from src.loop.llm_client import call_claude
 from src.loop.utils import parse_json_response
-from src.loop.analyze.models import AnalysisResult
-from .models import DOMAIN_TAXONOMY, LANGUAGE_OPTIONS, TONE_OPTIONS, USER_TYPE_OPTIONS
-from .models import ServiceInference, SuggestedSource
+
+from .models import (
+    DOMAIN_TAXONOMY,
+    LANGUAGE_OPTIONS,
+    TONE_OPTIONS,
+    USER_TYPE_OPTIONS,
+    ServiceInference,
+    SuggestedSource,
+)
 
 _SYSTEM_PROMPT = """\
 You are an expert software analyst specializing in AI/LLM services.

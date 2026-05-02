@@ -2,8 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { enqueueAnalyze, enqueueInfer, enqueueHarvest } from "@/lib/db/jobs";
-import { getHarvestSources } from "@/lib/db/queries";
+import { enqueueAnalyze, enqueueGenerate, enqueueHarvest, enqueueInfer } from "@/lib/db/jobs";
+import { getHarvestSources, getInference } from "@/lib/db/queries";
 
 export async function rerunAnalyze(repoId: string, repoUrl: string, branch: string) {
   const session = await auth();
@@ -42,21 +42,9 @@ export async function rerunGenerate(inferenceId: string) {
   if (!session?.user) redirect("/login");
   const uid = String((session.user as Record<string, unknown>).id ?? "");
 
-  const { db } = await import("@/lib/db/client");
-  const { sql } = await import("drizzle-orm");
-  const generationId = crypto.randomUUID();
-  await db.execute(
-    sql`INSERT INTO generations (id, inference_id, status) VALUES (${generationId}::uuid, ${inferenceId}::uuid, 'pending')`
-  );
-  await db.execute(
-    sql`INSERT INTO verum_jobs (kind, payload, owner_user_id, status)
-        VALUES ('generate', ${JSON.stringify({ inference_id: inferenceId, generation_id: generationId })}::jsonb, ${uid}::uuid, 'queued')`
-  );
+  await enqueueGenerate({ userId: uid, inferenceId });
 
-  const rows = await db.execute(
-    sql`SELECT repo_id::text FROM inferences WHERE id = ${inferenceId}::uuid`
-  );
-  const repoId = (rows.rows[0] as Record<string, string>)?.repo_id;
-  if (!repoId) redirect("/repos");
-  redirect(`/repos/${repoId}`);
+  const inference = await getInference(uid, inferenceId);
+  if (!inference?.repo_id) redirect("/repos");
+  redirect(`/repos/${inference.repo_id}`);
 }

@@ -52,7 +52,7 @@ async def run_analysis(
 
     async with cloned_repo(repo_url, analysis_id, branch=branch) as repo_path:
         # Run CPU-bound parsing in a thread pool to avoid blocking the event loop
-        result = await asyncio.get_event_loop().run_in_executor(
+        result = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: _analyze_sync(repo_path, rid),
         )

@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import pydantic
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,7 @@ from src.worker.payloads import (
     JudgePayload,
     RetrievePayload,
 )
+
 from .handlers.analyze import handle_analyze
 from .handlers.deploy import handle_deploy
 from .handlers.evolve import handle_evolve
@@ -175,11 +177,11 @@ async def _heartbeat_loop() -> None:
             async with AsyncSessionLocal() as db:
                 await _update_heartbeat(db)
             _heartbeat_failures = 0
-        except Exception as exc:
+        except Exception:
             _heartbeat_failures += 1
-            logger.warning(
-                "Heartbeat update failed (%d/%d): %s",
-                _heartbeat_failures, MAX_HEARTBEAT_FAILURES, exc,
+            logger.exception(
+                "Heartbeat update failed (%d/%d)",
+                _heartbeat_failures, MAX_HEARTBEAT_FAILURES,
             )
             if _heartbeat_failures >= MAX_HEARTBEAT_FAILURES:
                 logger.critical(
@@ -201,8 +203,8 @@ async def _stale_reset_loop() -> None:
         try:
             async with AsyncSessionLocal() as db:
                 await _reset_stale(db)
-        except Exception as exc:
-            logger.warning("Periodic stale reset failed: %s", exc)
+        except Exception:
+            logger.exception("Periodic stale reset failed")
 
 
 async def _experiment_loop() -> None:
@@ -324,7 +326,7 @@ async def _dispatch_job(job: dict[str, Any]) -> None:
     if schema is not None:
         try:
             schema(**payload)
-        except Exception as exc:
+        except pydantic.ValidationError as exc:
             async with AsyncSessionLocal() as db:
                 await _mark_failed(db, job_id, f"invalid payload for {kind}: {exc}", attempts)
             logger.error("Invalid payload for job %s kind=%s: %s", job_id, kind, exc)
