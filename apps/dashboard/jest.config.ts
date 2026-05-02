@@ -42,6 +42,8 @@ const config: Config = {
     "!src/app/api/v1/infer/[id]/route.ts",
     "!src/app/api/v1/generate/[id]/route.ts",
     "!src/app/api/v1/deploy/[id]/route.ts",
+    // MCP server route — thin wrapper over MCP SDK server initialization
+    "!src/app/api/mcp/route.ts",
     // Repo connection routes — thin Next.js wrappers over DB helpers (mirrors sonar exclusion)
     "!src/app/api/repos/**",
     // TypeScript type definitions — no executable logic (mirrors sonar exclusion)
