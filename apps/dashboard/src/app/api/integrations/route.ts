@@ -15,6 +15,7 @@ const CreateSchema = z.object({
   service_name: z.string().min(1),
   repo_id: z.string().uuid().optional(),
   inject_node_options: z.boolean().optional().default(false),
+  verum_api_key: z.string().min(40).optional(),
 });
 
 export async function GET(req: Request): Promise<Response> {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     service_name,
     repo_id,
     inject_node_options,
+    verum_api_key,
   } = parsed.data;
 
   // If repo_id provided, verify ownership
@@ -96,8 +98,12 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // Build injected vars
   const injectedVars: Record<string, string> = {
-    OTEL_EXPORTER_OTLP_ENDPOINT: `${verumBase}/api/v1/otlp/v1/traces`,
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${verumBase}/api/v1/otlp/v1/traces`,
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
   };
+  if (verum_api_key) {
+    injectedVars["OTEL_EXPORTER_OTLP_HEADERS"] = `Authorization=Bearer ${verum_api_key}`;
+  }
   if (inject_node_options) {
     injectedVars["NODE_OPTIONS"] =
       "--require @opentelemetry/auto-instrumentations-node/register";
