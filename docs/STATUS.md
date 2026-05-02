@@ -548,4 +548,4 @@ SonarCloud는 직전 push 이후 **추가·수정된 라인만** 신규 코드�
 
 ---
 
-_Last updated: 2026-05-02 (multi-agent audit: migration 0001-0005 설명 수정, ARCHITECTURE.md 스키마 정정, ROADMAP.md F-4.12/4.13/4.14 추가, INDEX.md MCP/Railway/ActivationCard 추가, webhook/MCP 엔드포인트 및 0026 마이그레이션 복원) | Maintained by: Claude at end of each implementation session_
+_Last updated: 2026-05-02 (PR #115: zip(strict=True)/SQL parameterization/getAuthUserId auth pattern/logger.exception fixes; PR #116: OTLP env var rename OTEL_EXPORTER_OTLP_TRACES_ENDPOINT + PROTOCOL always injected + optional HEADERS via verum_api_key; Dashboard Jest suite count updated 39→49) | Maintained by: Claude at end of each implementation session_
