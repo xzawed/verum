@@ -10,6 +10,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { rerunAnalyze, rerunInfer, rerunHarvest, rerunGenerate } from "./actions";
 import ObserveSection from "./ObserveSection";
 import ExperimentSection from "./ExperimentSection";
+import IntegrationSection from "./IntegrationSection";
 
 interface Props {
   initial: RepoStatus;
@@ -406,6 +407,8 @@ export default function StagesView({ initial, repoId, workerAlive: _workerAlive 
           latestDeploymentExperimentStatus !== "idle" && (
             <ExperimentSection deploymentId={latestDeploymentId} />
           )}
+
+        <IntegrationSection repoId={repoId} deploymentId={latestDeploymentId ?? null} />
       </div>
     </div>
   );
