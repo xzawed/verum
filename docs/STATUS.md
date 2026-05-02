@@ -68,6 +68,7 @@ last-updated: 2026-05-01
 | `0023_otlp_trace_attrs` | `spans.span_attributes JSONB` — OTLP Phase 0 메타데이터 저장 |
 | `0024_sdk_pr_mode` | `sdk_pr_requests.mode VARCHAR(32) DEFAULT 'observe'` + 복합 인덱스. Phase 0/1 PR 상태 분리 추적 |
 | `0025_integrations` | `integrations` — Railway service 연결 추적. `platform_token_encrypted` AES-256-GCM 암호화. `injected_vars JSONB` |
+| `0026_webhook_subscriptions` | `webhook_subscriptions` — HMAC-SHA256 서명 웹훅 구독. `events JSONB` (`@>` containment 지원), `signing_secret TEXT` |
 
 > **참고:** migration 0012는 존재하지 않음 (순서 정리 과정에서 스킵됨).
 
@@ -96,6 +97,7 @@ last-updated: 2026-05-01
 | `judge_prompts` | Judge 프롬프트 + 응답 전문 (감사용) | [6] |
 | `experiments` | A/B 실험 행 (pairwise Bayesian, 4라운드) | [7] |
 | `sdk_pr_requests` | SDK PR 자동 생성 요청 (`mode`: `observe`/`bidirectional`, `status`, `pr_url`, `pr_number`) | [5] |
+| `webhook_subscriptions` | 웹훅 구독 (`url`, `events JSONB`, `signing_secret`, `is_active`, user/deployment FK) | [8] |
 
 ---
 
@@ -111,6 +113,7 @@ last-updated: 2026-05-01
 | `deploy` | `handle_deploy` | `apps/api/src/worker/handlers/deploy.py` |
 | `judge` | `handle_judge` | `apps/api/src/worker/handlers/judge.py` |
 | `evolve` | `handle_evolve` | `apps/api/src/worker/handlers/evolve.py` |
+| `webhook` | `handle_webhook` | `apps/api/src/worker/handlers/webhook.py` |
 
 - Job 등록: `apps/api/src/worker/runner.py` — `_HANDLERS` dict에 모두 등록됨.
 - Payload 스키마 검증: `_PAYLOAD_SCHEMAS` dict → `src/worker/payloads.py` Pydantic 모델로 dispatch 전 검증.
@@ -166,6 +169,10 @@ last-updated: 2026-05-01
 | POST | `/api/integrations` | Railway service 연결 — OTLP env vars 주입 후 `integrations` 행 생성. `railway_token` AES-256-GCM 암호화 저장 |
 | POST | `/api/integrations/[id]/disconnect` | Railway service 연결 해제 — env vars 삭제 (best-effort) + `status = "disconnected"` |
 | GET | `/api/integrations/railway/services` | Railway API token으로 사용 가능한 서비스 목록 조회 (`?token=`) |
+| GET | `/api/v1/webhooks` | 사용자 웹훅 구독 목록 (`?deployment_id=` 필터 선택적) |
+| POST | `/api/v1/webhooks` | 웹훅 구독 생성 — HTTPS URL 필수, 이벤트 검증, signing_secret 1회 반환 |
+| DELETE | `/api/v1/webhooks/[id]` | 웹훅 구독 삭제 (소유권 검증, 204) |
+| POST | `/api/mcp` | MCP (Model Context Protocol) endpoint — Streamable HTTP transport. API key 인증. 4개 도구: `get_experiments`, `get_traces`, `get_metrics`, `approve_variant` |
 
 ### SDK-facing / Opt-in Proxy (X-Verum-API-Key 헤더)
 
