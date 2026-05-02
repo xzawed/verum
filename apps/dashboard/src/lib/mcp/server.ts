@@ -6,11 +6,10 @@ import {
 
 export interface McpServerContext {
   deploymentId: string;
-  userId: string;
   getExperiments: (deploymentId: string) => Promise<unknown[]>;
   getTraces: (deploymentId: string, limit?: number) => Promise<unknown[]>;
   getMetrics: (deploymentId: string) => Promise<Record<string, unknown>>;
-  approveVariant: (deploymentId: string, variant: string) => Promise<{ new_baseline: string }>;
+  approveVariant: (deploymentId: string, variant: string) => Promise<Record<string, unknown>>;
 }
 
 const TOOLS = [

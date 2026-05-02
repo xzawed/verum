@@ -1,12 +1,10 @@
 import { createMcpServer } from "../server";
 
 const FAKE_DEPLOYMENT_ID = "dep-00000000-0000-0000-0000-000000000001";
-const FAKE_USER_ID = "usr-00000000-0000-0000-0000-000000000001";
 
 function makeContext(overrides: Partial<Parameters<typeof createMcpServer>[0]> = {}) {
   return {
     deploymentId: FAKE_DEPLOYMENT_ID,
-    userId: FAKE_USER_ID,
     getExperiments: jest.fn().mockResolvedValue([
       { id: "exp-1", status: "running", baseline_variant: "v1", challenger_variant: "v2" },
     ]),
