@@ -66,6 +66,42 @@ describe("listRailwayServices", () => {
       "Railway GraphQL error: Unauthorized",
     );
   });
+
+  it("throws when projects.edges is missing from response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: {} }),
+    });
+    await expect(listRailwayServices(TOKEN)).rejects.toThrow(
+      "Unexpected Railway API response: missing projects.edges",
+    );
+  });
+
+  it("sets environmentId to null when no environments exist", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          projects: {
+            edges: [
+              {
+                node: {
+                  id: "proj1",
+                  name: "MyProject",
+                  environments: { edges: [] },
+                  services: {
+                    edges: [{ node: { id: "svc1", name: "Worker" } }],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const result = await listRailwayServices(TOKEN);
+    expect(result[0].environmentId).toBeNull();
+  });
 });
 
 describe("upsertRailwayVariables", () => {
