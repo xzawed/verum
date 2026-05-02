@@ -932,4 +932,38 @@ Remove GitHub PR creation from the activation flow entirely. Replace with a sync
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-02 (docs audit: deployments/traces/spans/experiments 테이블 스키마를 실제 Alembic 마이그레이션·Drizzle schema.ts 기준으로 정정; MCP·csp-report·repos/analyze 엔드포인트 추가)_
+---
+
+### ADR-020: Signal-Specific OTLP Env Var for Railway Integration
+
+**Status:** Accepted | **Date:** 2026-05-02
+
+**Context:**
+
+The Railway integration endpoint (`POST /api/integrations`) injects OpenTelemetry environment variables into the connected service via the Railway API. The initial implementation used the generic base-URL variable `OTEL_EXPORTER_OTLP_ENDPOINT`. This caused 404 errors because most OTLP SDKs automatically append `/v1/traces` to the base URL when the generic variable is used, resulting in a request to `/api/v1/otlp/v1/traces/v1/traces` (double path suffix).
+
+**Decision:**
+
+The Railway integration injects the following variables:
+
+| Variable | Value injected | Reason |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `<verumBase>/api/v1/otlp/v1/traces` | Signal-specific variable — SDK uses the URL verbatim without appending `/v1/traces` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/json` | Verum's OTLP route parses the body with `req.json()`. Binary protobuf (`grpc` / `http/protobuf`) would fail deserialization. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Bearer <api_key>` | Only injected when the user supplies a `verum_api_key`. Matches the `Authorization: Bearer` header that `POST /api/v1/otlp/v1/traces` requires for API key auth. |
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` (the generic base-URL variable) is NOT injected.
+
+**Why:**
+
+- **Signal-specific (`*_TRACES_ENDPOINT`) vs. generic (`OTEL_EXPORTER_OTLP_ENDPOINT`)**: The OpenTelemetry specification defines that signal-specific variables take precedence over the generic one. When the signal-specific variable is set, the SDK sends requests to the exact URL without modification. The generic variable acts as a base URL and SDKs append the signal path (`/v1/traces`) automatically — causing a double-suffix on Verum's pre-suffixed route path.
+- **`http/json` protocol**: Verum's OTLP receiver route uses `req.json()` for parsing. Only `http/json` produces a JSON body compatible with this handler. `grpc` and `http/protobuf` produce binary frames that `req.json()` cannot parse.
+- **`OTEL_EXPORTER_OTLP_HEADERS` format**: The `key=value` format (no `:`; `=` separator) is the OpenTelemetry standard for header env var values. Multiple headers are comma-separated.
+
+**Trade-off accepted:** Users who configure OTLP outside the Railway integration flow (e.g., manually in other platforms) must use the signal-specific variable `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and set `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`. The generic `OTEL_EXPORTER_OTLP_ENDPOINT` cannot be used with Verum's endpoint without the protocol override.
+
+**Revisit trigger:** If Verum adds a protobuf/gRPC OTLP receiver in a future phase, `http/protobuf` and `grpc` may be supported alongside `http/json`, and the protocol constraint can be relaxed.
+
+---
+
+_Maintainer: xzawed | Last updated: 2026-05-02 (ADR-020 추가 — Railway 통합 OTLP 환경변수 signal-specific 선택 이유; docs audit: deployments/traces/spans/experiments 테이블 스키마를 실제 Alembic 마이그레이션·Drizzle schema.ts 기준으로 정정; MCP·csp-report·repos/analyze 엔드포인트 추가)_
