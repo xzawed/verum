@@ -109,6 +109,9 @@ Each topic has exactly one canonical owner. All other files must link, never res
 | API contracts | ARCHITECTURE.md §5 |
 | SDK surface | ARCHITECTURE.md §6 |
 | SDK auto-patch / zero-code-change integration (Phase 1.5) | packages/sdk-python/ + packages/sdk-typescript/ (implementation); ARCHITECTURE.md §7 ADR-018 (decision rationale) |
+| MCP (Model Context Protocol) endpoint | ARCHITECTURE.md §5 (API Surface — MCP section) |
+| Railway platform integration | ARCHITECTURE.md §5 (API Surface — Misc section); STATUS.md (integrations table) |
+| ActivationCard + one-click activation | ARCHITECTURE.md §7 ADR-019 |
 | Full ADR text | ARCHITECTURE.md §7 |
 | ADR index + product-scope decisions | DECISIONS.md |
 | Phase timing + completion gates + F-IDs | ROADMAP.md |
@@ -129,4 +132,4 @@ Each topic has exactly one canonical owner. All other files must link, never res
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-01_
+_Maintainer: xzawed | Last updated: 2026-05-02 (Anti-duplication 표에 MCP·Railway·ActivationCard 항목 추가)_
