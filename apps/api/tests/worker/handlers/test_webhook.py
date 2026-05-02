@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
@@ -91,6 +90,7 @@ async def test_propagates_http_error(
     mock_db: AsyncMock, subscription_row: dict
 ) -> None:
     import httpx
+
     from src.worker.handlers.webhook import handle_webhook
 
     result_mock = MagicMock()
