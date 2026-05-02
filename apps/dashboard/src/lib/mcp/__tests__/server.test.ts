@@ -148,6 +148,21 @@ describe("call_tool: approve_variant", () => {
     expect(ctx.approveVariant).not.toHaveBeenCalled();
   });
 
+  it("returns error when variant is an empty string", async () => {
+    const ctx = makeContext();
+    const server = createMcpServer(ctx);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+
+    const client = new Client({ name: "test-client", version: "0.0.1" }, { capabilities: {} });
+    await client.connect(clientTransport);
+
+    const result = await client.callTool({ name: "approve_variant", arguments: { variant: "" } });
+
+    expect(result.isError).toBe(true);
+    expect(ctx.approveVariant).not.toHaveBeenCalled();
+  });
+
   it("returns error for unknown tool", async () => {
     const ctx = makeContext();
     const server = createMcpServer(ctx);
