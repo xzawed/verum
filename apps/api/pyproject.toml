@@ -43,7 +43,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
     "ruff>=0.4",
-    "pylint>=3",
+    "pylint>=4.0.5",
     "bandit>=1.7",
     "mypy>=1.20.2",
 ]
