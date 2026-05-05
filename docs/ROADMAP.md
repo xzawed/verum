@@ -2,7 +2,7 @@
 type: roadmap
 authority: tier-2
 canonical-for: [phase-timing, completion-gates, deliverable-ids]
-last-updated: 2026-05-02
+last-updated: 2026-05-05
 status: active
 ---
 
@@ -242,4 +242,4 @@ When choosing between tasks within a phase, apply this order:
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-02 (F-4.12 설명 수정 — OTLP 환경변수 3종 명시 PR #116 반영)_
+_Maintainer: xzawed | Last updated: 2026-05-05 (dependency bumps PR #118–#131 반영 — Zod v4 마이그레이션은 테스트 픽스처만 수정, 로드맵 deliverable 변경 없음)_
