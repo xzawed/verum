@@ -36,7 +36,7 @@ test.describe("404 — unknown public routes", () => {
 });
 
 test.describe("404 — authenticated access to unknown resources", () => {
-  const FAKE_UUID = "00000000-0000-0000-0000-000000000002";
+  const FAKE_UUID = "00000000-0000-4000-8000-000000000002";
 
   test("authenticated user gets 404 for unknown repo ID", async ({ page }) => {
     await loginAsTestUser(page);
@@ -68,7 +68,7 @@ test.describe("404 — authenticated access to unknown resources", () => {
 });
 
 test.describe("Protected routes — unauthenticated 404 vs redirect behaviour", () => {
-  const FAKE_UUID = "00000000-0000-0000-0000-000000000003";
+  const FAKE_UUID = "00000000-0000-4000-8000-000000000003";
 
   // Next.js auth middleware redirects to /login before reaching the page handler,
   // so unauthenticated users see /login, not 404.

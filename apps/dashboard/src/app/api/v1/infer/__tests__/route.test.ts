@@ -37,7 +37,7 @@ describe("POST /api/v1/infer", () => {
   it("returns 401 when not authenticated", async () => {
     mockGetAuthUserId.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-0000-0000-000000000001", repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
+    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-4000-8000-000000000001", repo_id: "aaaaaaaa-0000-4000-8000-000000000002" }));
 
     expect(res.status).toBe(401);
   });
@@ -45,7 +45,7 @@ describe("POST /api/v1/infer", () => {
   it("returns 400 when analysis_id or repo_id is missing", async () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
 
-    const res = await POST(makeRequest({ repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
+    const res = await POST(makeRequest({ repo_id: "aaaaaaaa-0000-4000-8000-000000000002" }));
 
     expect(res.status).toBe(400);
   });
@@ -54,7 +54,7 @@ describe("POST /api/v1/infer", () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
     mockGetAnalysis.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-0000-0000-000000000099", repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
+    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-4000-8000-000000000099", repo_id: "aaaaaaaa-0000-4000-8000-000000000002" }));
 
     expect(res.status).toBe(404);
   });
@@ -64,7 +64,7 @@ describe("POST /api/v1/infer", () => {
     mockGetAnalysis.mockResolvedValue({ id: "a-1", repo_id: "r-1", status: "done" } as any);
     mockEnqueueInfer.mockResolvedValue({ id: "inf-job-1" } as any);
 
-    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-0000-0000-000000000001", repo_id: "aaaaaaaa-0000-0000-0000-000000000002" }));
+    const res = await POST(makeRequest({ analysis_id: "aaaaaaaa-0000-4000-8000-000000000001", repo_id: "aaaaaaaa-0000-4000-8000-000000000002" }));
 
     expect(res.status).toBe(202);
     const json = await res.json();

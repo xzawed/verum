@@ -250,7 +250,7 @@ describe("POST /api/integrations", () => {
         }),
       }),
     });
-    const res = await POST(makePostRequest({ ...VALID_BODY, repo_id: "11111111-1111-1111-1111-111111111111" }));
+    const res = await POST(makePostRequest({ ...VALID_BODY, repo_id: "11111111-1111-4111-8111-111111111111" }));
     expect(res.status).toBe(404);
   });
 });

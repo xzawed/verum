@@ -21,7 +21,7 @@ async function loginAsTestUser(page: Page): Promise<void> {
   }
 }
 
-const FAKE_UUID = "00000000-0000-0000-0000-000000000001";
+const FAKE_UUID = "00000000-0000-4000-8000-000000000001";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
