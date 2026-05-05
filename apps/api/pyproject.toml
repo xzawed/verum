@@ -33,7 +33,7 @@ dependencies = [
     "scipy>=1.17.1,<2.0",
     "numpy>=1.26,<3.0",
     # Email delivery
-    "aiosmtplib>=3.0,<4.0",
+    "aiosmtplib>=5.1.0,<6.0",
 ]
 
 [project.optional-dependencies]
