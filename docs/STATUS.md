@@ -261,6 +261,30 @@ trace_id = await client.record(
 
 ---
 
+## OTLP 통합 환경변수 Quick Reference
+
+Railway Integration 또는 수동 설정 시 복사하여 사용. **형식 오류가 ArcanaInsight 연동 실패의 주요 원인이었음** (3회 연속 실패 기록).
+
+```bash
+# 필수 — 항상 주입
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://<your-verum-host>/api/v1/otlp/v1/traces
+OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+
+# 인증 — verum_api_key 제공 시 주입 (Bearer 토큰 방식)
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer vk_<your-api-key>
+```
+
+> **⚠️ 구분자 주의**: `=` (등호) 사용. HTTP 헤더 형식(`Authorization: Bearer ...`)과 다르다.
+> `Authorization=Bearer vk_...` ← 올바름  
+> `Authorization: Bearer vk_...` ← 잘못됨 (콜론+공백은 OTLP 헤더 포맷 오류)
+
+Node.js 자동 계측을 함께 사용하는 경우:
+```bash
+NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
+```
+
+---
+
 ## 핵심 파일 맵
 
 ### Python Worker

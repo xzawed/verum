@@ -71,6 +71,7 @@ export async function POST(req: Request) {
 
   const traceId = await insertTrace({
     deploymentId,
+    ownerUserId: userId,
     variant: body.variant ?? "baseline",
     model: body.model,
     inputTokens: body.input_tokens,

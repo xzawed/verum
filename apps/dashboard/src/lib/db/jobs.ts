@@ -306,6 +306,8 @@ export async function confirmInference(
 
 export async function insertTrace(opts: {
   deploymentId: string;
+  /** When provided, skips the 5-table JOIN to look up the owner. */
+  ownerUserId?: string;
   variant: string;
   model: string;
   inputTokens: number;
@@ -315,7 +317,7 @@ export async function insertTrace(opts: {
   costUsd: string;
   spanAttributes?: Record<string, unknown>;
 }): Promise<string> {
-  const ownerUserId = await _getDeploymentOwner(opts.deploymentId);
+  const ownerUserId = opts.ownerUserId ?? await _getDeploymentOwner(opts.deploymentId);
 
   return db.transaction(async (tx) => {
     const traceRows = await tx.execute(

@@ -7,19 +7,8 @@
  * Run in isolation:
  *   npx playwright test error-pages
  */
-import { test, expect, type Page } from "@playwright/test";
-
-// ── Auth helper ────────────────────────────────────────────────────────────────
-
-async function loginAsTestUser(page: Page): Promise<void> {
-  const res = await page.request.post("/api/test/login");
-  if (!res.ok()) {
-    throw new Error(
-      `Test login failed (${res.status()}). ` +
-        "Is the server running with NODE_ENV=test?",
-    );
-  }
-}
+import { test, expect } from "@playwright/test";
+import { loginAsTestUser } from "./helpers";
 
 // ── 404 tests ─────────────────────────────────────────────────────────────────
 
