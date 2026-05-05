@@ -62,3 +62,10 @@ playwright-results.xml
 test-results/
 
 .superpowers/
+
+# IDE & tool state
+.sonarlint/
+.playwright-mcp/
+
+# Named coverage reports (CI artifacts)
+apps/dashboard/coverage-sdkpr/
