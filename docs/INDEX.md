@@ -132,4 +132,4 @@ Each topic has exactly one canonical owner. All other files must link, never res
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-02 (Anti-duplication 표에 MCP·Railway·ActivationCard 항목 추가)_
+_Maintainer: xzawed | Last updated: 2026-05-05 (ADR-021 추가 반영 — Zod v4 UUID 검증 결정)_

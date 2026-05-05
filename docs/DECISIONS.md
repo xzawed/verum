@@ -2,7 +2,7 @@
 type: decisions
 authority: tier-2
 canonical-for: [adr-index, product-scope-decisions, superseded-decisions]
-last-updated: 2026-05-01
+last-updated: 2026-05-05
 status: active
 ---
 
@@ -40,6 +40,7 @@ status: active
 | ADR-018 | Zero-code-change SDK auto-patch | Python: `.pth` file in site-packages triggers `verum._auto` at interpreter startup. TypeScript: `NODE_OPTIONS="--require @verum/sdk/auto"`. Both check `VERUM_API_URL`/`VERUM_API_KEY` env vars; respect `VERUM_DISABLED`. | [ARCHITECTURE.md §ADR-018](#adr-018-zero-code-change-sdk-auto-patch-via-pth--node_options) |
 | ADR-019 | ActivationCard v2 — No-PR activation flow | Dashboard activation no longer creates GitHub PRs. `POST /api/repos/[id]/activate` issues a one-time `api_key` (`vk_<64-hex>`; only SHA-256 hash stored). ActivationCard shows env vars once, then polls `trace_count` to confirm live connection. | [ARCHITECTURE.md §ADR-019](#adr-019-activationcard-v2--no-pr-one-click-activation) |
 | ADR-020 | Railway integration OTLP env vars | Injects `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (signal-specific, verbatim URL) + `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`. Generic `OTEL_EXPORTER_OTLP_ENDPOINT` must NOT be used — SDKs append `/v1/traces` automatically, causing double path suffix. | [ARCHITECTURE.md §ADR-020](ARCHITECTURE.md#adr-020-signal-specific-otlp-env-var-for-railway-integration) |
+| ADR-021 | Zod v4 UUID validation — test fixtures must be RFC 4122 compliant | `z.string().uuid()` in Zod v4 enforces strict RFC 4122 format. All test UUID fixtures must use `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx` format (version 4, variant bits `8`/`9`/`a`/`b`). Non-compliant fixtures (e.g. all-zeros `00000000-0000-0000-0000-000000000000`) cause `ZodError` in tests. Production code is unaffected — only test fixtures require updating. | [ARCHITECTURE.md §ADR-021](ARCHITECTURE.md#adr-021-zod-v4-uuid-validation--rfc-4122-compliant-test-fixtures) |
 
 ---
 
@@ -89,4 +90,4 @@ The old spec's metadata convention (`kind`, `version`, `service`, `active`, `tag
 
 ---
 
-_Maintainer: xzawed | Last updated: 2026-05-02 (ADR-020 추가 — Railway 통합 OTLP 환경변수 signal-specific 선택 이유 (PR #116))_
+_Maintainer: xzawed | Last updated: 2026-05-05 (ADR-021 추가 — Zod v4 UUID 엄격 검증 대응, 테스트 픽스처 RFC 4122 준수 결정 (PR #131))_
