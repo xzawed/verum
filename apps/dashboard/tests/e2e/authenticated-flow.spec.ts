@@ -8,26 +8,8 @@
  * Run in isolation:
  *   npx playwright test --grep @authenticated
  */
-import { test, expect, type Page } from "@playwright/test";
-
-// ── Auth helper ──────────────────────────────────────────────────────────────
-
-/**
- * Calls the test-only login endpoint and plants the session cookie.
- * Must be called before any navigation in each test that needs auth.
- */
-async function loginAsTestUser(page: Page): Promise<void> {
-  // Hit the endpoint via the request context so it can set cookies
-  const res = await page.request.post("/api/test/login");
-  if (!res.ok()) {
-    throw new Error(
-      `Test login failed (${res.status()}). ` +
-        "Is the server running with NODE_ENV=test?"
-    );
-  }
-  // The endpoint sets authjs.session-token cookie — the browser context
-  // inherits it automatically for subsequent navigations.
-}
+import { test, expect } from "@playwright/test";
+import { loginAsTestUser } from "./helpers";
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-.PHONY: dev api-dev dashboard-dev test test-api test-dashboard test-cov \
+.PHONY: dev api-dev dashboard-dev test test-api test-dashboard test-e2e e2e-local test-cov \
         lint type-check db-migrate db-revision db-reset \
         sdk-python-build sdk-ts-build sdk-publish-dry \
         deploy-staging deploy-prod \
@@ -67,9 +67,14 @@ test: test-api
 test-api:
 	cd apps/api && pytest tests -v
 
-test-dashboard:
-	# Playwright not set up yet — Phase 0 remainder
-	@echo "TODO: npx playwright test (Playwright setup needed)"
+## E2E (Playwright) — requires running dev server
+test-e2e:
+	cd apps/dashboard && npx playwright test
+
+e2e-local:
+	cd apps/dashboard && VERUM_TEST_MODE=1 npx playwright test --headed
+
+test-dashboard: test-e2e
 
 test-cov:
 	cd apps/api && pytest tests --cov=src --cov-report=term-missing --cov-report=html
