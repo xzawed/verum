@@ -173,10 +173,9 @@ export async function POST(req: Request): Promise<Response> {
       const variant = getStringAttr(attrMap, "x-verum-variant") ?? "baseline";
       const latencyMs = calcLatencyMs(span.startTimeUnixNano, span.endTimeUnixNano);
 
-      // x-verum-deployment is advisory — fall back to the validated deploymentId
-      const spanDeploymentId = getStringAttr(attrMap, "x-verum-deployment");
-      const resolvedDeploymentId = spanDeploymentId ?? deploymentId;
-
+      // Always use the deploymentId bound to the validated API key.
+      // Span attributes may carry x-verum-deployment for observability tooling
+      // but MUST NOT override the auth-verified deployment.
       const statusCode = getStringAttr(attrMap, "status_code");
       const error = statusCode && statusCode !== "OK" ? statusCode.slice(0, 4000) : null;
 
@@ -195,7 +194,8 @@ export async function POST(req: Request): Promise<Response> {
       }
 
       await insertTrace({
-        deploymentId: resolvedDeploymentId,
+        deploymentId,
+        ownerUserId: userId,
         variant,
         model,
         inputTokens,
