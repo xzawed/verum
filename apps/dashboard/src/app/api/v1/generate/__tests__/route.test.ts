@@ -37,7 +37,7 @@ describe("POST /api/v1/generate", () => {
   it("returns 401 when not authenticated", async () => {
     mockGetAuthUserId.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-0000-0000-000000000003" }));
+    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-4000-8000-000000000003" }));
 
     expect(res.status).toBe(401);
   });
@@ -54,7 +54,7 @@ describe("POST /api/v1/generate", () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
     mockGetInference.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-0000-0000-000000000099" }));
+    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-4000-8000-000000000099" }));
 
     expect(res.status).toBe(404);
   });
@@ -64,7 +64,7 @@ describe("POST /api/v1/generate", () => {
     mockGetInference.mockResolvedValue({ id: "inf-1", status: "done" } as any);
     mockEnqueueGenerate.mockResolvedValue({ generationId: "gen-1", jobId: "job-gen-1" });
 
-    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-0000-0000-000000000003" }));
+    const res = await POST(makeRequest({ inference_id: "aaaaaaaa-0000-4000-8000-000000000003" }));
 
     expect(res.status).toBe(202);
     const json = await res.json();
