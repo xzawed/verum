@@ -37,7 +37,7 @@ describe("POST /api/v1/deploy", () => {
   it("returns 401 when not authenticated", async () => {
     mockGetAuthUserId.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-0000-0000-000000000004" }));
+    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-4000-8000-000000000004" }));
 
     expect(res.status).toBe(401);
   });
@@ -54,7 +54,7 @@ describe("POST /api/v1/deploy", () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
     mockGetGeneration.mockResolvedValue(null);
 
-    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-0000-0000-000000000099" }));
+    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-4000-8000-000000000099" }));
 
     expect(res.status).toBe(404);
   });
@@ -63,7 +63,7 @@ describe("POST /api/v1/deploy", () => {
     mockGetAuthUserId.mockResolvedValue("user-1");
     mockGetGeneration.mockResolvedValue({ id: "gen-1", status: "pending" } as any);
 
-    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-0000-0000-000000000004" }));
+    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-4000-8000-000000000004" }));
 
     expect(res.status).toBe(409);
   });
@@ -73,7 +73,7 @@ describe("POST /api/v1/deploy", () => {
     mockGetGeneration.mockResolvedValue({ id: "gen-1", status: "approved" } as any);
     mockEnqueueDeployment.mockResolvedValue("deploy-job-1");
 
-    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-0000-0000-000000000004" }));
+    const res = await POST(makeRequest({ generation_id: "aaaaaaaa-0000-4000-8000-000000000004" }));
 
     expect(res.status).toBe(202);
     const json = await res.json();

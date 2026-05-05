@@ -99,7 +99,7 @@ function makePostReq(body: object, apiKey = "valid-api-key-123") {
 }
 
 const defaultBody = {
-  deployment_id: "00000000-0000-0000-0000-000000000001",
+  deployment_id: "00000000-0000-4000-8000-000000000001",
   variant: "baseline",
   model: "gpt-4",
   input_tokens: 100,
